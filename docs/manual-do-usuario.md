@@ -65,12 +65,13 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 ## 3. Processar um lote
 
 1. Acesse **Novo lote**.
-2. Selecione a empresa analisada.
-3. Envie XMLs individuais ou um ZIP.
-4. Confirme o envio.
-5. Acompanhe os estados `Recebido`, `Validando` e `Processando`.
-6. Ao concluir, veja a quantidade de notas aderentes, divergentes, pendentes e inválidas.
-7. Baixe o XLSX ou abra os detalhes.
+2. Envie uma pasta, XMLs individuais ou um ZIP.
+3. O sistema tenta localizar a empresa pelo CNPJ do XML.
+4. Se o CNPJ não estiver cadastrado, selecione uma empresa existente ou crie uma nova.
+5. Confirme o envio.
+6. Acompanhe os estados `Recebido`, `Validando` e `Processando`.
+7. Ao concluir, veja a quantidade de notas aderentes, divergentes, provisórias, excluídas e inválidas.
+8. Baixe o XLSX ou abra os detalhes.
 
 O usuário não informa alíquota, finalidade ou tratamento durante o envio. O sistema usa os cadastros previamente aprovados.
 
@@ -91,6 +92,26 @@ Um ou mais itens não possuem conclusão segura. O total eventualmente exibido �
 ### Erro
 
 O arquivo não pôde ser interpretado ou houve falha impeditiva. Consulte a mensagem e envie um XML válido.
+
+### Resultado provisório ou diagnóstico
+
+O sistema conseguiu calcular, mas o documento não integra o total definitivo. Exemplos: contingência ainda sem autorização final, cancelamento, rejeição ou operação não realizada. Consulte `incluida_no_total` e o motivo apresentado.
+
+### Cancelada
+
+A nota continua visível e possui memória de cálculo para auditoria, mas seus valores não participam dos totais.
+
+### Pendente de revisão de CC-e
+
+O sistema calculou pelo XML original e não alterou campos com base no texto livre da carta. Um contador deve revisar e decidir se aprova o cálculo original.
+
+### Complementar
+
+O valor da nota complementar é adicional e não substitui a original. Quando ambas estiverem disponíveis, o sistema apresenta o vínculo e o total combinado.
+
+### Devolução
+
+Os valores permanecem positivos na memória, enquanto o efeito de estorno aparece com sinal na consolidação, de acordo com a regra aplicada.
 
 ## 5. Resolver pendências
 
@@ -143,6 +164,8 @@ Use para rastrear versão, vigência e fundamento das regras do relatório.
 
 Use para corrigir arquivos inválidos, formatos não suportados ou duplicidades.
 
+O desenho definitivo da planilha ainda será aprovado. Ela também deverá apresentar situação documental, participação no total, eventos e referências entre documentos.
+
 ## 8. Boas práticas
 
 - Envie XML autorizado, não DANFE/PDF.
@@ -151,8 +174,15 @@ Use para corrigir arquivos inválidos, formatos não suportados ou duplicidades.
 - Confira a empresa selecionada antes do upload.
 - Preserve o XLSX junto da identificação do lote.
 - Mantenha acesso aos XMLs originais conforme a política da organização.
+- Verifique a coluna de participação nos totais antes de usar o resultado.
+- Não trate subtotal provisório ou cálculo diagnóstico como total fiscal definitivo.
+- Arquivos de homologação devem ser processados em lote de teste separado.
 
-## 9. Exportar configurações
+## 9. Retenção dos XMLs
+
+O período padrão de retenção do XML original será de um mês e poderá ser configurado. O aplicativo deverá avisar e registrar a exclusão conforme a política que ainda será detalhada. Resultados e evidências que precisem permanecer para auditoria serão definidos antes da implementação do expurgo.
+
+## 10. Exportar configurações
 
 1. Acesse **Configurações > Exportar dados**.
 2. Selecione empresas e cadastros desejados.
@@ -162,7 +192,7 @@ Use para corrigir arquivos inválidos, formatos não suportados ou duplicidades.
 
 O pacote de configuração não inclui XMLs, resultados ou relatórios.
 
-## 10. Importar configurações
+## 11. Importar configurações
 
 1. Acesse **Configurações > Importar dados**.
 2. Selecione o `.icmspack` recebido.
