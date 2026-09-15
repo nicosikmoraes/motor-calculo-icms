@@ -6,7 +6,7 @@ Este modelo é conceitual e será refinado na implementação SQLite. Cada máqu
 
 ### `Organizacao`
 
-Cliente/tenant proprietário de empresas, regras e execuções.
+Contexto local do escritório proprietário de empresas, regras e execuções. No MVP existe apenas uma organização por instalação; a entidade preserva contexto e possibilidade de evolução, mas não implementa multi-tenancy.
 
 ### `Empresa`
 
@@ -74,8 +74,36 @@ status, totalArquivos, totalNotas, totalPendencias, instalacaoOrigemId
 
 ```text
 id, loteId, chaveAcesso, numero, serie, emissao, emitenteCnpj,
-destinatarioCnpjCpf, ufOrigem, ufDestino, hashXml, status
+destinatarioCnpjCpf, ufOrigem, ufDestino, ambiente, modelo, finalidade,
+hashXml, situacaoDocumento, situacaoCalculo, caraterResultado,
+calculada, incluidaNoTotal, motivoExclusaoOuPendencia
 ```
+
+### `ProtocoloDocumento`
+
+```text
+id, documentoId, tipo, numero, dataHora, ambiente,
+codigoStatus, motivoStatus, chaveInformada, valido, hashXml
+```
+
+### `EventoDocumento`
+
+```text
+id, documentoId opcional, chaveAcesso, tipoEvento, sequencia,
+protocolo, dataHora, codigoStatus, motivoStatus, justificativa,
+chaveDocumentoReferenciado opcional, ambiente, autorizado, hashXml
+```
+
+Eventos sem documento associado permanecem armazenados até a definição da política de eventos órfãos.
+
+### `RelacaoDocumento`
+
+```text
+id, documentoOrigemId, documentoDestinoId opcional,
+chaveDocumentoDestino, tipoRelacao
+```
+
+Tipos iniciais incluem `COMPLEMENTA`, `DEVOLVE` e `SUBSTITUI`.
 
 ### `ItemDocumento`
 
@@ -96,6 +124,15 @@ baseCalculada, aliquotaCalculada, icmsCalculado,
 icmsSTCalculado, difalCalculado, fcpCalculado,
 valoresDeclarados, diferencas, status, memoriaCalculo
 ```
+
+### `DecisaoRevisaoDocumento`
+
+```text
+id, documentoId, tipoRevisao, decisao, justificativa,
+dataHora, instalacaoOrigemId, execucaoGeradaId
+```
+
+Suporta, entre outras, a aprovação auditada de nota com CC-e.
 
 ### `Pendencia`
 
@@ -128,3 +165,5 @@ totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
 - NCM, CEST, CNPJ, chave e códigos fiscais são armazenados como texto normalizado.
 - Identificadores UUID permanecem estáveis entre exportações e importações.
 - A aplicação nunca mescla arquivos SQLite diretamente.
+- Protocolo e evento são deduplicados por identidade fiscal e hash, segundo política ainda pendente.
+- Excluir o XML original no fim da retenção não pode apagar silenciosamente protocolo, eventos, dados normalizados, versões aplicadas ou resultados históricos; os detalhes serão definidos na política de retenção.
