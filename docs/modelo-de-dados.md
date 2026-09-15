@@ -1,6 +1,6 @@
 # Modelo de dados inicial
 
-Este modelo é conceitual e será refinado após a escolha técnica.
+Este modelo é conceitual e será refinado na implementação SQLite. Cada máquina mantém um banco independente.
 
 ## Entidades principais
 
@@ -40,8 +40,9 @@ perfilFiscalId, ncmDeclarado, cestDeclarado, statusValidacao
 
 ```text
 id, organizacaoId, nome, tipoRegra, prioridade, status,
+nível, quantidadeCondicoesEspecificas,
 vigenciaInicial, vigenciaFinal, fundamentoLegal, versao,
-autorId, aprovadorId, criadaEm, aprovadaEm
+instalacaoOrigemId, criadaEm, aprovadaEm
 ```
 
 Condições:
@@ -66,7 +67,7 @@ aliquotaInternaDestino, reducaoBaseST, aliquotaFCP, aliquotaFCPST
 
 ```text
 id, organizacaoId, empresaId, nomeOriginal, recebidoEm,
-status, totalArquivos, totalNotas, totalPendencias, solicitadoPor
+status, totalArquivos, totalNotas, totalPendencias, instalacaoOrigemId
 ```
 
 ### `DocumentoFiscal`
@@ -84,7 +85,7 @@ Contém o snapshot normalizado do XML, inclusive valores comerciais e tributári
 
 ```text
 id, documentoId, execucaoAnteriorId, versaoMotor,
-iniciadaEm, concluidaEm, status, solicitadaPor
+iniciadaEm, concluidaEm, status, instalacaoOrigemId
 ```
 
 ### `ResultadoItem`
@@ -100,14 +101,21 @@ valoresDeclarados, diferencas, status, memoriaCalculo
 
 ```text
 id, loteId, documentoId, itemId, tipo, descricao,
-contexto, status, resolvidaPor, resolvidaEm, resolucao
+contexto, status, resolvidaNaInstalacaoId, resolvidaEm, resolucao
 ```
 
 ### `EventoAuditoria`
 
 ```text
-id, organizacaoId, usuarioId, entidade, entidadeId,
+id, organizacaoId, instalacaoId, entidade, entidadeId,
 acao, dataHora, versaoAnterior, versaoNova, metadados
+```
+
+### `HistoricoImportacao`
+
+```text
+id, pacoteId, versaoFormato, arquivo, hashConteudo, importadoEm,
+totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
 ```
 
 ## Restrições importantes
@@ -118,4 +126,5 @@ acao, dataHora, versaoAnterior, versaoNova, metadados
 - Resultado referencia exatamente a versão utilizada.
 - Valores monetários usam decimal exato, nunca ponto flutuante binário.
 - NCM, CEST, CNPJ, chave e códigos fiscais são armazenados como texto normalizado.
-
+- Identificadores UUID permanecem estáveis entre exportações e importações.
+- A aplicação nunca mescla arquivos SQLite diretamente.

@@ -85,31 +85,40 @@ finalidade
 
 RN-006 — Somente regras aprovadas e vigentes na data da emissão podem ser utilizadas.
 
-RN-007 — A ordem padrão de especificidade é:
+RN-007 — A ordem padrão de níveis é:
 
 1. exceção para produto e empresa;
-2. perfil fiscal, UFs e operação;
-3. NCM, CEST, UFs e operação;
-4. NCM, UFs e operação;
-5. regra geral da operação.
+2. regra específica da empresa;
+3. regra por perfil fiscal;
+4. regra por NCM e CEST;
+5. regra por NCM;
+6. regra geral da operação.
 
-RN-008 — Prioridade explícita resolve regras de diferentes níveis. Duas regras igualmente aplicáveis com a mesma prioridade geram `REGRA_AMBIGUA`.
+RN-008 — Antes da ordenação, são eliminadas regras incompatíveis com data de emissão, UFs, operação/CFOP, regime, destinatário, consumidor final, finalidade, origem, NCM, CEST, perfil ou produto. Um campo vazio em uma condição significa “qualquer valor”.
 
-RN-009 — A regra aplicada deve ser registrada com identificador, versão e fundamento.
+RN-009 — A seleção utiliza, nesta ordem: nível, quantidade de condições específicas e prioridade manual.
 
-RN-010 — Alterar uma regra cria nova versão; não altera cálculos históricos.
+RN-010 — Dentro do mesmo nível, vence a regra que possuir mais condições específicas preenchidas e compatíveis com o contexto.
+
+RN-011 — Persistindo mais de uma candidata, vence a maior prioridade numérica cadastrada pelo contador. A prioridade é excepcional e deve ter justificativa.
+
+RN-012 — Persistindo empate de nível, especificidade e prioridade, o item recebe `REGRA_AMBIGUA` e não é calculado.
+
+RN-013 — A regra aplicada deve ser registrada com identificador, versão, nível, especificidade, prioridade e fundamento.
+
+RN-014 — Alterar uma regra cria nova versão; não altera cálculos históricos.
 
 ## 6. Produtos novos
 
-RN-011 — O sistema tenta reconhecer o produto pela combinação `CNPJ do fornecedor + código do produto do fornecedor`.
+RN-015 — O sistema tenta reconhecer o produto pela combinação `CNPJ do fornecedor + código do produto do fornecedor`.
 
-RN-012 — Sem vínculo, o sistema tenta localizar perfil fiscal por NCM, CEST, origem e categoria.
+RN-016 — Sem vínculo, o sistema tenta localizar perfil fiscal por NCM, CEST, origem e categoria.
 
-RN-013 — Um vínculo automático só é permitido quando houver uma única correspondência aprovada.
+RN-017 — Um vínculo automático só é permitido quando houver uma única correspondência aprovada.
 
-RN-014 — NCM e CEST do XML são declarações do emissor. Divergência com cadastro validado gera pendência ou alerta conforme política da empresa.
+RN-018 — NCM e CEST do XML são declarações do emissor. Divergência com cadastro validado gera pendência ou alerta conforme política da empresa.
 
-RN-015 — Depois da validação do contador, o vínculo deve ser reutilizado em notas futuras.
+RN-019 — Depois da validação do contador, o vínculo deve ser reutilizado em notas futuras.
 
 ## 7. Composição de base e cálculo
 
@@ -128,15 +137,15 @@ baseICMS = baseInicial × (1 - percentualReducao)
 icmsCalculado = baseICMS × aliquotaAplicavel
 ```
 
-RN-016 — O motor deve suportar cálculo por dentro quando a regra exigir.
+RN-020 — O motor deve suportar cálculo por dentro quando a regra exigir.
 
-RN-017 — Valores compartilhados no total da nota devem ser rateados por método configurado e registrado na memória de cálculo.
+RN-021 — Valores compartilhados no total da nota devem ser rateados por método configurado e registrado na memória de cálculo.
 
-RN-018 — Arredondamento é feito por item conforme a regra configurada. A soma por nota utiliza os valores já arredondados dos itens.
+RN-022 — Arredondamento é feito por item conforme a regra configurada. A soma por nota utiliza os valores já arredondados dos itens.
 
-RN-019 — Fórmulas de ST, DIFAL e FCP são módulos separados e aplicados apenas quando a regra correspondente for encontrada.
+RN-023 — Fórmulas de ST, DIFAL e FCP são módulos separados e aplicados apenas quando a regra correspondente for encontrada.
 
-RN-020 — O valor declarado jamais substitui um parâmetro ausente da regra calculada.
+RN-024 — O valor declarado jamais substitui um parâmetro ausente da regra calculada.
 
 ## 8. Comparação
 
@@ -146,11 +155,11 @@ Para cada componente:
 diferenca = valorCalculado - valorDeclarado
 ```
 
-RN-021 — A tolerância monetária deve ser configurável por componente tributário.
+RN-025 — A tolerância monetária deve ser configurável por componente tributário.
 
-RN-022 — Dentro da tolerância, o componente é considerado aderente; fora dela, divergente.
+RN-026 — Dentro da tolerância, o componente é considerado aderente; fora dela, divergente.
 
-RN-023 — A comparação deve conservar base, alíquota, imposto, regra e fórmula utilizados.
+RN-027 — A comparação deve conservar base, alíquota, imposto, regra e fórmula utilizados.
 
 ## 9. Estados
 
@@ -203,10 +212,19 @@ Arquivo, chave quando disponível, etapa, código do erro e mensagem.
 
 ## 11. Auditoria e segurança
 
-- Registrar autor, aprovador e datas de cada regra.
-- Separar permissões de edição e aprovação.
+- Registrar datas, versão e instalação de origem de cada regra.
+- No MVP, todos os usuários podem cadastrar, revisar e publicar regras.
 - Guardar o snapshot/versão das regras aplicadas.
-- Registrar reprocessamentos e quem os solicitou.
+- Registrar reprocessamentos e a instalação que os solicitou.
 - Não sobrescrever resultados históricos silenciosamente.
 - Proteger XML, CNPJ e dados comerciais conforme política de retenção e acesso da organização.
 
+## 12. Regras estruturadas
+
+RN-028 — O MVP utiliza regras estruturadas, compostas por condições e resultados tipados. Não haverá editor livre de código ou fórmulas arbitrárias.
+
+RN-029 — Campos, operadores e valores possíveis serão controlados pela aplicação e validados antes da aprovação da regra.
+
+RN-030 — Fórmulas fiscais serão implementadas e versionadas no motor. A regra escolhe fórmula e parâmetros autorizados, mas não executa código fornecido pelo usuário.
+
+RN-031 — O sistema deve detectar sobreposição potencial no momento do cadastro ou importação e informar quais regras entram em conflito.

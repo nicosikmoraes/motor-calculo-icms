@@ -1,15 +1,17 @@
 # Manual do usuário e do contador
 
-## 1. Perfis
+## 1. Acesso e atividades
 
-### Usuário operacional
+No MVP não existe distinção de permissões: todos os usuários da instalação podem executar todas as operações.
+
+### Atividades operacionais
 
 - envia arquivos XML ou ZIP;
 - acompanha o processamento;
 - consulta resultados e pendências;
 - baixa o XLSX.
 
-### Contador
+### Atividades contábeis
 
 - configura empresas e parâmetros;
 - cria e valida perfis fiscais;
@@ -18,13 +20,13 @@
 - solicita reprocessamento;
 - analisa memória de cálculo.
 
-### Aprovador fiscal
+### Atividades de revisão fiscal
 
 - revisa e publica regras;
 - inativa regras por nova vigência;
 - acompanha alterações e auditoria.
 
-Uma mesma pessoa pode acumular perfis quando a política da organização permitir.
+Esses agrupamentos descrevem atividades, não perfis de acesso. Qualquer usuário pode realizá-las.
 
 ## 2. Preparação inicial pelo contador
 
@@ -150,3 +152,23 @@ Use para corrigir arquivos inválidos, formatos não suportados ou duplicidades.
 - Preserve o XLSX junto da identificação do lote.
 - Mantenha acesso aos XMLs originais conforme a política da organização.
 
+## 9. Exportar configurações
+
+1. Acesse **Configurações > Exportar dados**.
+2. Selecione empresas e cadastros desejados.
+3. Revise as quantidades mostradas.
+4. Escolha o destino do arquivo `.icmspack`.
+5. Compartilhe o pacote apenas com pessoas autorizadas.
+
+O pacote de configuração não inclui XMLs, resultados ou relatórios.
+
+## 10. Importar configurações
+
+1. Acesse **Configurações > Importar dados**.
+2. Selecione o `.icmspack` recebido.
+3. Aguarde a validação de formato, versão e integridade.
+4. Revise registros novos, ignorados, atualizáveis e conflitantes.
+5. Resolva os conflitos apresentados.
+6. Confirme a importação.
+
+Se houver falha, o banco permanece como estava. Importar um pacote não cria sincronização contínua com a máquina de origem.

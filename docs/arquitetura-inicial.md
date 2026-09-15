@@ -1,99 +1,154 @@
 # Arquitetura inicial
 
-## 1. Objetivo arquitetural
+## 1. Objetivo
 
-Suportar cálculo fiscal em lote, determinístico, auditável e independente da interface. Esta é uma arquitetura lógica; linguagens, frameworks, banco e infraestrutura ainda não foram escolhidos.
+Suportar cálculo fiscal em lote, determinístico e auditável em um aplicativo Windows instalado e local-first, sem servidor obrigatório no MVP.
 
-## 2. Componentes
+## 2. Stack aprovada
 
 ```text
-[Interface de upload e cadastros]
-               |
-               v
-        [API da aplicação]
-               |
-       +-------+--------+
-       |                |
-       v                v
-[Ingestão de XML]   [Cadastros fiscais]
-       |                |
-       v                |
-[Normalização]          |
-       |                |
-       +-------+--------+
-               v
-       [Motor de regras]
-               |
-               v
-       [Motor de cálculo]
-               |
-       +-------+--------+
-       |                |
-       v                v
-[Comparação/auditoria] [Pendências]
-       |
-       v
-     [Gerador XLSX]
+Electron
+Vue
+TypeScript
+Vite
+Pinia
+Vue Router
+SQLite por máquina
 ```
 
-## 3. Responsabilidades
+O renderer contém apenas a interface Vue. Acesso a arquivos, banco e recursos do sistema operacional ocorre no processo principal ou em workers, por contratos IPC restritos expostos pelo preload.
 
-### Interface
+## 3. Componentes
 
-- upload de XML/ZIP;
+```text
+[Interface Vue]
+       |
+  [IPC seguro]
+       |
+ +-----+----------------+
+ |                      |
+ v                      v
+[Processo principal] [Worker local]
+ |                      |
+ |               +------+-------+
+ |               |              |
+ v               v              v
+[Arquivos]  [Parser NF-e] [Motor fiscal]
+                              |
+                       +------+------+
+                       |             |
+                       v             v
+                   [SQLite]    [Gerador XLSX]
+```
+
+### Interface Vue
+
+- cadastro e consulta;
+- seleção de XML/ZIP;
 - acompanhamento de lotes;
-- download de XLSX;
-- manutenção e aprovação de cadastros;
-- fila de pendências e reprocessamento;
-- consulta da memória de cálculo.
+- pendências e memória de cálculo;
+- exportação/importação e relatórios.
+
+### Processo principal e preload
+
+- selecionar pastas, arquivos e destinos;
+- expor apenas operações autorizadas ao renderer;
+- manter isolamento de contexto;
+- coordenar workers sem bloquear a interface.
 
 ### Ingestão e normalização
 
 - descompactar com limites de segurança;
 - validar formato e schema suportado;
-- extrair `procNFe`, `infNFe` e protocolo;
 - impedir entidades XML externas;
-- normalizar valores, datas, identificadores e itens;
+- normalizar datas, identificadores, valores e itens;
 - calcular hash e detectar duplicidade;
-- preservar o XML original de acordo com a política de retenção.
+- observar a política de retenção do XML original.
 
 ### Motor de regras
 
-- receber um contexto fiscal por item;
-- filtrar regras aprovadas e vigentes;
-- ordenar por especificidade e prioridade;
-- retornar uma única regra ou uma pendência explicável;
-- registrar as alternativas consideradas.
+- receber um contexto por item;
+- filtrar regras aprovadas, compatíveis e vigentes;
+- aplicar nível, especificidade e prioridade;
+- retornar uma única regra ou pendência explicável;
+- registrar alternativas consideradas.
 
 ### Motor de cálculo
 
-- ser determinístico e sem dependência da interface;
+- ser independente de Vue, Electron e SQLite;
+- usar representação decimal exata;
 - aplicar composição de base, redução, alíquota e arredondamento;
 - executar módulos de ICMS próprio, ST, DIFAL e FCP;
-- produzir memória intermediária de cada fórmula.
-
-### Comparação
-
-- confrontar declarado e calculado;
-- aplicar tolerância configurada;
-- classificar item e nota;
-- impedir conclusão definitiva com itens pendentes.
+- produzir memória intermediária das fórmulas.
 
 ### Gerador XLSX
 
-- gerar células numéricas, datas e moeda corretamente tipadas;
+- gerar células numéricas e datas corretamente tipadas;
 - criar abas de resumo, itens, pendências, regras e erros;
-- manter vínculo rastreável entre linha, item, nota e execução.
+- manter rastreabilidade entre linha, item, nota e execução.
 
-## 4. Processamento assíncrono
+## 4. Organização lógica do código
 
-Lotes podem conter milhares de notas. O upload cria uma execução e o processamento ocorre fora da requisição da interface. A execução deve ser idempotente: repetir a mesma etapa não pode duplicar notas ou resultados.
+```text
+apps/
+  desktop/
+    main/
+    preload/
+    renderer/
 
-Unidade recomendada de paralelização: nota fiscal. Dentro da nota, os itens podem ser processados sequencialmente para simplificar consistência, salvo necessidade comprovada de escala.
+packages/
+  domain/
+  tax-engine/
+  nfe-parser/
+  reporting/
+  contracts/
+  database/
+```
 
-## 5. Versionamento e reprocessamento
+Regras fiscais e cálculos não ficam em componentes Vue. Pinia mantém somente estado da interface.
 
-Cada cálculo deve registrar:
+## 5. Processamento
+
+Lotes podem conter milhares de notas. A importação cria uma execução e o processamento ocorre em worker local, fora do processo da interface. Repetir a mesma etapa não pode duplicar notas ou resultados.
+
+A unidade inicial de paralelização é a nota. A concorrência será limitada para não comprometer memória ou responsividade do computador.
+
+## 6. Persistência local
+
+Cada instalação possui seu próprio SQLite. Não existe sincronização automática entre máquinas. Migrações de schema acompanham as versões do aplicativo.
+
+O SQLite não deve ser colocado em pasta de rede para acesso simultâneo por diferentes computadores.
+
+## 7. Exportação e importação
+
+O compartilhamento dos dados cadastrados ocorre por arquivo `.icmspack`, um pacote ZIP lógico e versionado. O arquivo SQLite bruto não é exportado para intercâmbio.
+
+```text
+manifest.json
+empresas.json
+perfis-fiscais.json
+produtos-fornecedores.json
+regras-fiscais.json
+beneficios.json
+```
+
+O manifesto contém identificador, versão do formato, versão do aplicativo, data, contagens e hash do conteúdo. XMLs, resultados, XLSX, logs, caminhos locais e credenciais não integram o pacote de configuração.
+
+A importação valida estrutura, hash e compatibilidade; apresenta resumo, novidades e conflitos; e aplica as alterações em uma única transação. Em caso de erro, nenhuma alteração permanece.
+
+```text
+registro novo                  -> importar
+mesmo ID e mesmo conteúdo      -> ignorar
+mesmo ID e conteúdo diferente  -> mostrar conflito
+versão importada mais recente  -> sugerir atualização
+versão local mais recente      -> manter local por padrão
+```
+
+Esse mecanismo é transferência manual, não sincronização em tempo real.
+
+## 8. Versionamento e reprocessamento
+
+Cada cálculo registra:
 
 ```text
 versaoMotor
@@ -105,53 +160,38 @@ parametrosDeArredondamento
 resultado
 ```
 
-O reprocessamento cria uma nova execução vinculada à anterior. Resultados antigos permanecem consultáveis.
+O reprocessamento cria nova execução vinculada à anterior. Resultados históricos não são sobrescritos silenciosamente.
 
-## 6. Segurança mínima
+## 9. Segurança mínima
 
-- autenticação e autorização por perfil;
-- contador pode editar; aprovador fiscal publica regras;
-- usuário operacional pode enviar e consultar seus lotes;
-- criptografia em trânsito e em repouso conforme ambiente;
-- varredura e limites de tamanho/quantidade para ZIP;
-- prevenção contra Zip Slip, XML External Entity e arquivos excessivamente expansivos;
-- trilha de auditoria imutável para regras e cálculos;
-- isolamento dos dados por organização.
+- proteção do banco e arquivos conforme o usuário do sistema operacional;
+- renderer isolado, sem acesso Node direto;
+- validação de mensagens IPC;
+- validação rigorosa de todo pacote importado;
+- prevenção contra Zip Slip, XML External Entity e ZIP expansivo;
+- trilha de auditoria para regras, cálculos e importações;
+- backup e restauração explícitos do banco local.
 
-## 7. Observabilidade
+No MVP não existe distinção de permissões dentro do aplicativo: todo usuário da instalação pode executar todas as operações.
 
-Métricas mínimas:
+## 10. Observabilidade local
 
 - notas e itens processados;
-- tempo por lote e por nota;
-- taxa de aderência e divergência;
+- tempo por lote e nota;
+- aderências e divergências;
 - regras não encontradas ou ambíguas;
 - produtos não classificados;
 - erros por versão de XML;
-- regras mais utilizadas.
+- relatório de cada importação.
 
-Logs técnicos não devem expor XML completo nem dados comerciais desnecessários.
+Logs não devem expor XML integral nem dados comerciais sem necessidade.
 
-## 8. Integrações futuras
+## 11. Decisões ainda abertas
 
-- consulta a provedores de conteúdo tributário;
-- atualização assistida de tabelas fiscais;
-- integração com ERP e armazenamento documental;
-- APIs de processamento unitário e em lote;
-- notificações de conclusão;
-- exportações adicionais.
-
-Integrações externas não devem alterar regras aprovadas sem revisão, versionamento e evidência da origem.
-
-## 9. Decisões ainda abertas
-
-- stack de frontend, backend e tarefas assíncronas;
-- banco relacional e estratégia de histórico;
-- armazenamento de XML e XLSX;
-- volume máximo por lote e metas de desempenho;
-- escopo inicial de UFs e regimes;
-- origem e processo de atualização do conteúdo fiscal;
-- política de retenção;
-- modelo de implantação e multiempresa;
-- assinatura ou hash verificável dos relatórios.
-
+- tratamento de protocolo, eventos e cancelamento;
+- contrato exato do XLSX;
+- homologação e testes fiscais;
+- empacotamento, assinatura e atualização;
+- retenção e proteção dos XMLs locais;
+- backup e restauração;
+- volume máximo e metas de desempenho.
