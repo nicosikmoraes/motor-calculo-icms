@@ -64,6 +64,8 @@ O renderer contém apenas a interface Vue. Acesso a arquivos, banco e recursos d
 - normalizar datas, identificadores, valores e itens;
 - calcular hash e detectar duplicidade;
 - observar a política de retenção do XML original.
+- processar primeiro o inventário completo do lote e depois relacionar documentos, protocolos e eventos por chave;
+- separar situação documental, situação de cálculo e participação nos totais.
 
 ### Motor de regras
 
@@ -118,6 +120,8 @@ A unidade inicial de paralelização é a nota. A concorrência será limitada p
 Cada instalação possui seu próprio SQLite. Não existe sincronização automática entre máquinas. Migrações de schema acompanham as versões do aplicativo.
 
 O SQLite não deve ser colocado em pasta de rede para acesso simultâneo por diferentes computadores.
+
+O XML original possui retenção padrão de um mês, configurável. A rotina segura de expurgo e o conjunto de evidências preservadas ainda serão definidos.
 
 ## 7. Exportação e importação
 
@@ -188,10 +192,4 @@ Logs não devem expor XML integral nem dados comerciais sem necessidade.
 
 ## 11. Decisões ainda abertas
 
-- tratamento de protocolo, eventos e cancelamento;
-- contrato exato do XLSX;
-- homologação e testes fiscais;
-- empacotamento, assinatura e atualização;
-- retenção e proteção dos XMLs locais;
-- backup e restauração;
-- volume máximo e metas de desempenho.
+A lista priorizada está em [Decisões pendentes](decisoes-pendentes.md). Ela inclui a conclusão da política de ingestão, o contrato fiscal detalhado, o XLSX, persistência física, retenção, backup, desempenho, homologação, instalação e bibliotecas.
