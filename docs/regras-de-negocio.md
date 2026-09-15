@@ -182,13 +182,21 @@ RN-027 — A comparação deve conservar base, alíquota, imposto, regra e fórm
 - `ERRO`: documento inválido ou falha impeditiva;
 - `DUPLICADA`: chave já presente no mesmo lote ou segundo política configurada.
 
+Estados documentais e de eventos coexistem com o estado do cálculo. Entre eles estão `NAO_VERIFICADA`, `CANCELADA`, `PENDENTE_REVISAO_CCE`, `REJEITADA`, `USO_DENEGADO`, `CONTINGENCIA_PENDENTE`, `OPERACAO_CONFIRMADA`, `OPERACAO_NAO_REALIZADA` e `OPERACAO_DESCONHECIDA`.
+
+RN-032 — O sistema deve armazenar separadamente situação documental, situação do cálculo, caráter do resultado e participação nos totais.
+
+RN-033 — Um documento pode possuir cálculo diagnóstico mesmo com `incluidaNoTotal=NAO`.
+
+RN-034 — A situação completa de protocolos, cancelamentos, finalidades especiais, manifestações e contingência segue [Ciclo de vida do documento fiscal](ciclo-de-vida-documento-fiscal.md).
+
 ### Lote
 
 - `RECEBIDO`, `VALIDANDO`, `PROCESSANDO`, `CONCLUIDO`, `CONCLUIDO_COM_PENDENCIAS` ou `FALHOU`.
 
 ## 10. Planilha de saída
 
-O XLSX deve conter:
+Como desenho inicial, o XLSX deve conter as seguintes áreas de informação. A divisão e os nomes definitivos das abas ainda serão aprovados:
 
 ### `Resumo_Notas`
 
@@ -209,6 +217,8 @@ Identificador, versão, nome, vigência e fundamento das regras utilizadas.
 ### `Erros_XML`
 
 Arquivo, chave quando disponível, etapa, código do erro e mensagem.
+
+O contrato definitivo ainda será aprovado. A versão final deverá distinguir valores definitivos, provisórios, diagnósticos e excluídos e deverá comportar os eventos fiscais documentados.
 
 ## 11. Auditoria e segurança
 
