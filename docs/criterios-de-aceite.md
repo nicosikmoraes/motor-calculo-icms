@@ -14,6 +14,10 @@
 - Duplicidade é identificada pela chave/hash segundo a política definida.
 - Cada item recebe uma regra única ou uma pendência explícita.
 - A mesma entrada e as mesmas versões produzem o mesmo resultado.
+- Arquivos são relacionados por chave, independentemente da ordem na pasta.
+- Produção e homologação não são misturadas no mesmo lote.
+- Protocolo inconsistente gera erro explícito.
+- Cancelamento e demais eventos são associados à nota quando ambos estiverem disponíveis.
 
 ## Cálculo e auditoria
 
@@ -22,18 +26,28 @@
 - Valor declarado não é usado para completar regra ausente.
 - Nota com item pendente não recebe total definitivo.
 - Reprocessamento preserva execução anterior.
+- Documento excluído do total pode manter cálculo diagnóstico e memória completa.
+- Cancelada, rejeitada e denegada nunca compõem o total definitivo.
+- Complementar adiciona somente os próprios valores e não substitui a original.
+- Devolução registra separadamente valor calculado e efeito com sinal.
+- CC-e não modifica automaticamente os campos do XML.
+- Contingência sem autorização final aparece somente em subtotal provisório.
 
 ## Saída
 
-- XLSX contém as cinco abas especificadas.
+- XLSX contém, no mínimo, as informações de resumo, itens, pendências, regras e erros; abas e nomes definitivos ainda serão aprovados.
 - Moedas são células numéricas e datas são datas.
 - Totais do resumo reconciliam com os itens concluídos.
 - Componentes ICMS próprio, ST, DIFAL e FCP permanecem separados.
 - Pendências e erros contêm orientação acionável.
+- Cada nota informa se foi calculada e se foi incluída no total.
+- Totais definitivos não contêm documentos cancelados ou sem autorização válida.
+- Documentos excluídos continuam visíveis com motivo, status e valores diagnósticos disponíveis.
+- O relatório distingue `DEFINITIVO`, `PROVISORIO` e `DIAGNOSTICO`.
 
 ## Segurança
 
-- Acesso é isolado por organização.
+- Dados ficam isolados na instalação local do escritório e sob as permissões do usuário do Windows.
 - Operações de cadastro, aprovação e reprocessamento são auditadas.
 - Upload é protegido contra XML externo, caminhos maliciosos e ZIP expansivo.
 - Logs não armazenam XML integral sem necessidade.
@@ -52,4 +66,3 @@
 10. regras ambíguas;
 11. regra com mudança de vigência;
 12. divergência entre perfil validado e XML.
-
