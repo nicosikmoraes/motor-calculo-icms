@@ -25,7 +25,9 @@ Permitir que um contador mantenha previamente empresas, perfis fiscais e regras 
 
 ## Estado do projeto
 
-O projeto está em fase de definição. Já foram aprovados o aplicativo desktop com Electron, Vue e TypeScript, o banco SQLite independente por máquina, o compartilhamento por pacotes de exportação/importação e as regras fiscais estruturadas. As decisões restantes serão discutidas e registradas progressivamente.
+O projeto está em fase de definição. Já foram aprovados o aplicativo desktop com Electron, Vue e TypeScript, o banco SQLite independente por máquina, o compartilhamento por pacotes de exportação/importação, as regras fiscais estruturadas e o tratamento inicial de autorização, cancelamento, finalidades especiais, manifestações e contingência.
+
+A implementação ainda não começou. O backlog de decisões deixa explícitos os contratos fiscais e técnicos que precisam ser aprovados antes do desenvolvimento.
 
 ## Documentação
 
@@ -35,6 +37,8 @@ O projeto está em fase de definição. Já foram aprovados o aplicativo desktop
 - [Manual do usuário e contador](docs/manual-do-usuario.md)
 - [Critérios de aceite](docs/criterios-de-aceite.md)
 - [Decisões técnicas aprovadas](docs/decisoes-tecnicas.md)
+- [Ciclo de vida do documento fiscal](docs/ciclo-de-vida-documento-fiscal.md)
+- [Decisões pendentes](docs/decisoes-pendentes.md)
 
 ## Limites e responsabilidade
 
