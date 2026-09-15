@@ -72,12 +72,74 @@ filtrar compatibilidade e vigência
 
 O sistema registra a explicação da seleção. Prioridade manual é excepcional e deve ser justificada. Nenhum empate final é resolvido silenciosamente.
 
+## DT-007 — Escopo organizacional e permissões do MVP
+
+**Status:** aprovado.
+
+O MVP atende inicialmente a um único escritório e não implementa distinção de permissões dentro do aplicativo. Todos os usuários com acesso à instalação podem executar todas as operações. Arquitetura multi-tenant e controle de papéis ficam fora do MVP.
+
+## DT-008 — Identificação da empresa
+
+**Status:** aprovado.
+
+O sistema tenta identificar a empresa analisada pelos CNPJ presentes no XML. Quando não houver correspondência, solicita ao usuário que selecione uma empresa existente ou cadastre uma nova. O envio do lote não exige preenchimento de parâmetros fiscais por nota.
+
+## DT-009 — Modelos fiscais
+
+**Status:** aprovado.
+
+O escopo contempla NF-e modelo 55 e NFC-e modelo 65, respeitando as diferenças de leiaute, finalidade, eventos e contingência de cada modelo.
+
+## DT-010 — Autorização flexível com rastreabilidade
+
+**Status:** aprovado.
+
+Documento com protocolo consistente e `cStat=100` é autorizado. XML sem protocolo ainda é calculado, mas recebe `NAO_VERIFICADA` e aviso claro. Documentos de homologação são separados de produção e protocolos inconsistentes geram erro.
+
+A participação de `NAO_VERIFICADA` no total definitivo continua pendente de decisão.
+
+## DT-011 — Cancelamentos
+
+**Status:** aprovado.
+
+Cancelamento normal e cancelamento por substituição são calculados para auditoria, permanecem visíveis no XLSX e não compõem os totais definitivos. No cancelamento por substituição, a chave substituta é vinculada à original.
+
+## DT-012 — CC-e
+
+**Status:** provisoriamente aprovado para o MVP.
+
+A última CC-e autorizada é associada à nota, mas seu texto não altera campos automaticamente. A nota é calculada pelo XML original, fica pendente de revisão e fora dos totais até aprovação do contador.
+
+## DT-013 — Documentos sem autorização válida
+
+**Status:** aprovado.
+
+Rejeição e denegação explícitas permitem apenas cálculo diagnóstico quando houver dados suficientes e nunca compõem os totais. Inutilização é registrada como evento, sem cálculo. Conflito entre nota e intervalo inutilizado é impeditivo.
+
+## DT-014 — Finalidades complementar e devolução
+
+**Status:** aprovado.
+
+NF-e complementar calcula e adiciona apenas seus próprios valores, mantendo referência à original. Devolução é calculada com valores positivos na memória e tem efeito sinalizado na consolidação conforme a regra fiscal e a posição da empresa.
+
+## DT-015 — Manifestação do destinatário
+
+**Status:** aprovado.
+
+Confirmação permite processamento normal. Ciência e ausência de manifestação geram avisos não impeditivos. Operação não realizada e desconhecimento excluem a nota quando a empresa é destinatária; quando é emitente, geram pendência de regularização. Todo o histórico é preservado.
+
+## DT-016 — Contingência
+
+**Status:** aprovado.
+
+Autorizações com `cStat=100`, `cStat=150` ou protocolo válido de SVC são definitivas. EPEC sem autorização posterior e NFC-e offline sem protocolo posterior são calculados como `CONTINGENCIA_PENDENTE`, aparecem em subtotal provisório e ficam fora do total definitivo.
+
+## DT-017 — Retenção dos XMLs
+
+**Status:** aprovado em princípio.
+
+O período padrão de retenção local do XML original é de um mês e deve ser configurável. Depois do prazo, o aplicativo executará a exclusão conforme política auditável. Ainda precisam ser definidos limites de configuração, avisos, carência, segurança da exclusão e quais evidências normalizadas permanecem.
+
 ## Fila de decisões
 
-- tratamento de protocolo de autorização, documentos cancelados e eventos;
-- contrato exato do XLSX;
-- homologação e testes fiscais;
-- opções de empacotamento, assinatura e atualização;
-- retenção e proteção de XMLs locais;
-- backup e restauração;
-- escalabilidade e limites de lote.
+A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md). O próximo item recomendado é a política de duplicidade de XMLs.
