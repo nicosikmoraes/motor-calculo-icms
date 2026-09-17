@@ -18,12 +18,18 @@ O cálculo de crédito aproveitável é uma dimensão distinta do imposto devido
 
 O usuário envia uma pasta, vários arquivos XML ou um ZIP. O sistema deve:
 
-- aceitar apenas XML de NF-e suportado;
+- interpretar, validar e calcular NF-e modelo 55 e NFC-e modelo 65 no leiaute 4.00;
+- registrar leiaute anterior identificável como `VERSAO_NAO_SUPORTADA`, sem tratá-lo automaticamente como XML inválido e sem executar cálculo fiscal;
 - identificar a nota pela chave de acesso, não pelo nome do arquivo;
 - detectar arquivos repetidos;
 - validar estrutura, protocolo e situação disponíveis no documento;
 - não interromper o lote quando um arquivo falhar;
 - registrar cada falha com arquivo, etapa e mensagem compreensível.
+
+Incompatibilidade de schema que não impeça a extração segura dos dados necessários
+gera aviso. O MVP não valida assinatura digital e identifica essa condição como
+`ASSINATURA_NAO_VERIFICADA`. Ausência de dados necessários gera a pendência
+`INFORMACOES_FALTANTES`, sem impedir o cálculo dos demais componentes possíveis.
 
 PDF e DANFE não são fonte suficiente para o cálculo e devem ser recusados ou marcados como formato não suportado.
 
@@ -182,6 +188,13 @@ RN-027 — A comparação deve conservar base, alíquota, imposto, regra e fórm
 - `ERRO`: documento inválido ou falha impeditiva;
 - `DUPLICADA`: chave já presente no mesmo lote ou segundo política configurada.
 
+Ocorrências com mesma chave e mesmo hash são calculadas e, a partir da segunda no
+mesmo lote, recebem `REPETIDA`. Ocorrências com a mesma chave e hashes diferentes
+são calculadas separadamente e recebem alerta de conteúdo conflitante. Somente a
+primeira ocorrência idêntica elegível participa dos totais; as repetições mantêm
+cálculo diagnóstico. No conflito de conteúdo, nenhuma ocorrência participa dos
+totais até que o usuário selecione a válida com justificativa auditada.
+
 Estados documentais e de eventos coexistem com o estado do cálculo. Entre eles estão `NAO_VERIFICADA`, `CANCELADA`, `PENDENTE_REVISAO_CCE`, `REJEITADA`, `USO_DENEGADO`, `CONTINGENCIA_PENDENTE`, `OPERACAO_CONFIRMADA`, `OPERACAO_NAO_REALIZADA` e `OPERACAO_DESCONHECIDA`.
 
 RN-032 — O sistema deve armazenar separadamente situação documental, situação do cálculo, caráter do resultado e participação nos totais.
@@ -189,6 +202,10 @@ RN-032 — O sistema deve armazenar separadamente situação documental, situaç
 RN-033 — Um documento pode possuir cálculo diagnóstico mesmo com `incluidaNoTotal=NAO`.
 
 RN-034 — A situação completa de protocolos, cancelamentos, finalidades especiais, manifestações e contingência segue [Ciclo de vida do documento fiscal](ciclo-de-vida-documento-fiscal.md).
+
+RN-035 — O usuário pode complementar somente campos autorizados pela política de
+entrada. O valor informado não altera o XML original, registra sua origem e cria
+nova execução ao reprocessar a nota.
 
 ### Lote
 

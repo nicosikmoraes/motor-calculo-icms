@@ -4,11 +4,12 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 
 ## Prioridade 1 — concluir ingestão e ciclo do documento
 
-1. **Duplicidade:** comportamento para mesma chave e mesmo hash, mesma chave com conteúdo diferente e repetição entre lotes.
-2. **Eventos órfãos:** tratamento de evento importado sem o XML da nota correspondente.
+1. **Duplicidade:** política aprovada na DT-019; falta detalhar a interface de resolução do conflito, sem alterar sua consequência fiscal.
+2. **Eventos órfãos:** serão ignorados pelo cálculo inicial; ao implementar eventos, definir retenção, associação posterior e reprocessamento.
 3. **Conflitos e precedência:** ordem final entre cancelamento, rejeição, denegação, manifestações, CC-e, contingência e pendências fiscais.
-4. **XML inválido ou incompatível:** versões suportadas, validação por schema, assinatura e diferença entre aviso e erro impeditivo.
-5. **XML sem protocolo:** decidir expressamente se `NAO_VERIFICADA` integra o total definitivo ou somente um subtotal provisório.
+4. **Validação do XML 4.00:** pacote inicial `PL_010f_v1.04`, bibliotecas e catálogo inicial de severidades aprovados nas DT-020 e DT-021; falta ampliar campos necessários durante a normalização fiscal. Assinatura não será validada no MVP.
+5. **Versões de protocolos e eventos:** definir por tipo de artefato as versões aceitas no MVP e o tratamento de uma versão não suportada.
+6. **XML sem protocolo:** decidir expressamente se `NAO_VERIFICADA` integra o total definitivo ou somente um subtotal provisório.
 
 ## Prioridade 2 — contrato fiscal do cálculo
 
@@ -61,8 +62,8 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 ## Prioridade 7 — escala e desempenho local
 
-1. Quantidade esperada e limite de XMLs por lote.
-2. Tamanho máximo de XML e ZIP e proteção contra ZIP expansivo.
+1. Quantidade esperada por lote e estratégia para processar volumes grandes sem limite comercial.
+2. Limites técnicos de segurança para XML e ZIP e proteção contra ZIP expansivo.
 3. Metas de tempo em computadores de referência.
 4. Número de workers, uso máximo de memória e responsividade da interface.
 5. Pausa, retomada, cancelamento e recuperação de lote interrompido.
@@ -86,7 +87,7 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 ## Prioridade 10 — bibliotecas e observabilidade
 
-1. Parser XML e estratégia de validação de schemas.
+1. Homologar o parser com massa anonimizada representativa, teste de carga e instalador Windows; a prova de conceito e as versões iniciais já estão registradas.
 2. Biblioteca de decimal exato.
 3. Biblioteca de geração de XLSX.
 4. Empacotamento e distribuição do Electron.

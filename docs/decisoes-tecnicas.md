@@ -140,6 +140,148 @@ Autorizações com `cStat=100`, `cStat=150` ou protocolo válido de SVC são def
 
 O período padrão de retenção local do XML original é de um mês e deve ser configurável. Depois do prazo, o aplicativo executará a exclusão conforme política auditável. Ainda precisam ser definidos limites de configuração, avisos, carência, segurança da exclusão e quais evidências normalizadas permanecem.
 
+## DT-018 — Versões de NF-e e NFC-e suportadas
+
+**Status:** aprovado.
+
+O MVP interpreta, valida e calcula NF-e modelo 55 e NFC-e modelo 65 com
+`versao="4.00"`.
+
+Documentos em leiautes anteriores não são classificados automaticamente como XML
+inválido. Quando for possível identificá-los com segurança, o sistema registra
+arquivo, tipo, chave e versão disponíveis, atribui `VERSAO_NAO_SUPORTADA` e não
+executa o cálculo fiscal.
+
+O suporte ao leiaute 4.00 é versionado pela revisão dos schemas embarcados no
+aplicativo. Uma nova Nota Técnica ou pacote de schemas não passa a ser suportado
+silenciosamente: exige atualização, testes de regressão e registro da revisão
+utilizada no processamento.
+
+Versões de protocolos e eventos, como cancelamento, CC-e e manifestação do
+destinatário, serão definidas separadamente por tipo de artefato. A inclusão de
+leiautes anteriores de NF-e/NFC-e dependerá de demanda comprovada, exemplos
+anonimizados e casos de teste homologados.
+
+## DT-019 — Tolerância de ingestão e ocorrências repetidas
+
+**Status:** aprovado.
+
+### Validação e cálculo parcial
+
+- Incompatibilidades de schema que não impeçam a leitura segura dos dados
+  necessários são registradas como aviso e não bloqueiam o cálculo disponível.
+- O MVP não valida a assinatura digital do XML. Todo documento processado deve
+  informar `ASSINATURA_NAO_VERIFICADA`; isso não significa que a assinatura seja
+  válida ou inválida.
+- O sistema calcula todos os componentes para os quais existam dados suficientes.
+- Quando faltarem dados necessários, a nota recebe a pendência
+  `INFORMACOES_FALTANTES`, fica
+  visível em uma página de pendências e aparece no XLSX com o aviso
+  `Informações faltando`.
+- Conforme RN-003, nota com item pendente não recebe total definitivo.
+- O usuário pode complementar dados permitidos e solicitar novo cálculo. O XML
+  original nunca é alterado; os dados informados, sua origem e o reprocessamento
+  ficam registrados para auditoria.
+- A lista de campos que podem ser complementados manualmente e as validações de
+  cada campo ainda precisa ser aprovada.
+
+### Escopo inicial dos artefatos
+
+A primeira entrega do parser processa documentos NF-e modelo 55 e NFC-e modelo
+65. Protocolos e eventos ficam para incremento posterior, necessário para cumprir
+as decisões de ciclo documental já aprovadas. Um artefato ainda não suportado é
+registrado como ocorrência ignorada pelo cálculo, e não pode alterar o estado ou
+os totais da nota nessa etapa.
+
+### Repetições
+
+- Mesma chave e mesmo hash no mesmo lote: as duas ocorrências são processadas e
+  calculadas; a partir da segunda, recebem o status `REPETIDA`. Somente a primeira
+  ocorrência pode participar dos totais, desde que não possua outra pendência. As
+  demais mantêm cálculo diagnóstico e nunca duplicam o total do lote.
+- Mesma chave com hashes diferentes: cada ocorrência é processada e calculada, e
+  ambas recebem alerta de que representam a mesma nota fiscal com conteúdos
+  diferentes. Nenhuma participa dos totais enquanto o conflito não for resolvido.
+  A resolução seleciona a ocorrência válida, exige justificativa, fica registrada
+  na auditoria e gera nova consolidação.
+- Repetição entre lotes: cada envio cria uma nova ocorrência e uma nova execução
+  de cálculo vinculada ao respectivo lote. O resultado do lote mais recente não
+  sobrescreve o anterior.
+- Evento órfão não participa do processamento inicial. Quando o suporte a eventos
+  for implementado, sua retenção e associação posterior deverão ser decididas.
+
+### Identidade do lote
+
+Cada envio confirmado — pasta, conjunto de arquivos ou ZIP — cria um lote. O lote
+recebe identificador UUID estável e `recebidoEm`. A data e hora representam o
+momento do envio, mas não são usadas sozinhas como chave técnica, pois dois lotes
+podem ser criados no mesmo instante e horários podem sofrer ajustes.
+
+### Limites de entrada
+
+Não haverá limite comercial de quantidade de notas por plano ou licença no MVP.
+Limites técnicos de segurança continuam obrigatórios para impedir exaustão de
+memória, disco, CPU, XML excessivamente profundo e ZIP expansivo. Os valores serão
+definidos por teste de carga e poderão resultar em processamento por partes, sem
+reduzir arbitrariamente a quantidade de notas aceita pelo produto.
+
+## DT-020 — Bibliotecas de parsing e validação XML
+
+**Status:** aprovado.
+
+O MVP utiliza:
+
+- `fast-xml-parser` para leitura e extração dos dados do XML;
+- `xmllint-wasm` para validação contra os schemas XSD oficiais em worker local.
+
+Os schemas e suas dependências são embarcados no aplicativo, com versões
+registradas. A validação não realiza acesso de rede. `DOCTYPE` e entidades externas
+são recusados antes do parsing. Identificadores e valores fiscais permanecem como
+texto até a normalização explícita do domínio.
+
+As versões `fast-xml-parser` 5.11.1 e `xmllint-wasm` 5.3.0 estão fixadas no
+lockfile. A prova de conceito validou o carregamento offline dos `include`/`import`,
+a execução do WASM no runtime Electron 38.8.6 e o comportamento básico de erros,
+conforme [Prova de conceito do parser XML](prova-conceito-parser-xml.md).
+Empacotamento no instalador Windows, massa representativa e consumo de memória em
+lotes continuam como critérios de homologação. Bloqueio técnico comprovado exige
+nova decisão registrada, não substituição silenciosa.
+
+## DT-021 — Severidades da ingestão XML
+
+**Status:** aprovado e implementado.
+
+Cada ocorrência recebe código estável, severidade e decisão de processamento. As
+severidades são `AVISO`, `INFORMACAO_FALTANTE` e `ERRO_IMPEDITIVO`; as decisões
+correspondentes são `PROCESSAR`, `PROCESSAR_PARCIALMENTE` e `REJEITAR`. Em um
+conjunto de diagnósticos prevalece a decisão mais restritiva.
+
+XML inseguro, malformado, de raiz desconhecida, leiaute diferente de 4.00 ou
+modelo diferente de 55/65 é impeditivo. Campo obrigatório ausente ou valor
+inválido segundo o XSD gera informação faltante. Outras incompatibilidades XSD
+geram aviso enquanto a extração segura permanecer possível. A normalização fiscal
+pode elevar um aviso a pendência ao constatar que o dado é necessário ao cálculo.
+
+O catálogo completo está em
+[Catálogo de severidades da ingestão](catalogo-severidades-ingestao.md).
+
+## DT-022 — Inspeção segura de arquivos ZIP
+
+**Status:** solução técnica aprovada; limites de produção pendentes na MD-04.
+
+O MVP usa `yauzl` 3.4.0 para ler o diretório central e verificar cada entrada de
+forma sequencial, sem extrair no disco. Caminhos inseguros, criptografia, links
+simbólicos, corrupção e violações da política de expansão são impeditivos.
+
+Os limites não são fixados pela biblioteca nem escondidos no código. O chamador é
+obrigado a fornecer tamanho do arquivo, quantidade de entradas, tamanho por
+entrada, tamanho total expandido, taxa de compressão e profundidade de caminho.
+Os valores de produção serão registrados quando a MD-04 for aprovada.
+
+O contrato completo está em [Segurança das entradas XML e ZIP](seguranca-entradas.md).
+
 ## Fila de decisões
 
-A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md). O próximo item recomendado é a política de duplicidade de XMLs.
+A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md).
+Os próximos itens recomendados são definir os tipos normalizados de nota e item,
+os limites técnicos de segurança e homologar uma massa anonimizada representativa.

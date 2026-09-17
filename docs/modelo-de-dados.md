@@ -70,10 +70,27 @@ id, organizacaoId, empresaId, nomeOriginal, recebidoEm,
 status, totalArquivos, totalNotas, totalPendencias, instalacaoOrigemId
 ```
 
+Cada envio confirmado recebe UUID próprio; `recebidoEm` não é usado sozinho como
+identidade técnica.
+
+### `OcorrenciaArquivo`
+
+```text
+id, loteId, nomeOriginal, caminhoRelativo, tipoDetectado, hashConteudo,
+ordemNoEnvio, statusIngestao, aviso, recebidoEm
+```
+
+Cada aparição de um arquivo no envio é preservada, inclusive quando chave e hash
+se repetem. Isso permite marcar a segunda ocorrência como `REPETIDA` sem apagar a
+evidência nem confundir lotes diferentes.
+
+O formato canônico, o SHA-256 e a proveniência estão definidos em
+[Contrato do inventário de arquivos](contrato-inventario-arquivos.md).
+
 ### `DocumentoFiscal`
 
 ```text
-id, loteId, chaveAcesso, numero, serie, emissao, emitenteCnpj,
+id, loteId, ocorrenciaArquivoId, chaveAcesso, numero, serie, emissao, emitenteCnpj,
 destinatarioCnpjCpf, ufOrigem, ufDestino, ambiente, modelo, finalidade,
 hashXml, situacaoDocumento, situacaoCalculo, caraterResultado,
 calculada, incluidaNoTotal, motivoExclusaoOuPendencia
@@ -108,6 +125,10 @@ Tipos iniciais incluem `COMPLEMENTA`, `DEVOLVE` e `SUBSTITUI`.
 ### `ItemDocumento`
 
 Contém o snapshot normalizado do XML, inclusive valores comerciais e tributários declarados.
+O contrato inicial está detalhado em
+[Contrato normalizado de NF-e e NFC-e](contrato-normalizacao-nfe.md). Valores
+decimais permanecem como texto até sua conversão explícita pela futura biblioteca
+decimal.
 
 ### `ExecucaoCalculo`
 
@@ -157,7 +178,9 @@ totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
 
 ## Restrições importantes
 
-- Chave de acesso deve ser única dentro da política de organização/execução.
+- Chave de acesso não é restrição única: ocorrências repetidas ou conflitantes são
+  preservadas e relacionadas dentro do lote. Índices devem permitir localizar
+  rapidamente todas as ocorrências da mesma chave.
 - Regra publicada é imutável; correção cria nova versão.
 - Datas de vigência são obrigatórias para regra aprovada.
 - Resultado referencia exatamente a versão utilizada.

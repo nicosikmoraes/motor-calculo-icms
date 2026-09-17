@@ -1,45 +1,96 @@
 # Motor de Cálculo de ICMS
 
-Repositório de descoberta e especificação de um sistema para recalcular ICMS em lote a partir de arquivos XML de NF-e e entregar os resultados em XLSX.
+Aplicação local para contadores recalcularem ICMS em lote a partir de XMLs de
+NF-e/NFC-e, compararem o resultado com os valores declarados e investigarem
+divergências com rastreabilidade.
 
-## Objetivo
+## Autor
 
-Permitir que um contador mantenha previamente empresas, perfis fiscais e regras tributárias. Depois da configuração, o usuário operacional apenas envia uma pasta ou arquivo ZIP com NF-e. O sistema:
-
-1. valida e interpreta cada XML;
-2. identifica a regra fiscal vigente para cada item;
-3. recalcula ICMS próprio e, quando configurados, ICMS-ST, DIFAL e FCP;
-4. compara o valor calculado com o valor declarado;
-5. consolida os itens por nota;
-6. produz uma planilha XLSX com resultados, memória de cálculo e pendências.
-
-## Princípios
-
-- O cálculo ocorre por item; o resultado da nota é a soma dos itens.
-- Valores tributários declarados no XML são usados para comparação, não como regra de cálculo.
-- Regras fiscais são centralizadas e versionadas, nunca copiadas em cada SKU.
-- A regra mais específica e vigente prevalece.
-- Ausência ou ambiguidade de regra gera pendência, não um resultado presumido.
-- Uma nota só é considerada calculada quando todos os seus itens forem calculados.
-- Toda decisão deve ser explicável por uma memória de cálculo e uma regra identificável.
+- Nicolas Moraes — [@nicosikmoraes](https://github.com/nicosikmoraes)
 
 ## Estado do projeto
 
-O projeto está em fase de definição. Já foram aprovados o aplicativo desktop com Electron, Vue e TypeScript, o banco SQLite independente por máquina, o compartilhamento por pacotes de exportação/importação, as regras fiscais estruturadas e o tratamento inicial de autorização, cancelamento, finalidades especiais, manifestações e contingência.
+O projeto está em desenvolvimento. A fundação do monorepo, o aplicativo desktop,
+o parser de NF-e/NFC-e 4.00, a validação XSD offline, a normalização inicial e as
+proteções de entrada já estão implementados. Persistência, fórmulas fiscais
+homologadas e geração do XLSX ainda fazem parte do roadmap.
 
-A implementação ainda não começou. O backlog de decisões deixa explícitos os contratos fiscais e técnicos que precisam ser aprovados antes do desenvolvimento.
+## Stack
 
-## Documentação
+- Electron 38, Vue 3 e TypeScript;
+- pnpm workspaces em monorepo;
+- Vitest para testes automatizados;
+- `fast-xml-parser` para leitura dos XMLs;
+- `xmllint-wasm` e schemas oficiais para validação XSD offline;
+- armazenamento local planejado em SQLite.
 
-- [Regras de negócio](docs/regras-de-negocio.md)
-- [Arquitetura inicial](docs/arquitetura-inicial.md)
-- [Modelo de dados inicial](docs/modelo-de-dados.md)
-- [Manual do usuário e contador](docs/manual-do-usuario.md)
+## Em produção
+
+- **Aplicação:** ainda não publicada;
+- **Distribuição:** instalador Windows pendente de homologação.
+
+## Quick Start
+
+Pré-requisitos:
+
+- Node.js 22 ou superior;
+- pnpm 10.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Para verificar tipagem, testes e build de produção:
+
+```bash
+pnpm check
+```
+
+## Documentação acadêmica
+
+Estes documentos apresentam o produto no formato solicitado pela disciplina:
+
+- [Product Requirements Document — PRD](docs/prd.md)
+- [Jornadas de usuário](docs/user-flows.md)
+- [Tokens de design](docs/design-tokens.md)
+- [Software Design Document — Arquitetura](docs/architecture.md)
+- [Checklist da disciplina](docs/checklist.md)
+
+As histórias permanecem em `Draft` até a leitura e promoção explícita pelo autor.
+O aceite do tema pelo professor e a decisão sobre o requisito acadêmico de
+pagamento estão registrados como pendências no PRD.
+
+## Documentação do produto
+
+### Negócio e uso
+
+- [Regras de negócio detalhadas](docs/regras-de-negocio.md)
+- [Manual do usuário e do contador](docs/manual-do-usuario.md)
 - [Critérios de aceite](docs/criterios-de-aceite.md)
-- [Decisões técnicas aprovadas](docs/decisoes-tecnicas.md)
 - [Ciclo de vida do documento fiscal](docs/ciclo-de-vida-documento-fiscal.md)
 - [Decisões pendentes](docs/decisoes-pendentes.md)
 
+### Arquitetura e desenvolvimento
+
+- [Arquitetura inicial](docs/arquitetura-inicial.md)
+- [Modelo de dados inicial](docs/modelo-de-dados.md)
+- [Decisões técnicas aprovadas](docs/decisoes-tecnicas.md)
+- [Roadmap do MVP](docs/roadmap.md)
+- [Guia de desenvolvimento](docs/desenvolvimento.md)
+
+### Ingestão fiscal
+
+- [Avaliação de bibliotecas XML](docs/avaliacao-bibliotecas-xml.md)
+- [Prova de conceito do parser XML](docs/prova-conceito-parser-xml.md)
+- [Catálogo de severidades](docs/catalogo-severidades-ingestao.md)
+- [Contrato normalizado de NF-e/NFC-e](docs/contrato-normalizacao-nfe.md)
+- [Contrato do inventário](docs/contrato-inventario-arquivos.md)
+- [Segurança das entradas XML e ZIP](docs/seguranca-entradas.md)
+
 ## Limites e responsabilidade
 
-O sistema é um motor parametrizável de cálculo e auditoria. A responsabilidade por classificação fiscal, vigência, fundamento legal e aprovação das regras é do profissional fiscal autorizado pela organização. O sistema deve preservar histórico e evidências, mas não substitui interpretação tributária profissional.
+O sistema é uma ferramenta parametrizável de cálculo e auditoria. A classificação
+fiscal, a vigência, o fundamento legal e a aprovação das regras continuam sob a
+responsabilidade do profissional fiscal autorizado. O sistema preserva histórico
+e evidências, mas não substitui interpretação tributária profissional.

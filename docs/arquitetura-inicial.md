@@ -14,6 +14,8 @@ Vite
 Pinia
 Vue Router
 SQLite por máquina
+fast-xml-parser para leitura XML
+xmllint-wasm para validação XSD em worker
 ```
 
 O renderer contém apenas a interface Vue. Acesso a arquivos, banco e recursos do sistema operacional ocorre no processo principal ou em workers, por contratos IPC restritos expostos pelo preload.
@@ -59,10 +61,15 @@ O renderer contém apenas a interface Vue. Acesso a arquivos, banco e recursos d
 ### Ingestão e normalização
 
 - descompactar com limites de segurança;
-- validar formato e schema suportado;
+- usar `fast-xml-parser` para extração e `xmllint-wasm` para XSD, sem acesso de rede;
+- interpretar, validar e calcular NF-e/NFC-e no leiaute 4.00;
+- identificar leiaute anterior como `VERSAO_NAO_SUPORTADA`, sem cálculo;
+- registrar a revisão do pacote de schemas utilizada;
 - impedir entidades XML externas;
 - normalizar datas, identificadores, valores e itens;
 - calcular hash e detectar duplicidade;
+- preservar cada ocorrência recebida; repetições não sobrescrevem registros;
+- criar UUID para cada lote e registrar separadamente sua data/hora de recebimento;
 - observar a política de retenção do XML original.
 - processar primeiro o inventário completo do lote e depois relacionar documentos, protocolos e eventos por chave;
 - separar situação documental, situação de cálculo e participação nos totais.

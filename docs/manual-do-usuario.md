@@ -130,8 +130,13 @@ Ações típicas:
 - ajustar prioridade entre regras;
 - cadastrar finalidade padrão;
 - registrar exceção específica.
+- complementar um campo autorizado ausente no XML, sem modificar o arquivo original.
 
 Após resolver, publique a alteração quando necessário e use **Reprocessar**. O novo resultado ficará vinculado ao anterior para auditoria.
+
+Quando a pendência for `INFORMACOES_FALTANTES`, o sistema indica quais campos
+podem ser complementados. O valor informado pelo usuário fica identificado como
+dado complementar e a nota continua preservando os valores originais do XML.
 
 ## 6. Manter regras com segurança
 
