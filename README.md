@@ -47,15 +47,17 @@ Para verificar tipagem, testes e build de produção:
 pnpm check
 ```
 
-## Documentação acadêmica
+## Documentação de produto
 
-Estes documentos apresentam o produto no formato solicitado pela disciplina:
+Estes documentos resumem os requisitos, as jornadas e a arquitetura do produto:
 
 - [Product Requirements Document — PRD](docs/prd.md)
 - [Jornadas de usuário](docs/user-flows.md)
 - [Tokens de design](docs/design-tokens.md)
 - [Software Design Document — Arquitetura](docs/architecture.md)
-- [Checklist da disciplina](docs/checklist.md)
+
+O [checklist da disciplina](docs/checklist.md) é mantido apenas como referência
+acadêmica histórica e não direciona a arquitetura ou o roadmap do ContabiliNico.
 
 As histórias permanecem em `Draft` até a leitura e promoção explícita pelo autor.
 O aceite do tema pelo professor e a decisão sobre o requisito acadêmico de

@@ -1,12 +1,14 @@
 # ✅ Checklist — a ficha da disciplina
 
-> Este arquivo é **a única fonte do que a disciplina exige**: as regras do
-> projeto, os Indicadores de Desempenho (IDs) e as entregas. Os workflows
-> `/utf-prd` e `/utf-architecture` o usam como régua de conferência — trocar
-> de disciplina é trocar este arquivo, sem mexer no framework.
-> Marque um item **somente quando conseguir explicá-lo ao vivo** — item
-> entregue que não sobrevive à arguição presencial é invalidado. Não altere
-> os enunciados.
+> **Status: referência acadêmica histórica, não normativa para o produto.**
+> O ContabiliNico é um aplicativo desktop Windows, local-first, construído com
+> Electron e SQLite e capaz de funcionar sem servidor obrigatório. Os requisitos
+> abaixo foram preservados para consulta, mas não orientam a arquitetura, o
+> roadmap, os critérios de aceite nem as decisões técnicas do produto.
+>
+> Não use este checklist para introduzir NestJS, Prisma, PostgreSQL, autenticação,
+> pagamento ou implantação web no ContabiliNico sem uma nova decisão explícita
+> do responsável pelo produto.
 
 ## 📐 Regras da disciplina
 
