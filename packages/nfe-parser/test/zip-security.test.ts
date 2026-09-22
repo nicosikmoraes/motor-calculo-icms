@@ -104,6 +104,8 @@ describe('segurança de XML e ZIP', () => {
       archiveName: 'lote.zip',
       totalEntries: 2,
       totalUncompressedBytes: 12,
+      acceptedUncompressedBytes: 12,
+      rejectedEntries: [],
       entries: [
         { relativePath: 'empresa/nota-1.xml', directory: false, uncompressedBytes: 6 },
         { relativePath: 'empresa/nota-2.xml', directory: false, uncompressedBytes: 6 },
@@ -111,21 +113,29 @@ describe('segurança de XML e ZIP', () => {
     })
   })
 
-  it('recusa Zip Slip mesmo quando o nome malicioso está no diretório central', async () => {
-    const safe = await zip([{ name: 'safe/evil.xml', contents: Buffer.from('<NFe/>') }])
+  it('isola Zip Slip e preserva as entradas seguras', async () => {
+    const safe = await zip([
+      { name: 'safe/evil.xml', contents: Buffer.from('<NFe/>') },
+      { name: 'nota-valida.xml', contents: Buffer.from('<NFe/>') },
+    ])
     const malicious = replaceAllBytes(safe, 'safe/evil.xml', '../x/evil.xml')
 
-    await expect(inspectZipBuffer(malicious, 'zip-slip.zip', policy)).rejects.toMatchObject({
-      code: 'ZIP_PATH_UNSAFE',
+    await expect(inspectZipBuffer(malicious, 'zip-slip.zip', policy)).resolves.toMatchObject({
+      totalEntries: 2,
+      entries: [{ relativePath: 'nota-valida.xml' }],
+      rejectedEntries: [{ entryName: '../x/evil.xml', code: 'ZIP_PATH_UNSAFE' }],
     })
   })
 
-  it('recusa ZIP expansivo pela taxa antes de extrair em disco', async () => {
+  it('isola entrada com taxa de compressão excessiva', async () => {
     const bomb = await zip([{ name: 'bomba.xml', contents: Buffer.alloc(10_000, 0x41) }])
 
     await expect(
       inspectZipBuffer(bomb, 'bomba.zip', { ...policy, maxCompressionRatio: 2 }),
-    ).rejects.toMatchObject({ code: 'ZIP_COMPRESSION_RATIO_EXCEEDED' })
+    ).resolves.toMatchObject({
+      entries: [],
+      rejectedEntries: [{ code: 'ZIP_COMPRESSION_RATIO_EXCEEDED' }],
+    })
   })
 
   it('recusa excesso de entradas, tamanho expandido e profundidade', async () => {
@@ -143,7 +153,10 @@ describe('segurança de XML e ZIP', () => {
     ).rejects.toMatchObject({ code: 'ZIP_EXPANDED_CONTENT_TOO_LARGE' })
     await expect(
       inspectZipBuffer(deep, 'profundo.zip', { ...policy, maxPathDepth: 3 }),
-    ).rejects.toMatchObject({ code: 'ZIP_PATH_UNSAFE' })
+    ).resolves.toMatchObject({
+      entries: [],
+      rejectedEntries: [{ code: 'ZIP_PATH_UNSAFE' }],
+    })
   })
 
   it('recusa arquivo grande, entrada grande e link simbólico', async () => {
@@ -162,10 +175,16 @@ describe('segurança de XML e ZIP', () => {
         ...policy,
         maxEntryUncompressedBytes: 5,
       }),
-    ).rejects.toMatchObject({ code: 'ZIP_ENTRY_TOO_LARGE' })
+    ).resolves.toMatchObject({
+      entries: [],
+      rejectedEntries: [{ code: 'ZIP_ENTRY_TOO_LARGE' }],
+    })
     await expect(
       inspectZipBuffer(symbolicLink, 'link.zip', policy),
-    ).rejects.toMatchObject({ code: 'ZIP_SYMBOLIC_LINK' })
+    ).resolves.toMatchObject({
+      entries: [],
+      rejectedEntries: [{ code: 'ZIP_SYMBOLIC_LINK' }],
+    })
   })
 
   it('recusa ZIP truncado ou corrompido com código estável', async () => {
@@ -176,8 +195,9 @@ describe('segurança de XML e ZIP', () => {
     await expect(inspectZipBuffer(truncated, 'corrompido.zip', policy)).rejects.toEqual(
       expect.objectContaining<Partial<ZipSecurityError>>({ code: 'ZIP_INVALID' }),
     )
-    await expect(inspectZipBuffer(wrongCrc, 'crc-incorreto.zip', policy)).rejects.toMatchObject({
-      code: 'ZIP_CRC_MISMATCH',
+    await expect(inspectZipBuffer(wrongCrc, 'crc-incorreto.zip', policy)).resolves.toMatchObject({
+      entries: [],
+      rejectedEntries: [{ code: 'ZIP_CRC_MISMATCH' }],
     })
   })
 

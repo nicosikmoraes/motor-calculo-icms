@@ -281,8 +281,15 @@ O catálogo completo está em
 pendentes na MD-04.
 
 O MVP usa `yauzl` 3.4.0 para ler o diretório central e verificar cada entrada de
-forma sequencial, sem extrair no disco. Caminhos inseguros, criptografia, links
-simbólicos, corrupção e violações da política de expansão são impeditivos.
+forma sequencial, sem extrair no disco. Uma entrada com caminho inseguro,
+criptografia, link simbólico, CRC divergente, tamanho individual ou taxa de
+compressão excessiva é rejeitada isoladamente; as entradas seguras do mesmo ZIP
+continuam elegíveis e o lote fica processado com pendências.
+
+Falha estrutural que impeça enumerar o arquivo com segurança, ZIP acima de 500 MB,
+mais de 10.000 entradas ou soma expandida superior a 2 GB rejeitam o ZIP inteiro.
+Não se aproveita apenas o prefixo anterior ao limite, pois isso tornaria o
+resultado dependente da ordem interna do arquivo.
 
 Os limites não são fixados pela biblioteca nem escondidos no código. O chamador é
 obrigado a fornecer tamanho do arquivo, quantidade de entradas, tamanho por

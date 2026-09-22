@@ -23,24 +23,26 @@ A inspeção utiliza `yauzl` 3.4.0 com:
 - cálculo incremental de CRC-32 e comparação com o diretório central;
 - interrupção assim que um limite for excedido.
 
-São recusados:
+Falhas locais rejeitam somente a entrada afetada; falhas estruturais ou limites
+globais rejeitam o ZIP inteiro:
 
-| Código | Condição |
-|---|---|
-| `ZIP_INVALID` | estrutura truncada, metadados inválidos ou stream corrompido |
-| `ZIP_CRC_MISMATCH` | conteúdo descomprimido não corresponde ao CRC-32 declarado |
-| `ZIP_ARCHIVE_TOO_LARGE` | tamanho do ZIP acima da política |
-| `ZIP_TOO_MANY_ENTRIES` | quantidade de entradas acima da política |
-| `ZIP_ENTRY_TOO_LARGE` | uma entrada excede o tamanho descomprimido permitido |
-| `ZIP_EXPANDED_CONTENT_TOO_LARGE` | soma descomprimida excede a política |
-| `ZIP_COMPRESSION_RATIO_EXCEEDED` | razão descomprimido/comprimido excessiva |
-| `ZIP_PATH_UNSAFE` | caminho absoluto, ascendente, inválido ou profundo demais |
-| `ZIP_ENCRYPTED` | entrada protegida por senha ou criptografada |
-| `ZIP_SYMBOLIC_LINK` | entrada identificada como link simbólico Unix |
+| Código | Condição | Efeito |
+|---|---|---|
+| `ZIP_INVALID` | estrutura truncada, metadados inválidos ou stream corrompido | rejeita o ZIP |
+| `ZIP_CRC_MISMATCH` | conteúdo descomprimido não corresponde ao CRC-32 declarado | rejeita a entrada |
+| `ZIP_ARCHIVE_TOO_LARGE` | tamanho do ZIP acima da política | rejeita o ZIP |
+| `ZIP_TOO_MANY_ENTRIES` | quantidade de entradas acima da política | rejeita o ZIP |
+| `ZIP_ENTRY_TOO_LARGE` | uma entrada excede o tamanho descomprimido permitido | rejeita a entrada |
+| `ZIP_EXPANDED_CONTENT_TOO_LARGE` | soma descomprimida excede a política | rejeita o ZIP |
+| `ZIP_COMPRESSION_RATIO_EXCEEDED` | razão descomprimido/comprimido excessiva | rejeita a entrada |
+| `ZIP_PATH_UNSAFE` | caminho absoluto, ascendente, inválido ou profundo demais | rejeita a entrada |
+| `ZIP_ENCRYPTED` | entrada protegida por senha ou criptografada | rejeita a entrada |
+| `ZIP_SYMBOLIC_LINK` | entrada identificada como link simbólico Unix | rejeita a entrada |
 
 Diretórios são inventariados durante a inspeção, mas não abertos como streams.
-Backslash é recusado pelo modo estrito. Caminhos aceitos ainda passam pela mesma
-normalização usada no inventário.
+Os nomes são lidos sem a validação global do `yauzl` para que um caminho malicioso
+possa ser isolado sem ocultar as demais entradas; cada nome passa obrigatoriamente
+pela mesma normalização segura usada no inventário.
 
 ## Política de limites
 

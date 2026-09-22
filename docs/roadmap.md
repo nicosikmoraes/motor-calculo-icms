@@ -110,7 +110,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] limite de 2 GB de conteúdo expandido e taxa máxima de compressão de 100:1;
 - [x] limite de 10.000 entradas por ZIP, 20 segmentos de caminho e 100 elementos
   aninhados no XML;
-- comportamento diante de ZIP protegido, corrompido ou com caminhos maliciosos;
+- [x] rejeitar isoladamente entradas inseguras e aproveitar as entradas válidas;
+  rejeitar o ZIP inteiro somente em falha estrutural ou violação de limite global;
 - política para temporários e cancelamento da importação.
 
 **Desbloqueia:** upload de pasta/ZIP com proteção operacional definida.

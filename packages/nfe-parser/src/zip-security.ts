@@ -53,12 +53,28 @@ export interface InspectedZipEntry {
   compressionRatio: number
 }
 
+export type RejectedZipEntryCode =
+  | 'ZIP_CRC_MISMATCH'
+  | 'ZIP_ENTRY_TOO_LARGE'
+  | 'ZIP_COMPRESSION_RATIO_EXCEEDED'
+  | 'ZIP_PATH_UNSAFE'
+  | 'ZIP_ENCRYPTED'
+  | 'ZIP_SYMBOLIC_LINK'
+
+export interface RejectedZipEntry {
+  entryName: string
+  code: RejectedZipEntryCode
+  message: string
+}
+
 export interface ZipInspectionResult {
   archiveName: string
   archiveBytes: number
   totalEntries: number
   totalUncompressedBytes: number
+  acceptedUncompressedBytes: number
   entries: readonly InspectedZipEntry[]
+  rejectedEntries: readonly RejectedZipEntry[]
 }
 
 function assertPositivePolicy(policy: ZipSecurityPolicy): void {
@@ -88,7 +104,7 @@ function openFile(path: string): Promise<ZipFile> {
       {
         autoClose: false,
         lazyEntries: true,
-        decodeStrings: true,
+        decodeStrings: false,
         validateEntrySizes: true,
         strictFileNames: true,
       },
@@ -103,7 +119,7 @@ function openBuffer(buffer: Buffer): Promise<ZipFile> {
       buffer,
       {
         lazyEntries: true,
-        decodeStrings: true,
+        decodeStrings: false,
         validateEntrySizes: true,
         strictFileNames: true,
       },
@@ -153,6 +169,12 @@ function isSymbolicLink(entry: Entry): boolean {
   return creatorSystem === 3 && (unixMode & 0o170000) === 0o120000
 }
 
+function entryFileName(entry: Entry): string {
+  const rawName: unknown = entry.fileName
+  if (!Buffer.isBuffer(rawName)) return entry.fileName
+  return rawName.toString((entry.generalPurposeBitFlag & 0x800) !== 0 ? 'utf8' : 'latin1')
+}
+
 function compressionRatio(entry: Entry): number {
   if (entry.uncompressedSize === 0) return 1
   if (entry.compressedSize === 0) return Number.POSITIVE_INFINITY
@@ -165,6 +187,7 @@ async function verifyEntryContents(
   policy: ZipSecurityPolicy,
   currentTotal: number,
 ): Promise<number> {
+  const fileName = entryFileName(entry)
   const stream = await openEntry(zipFile, entry)
   let actualEntryBytes = 0
   let actualCrc32 = 0
@@ -178,8 +201,8 @@ async function verifyEntryContents(
       stream.destroy()
       throw new ZipSecurityError(
         'ZIP_ENTRY_TOO_LARGE',
-        `Entrada ZIP excede o limite descomprimido: ${entry.fileName}.`,
-        entry.fileName,
+        `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
+        fileName,
       )
     }
     if (currentTotal + actualEntryBytes > policy.maxTotalUncompressedBytes) {
@@ -187,7 +210,7 @@ async function verifyEntryContents(
       throw new ZipSecurityError(
         'ZIP_EXPANDED_CONTENT_TOO_LARGE',
         'Conteúdo total descomprimido excede o limite do lote.',
-        entry.fileName,
+        fileName,
       )
     }
   }
@@ -195,8 +218,8 @@ async function verifyEntryContents(
   if (actualCrc32 !== entry.crc32) {
     throw new ZipSecurityError(
       'ZIP_CRC_MISMATCH',
-      `CRC-32 divergente na entrada: ${entry.fileName}.`,
-      entry.fileName,
+      `CRC-32 divergente na entrada: ${fileName}.`,
+      fileName,
     )
   }
 
@@ -210,8 +233,18 @@ async function inspectOpenedZip(
   policy: ZipSecurityPolicy,
 ): Promise<ZipInspectionResult> {
   const entries: InspectedZipEntry[] = []
+  const rejectedEntries: RejectedZipEntry[] = []
   let totalEntries = 0
   let totalUncompressedBytes = 0
+  let acceptedUncompressedBytes = 0
+
+  const rejectEntry = (
+    entryName: string,
+    code: RejectedZipEntryCode,
+    message: string,
+  ): void => {
+    rejectedEntries.push({ entryName, code, message })
+  }
 
   try {
     while (true) {
@@ -225,67 +258,87 @@ async function inspectOpenedZip(
           `ZIP excede o limite de ${policy.maxEntries} entradas.`,
         )
       }
-      if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
+      const fileName = entryFileName(entry)
+      totalUncompressedBytes += entry.uncompressedSize
+      if (totalUncompressedBytes > policy.maxTotalUncompressedBytes) {
         throw new ZipSecurityError(
-          'ZIP_ENCRYPTED',
-          `Entrada ZIP criptografada não é aceita: ${entry.fileName}.`,
-          entry.fileName,
+          'ZIP_EXPANDED_CONTENT_TOO_LARGE',
+          'Conteúdo total descomprimido excede o limite do lote.',
+          fileName,
         )
       }
-      if (isSymbolicLink(entry)) {
-        throw new ZipSecurityError(
-          'ZIP_SYMBOLIC_LINK',
-          `Link simbólico não é aceito no ZIP: ${entry.fileName}.`,
-          entry.fileName,
+      if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
+        rejectEntry(
+          fileName,
+          'ZIP_ENCRYPTED',
+          `Entrada ZIP criptografada não é aceita: ${fileName}.`,
         )
+        continue
+      }
+      if (isSymbolicLink(entry)) {
+        rejectEntry(
+          fileName,
+          'ZIP_SYMBOLIC_LINK',
+          `Link simbólico não é aceito no ZIP: ${fileName}.`,
+        )
+        continue
       }
 
       let relativePath: string
       try {
-        relativePath = normalizeInventoryPath(entry.fileName)
+        relativePath = normalizeInventoryPath(fileName)
       } catch {
-        throw new ZipSecurityError(
+        rejectEntry(
+          fileName,
           'ZIP_PATH_UNSAFE',
-          `Caminho inseguro no ZIP: ${entry.fileName}.`,
-          entry.fileName,
+          `Caminho inseguro no ZIP: ${fileName}.`,
         )
+        continue
       }
       if (relativePath.split('/').length > policy.maxPathDepth) {
-        throw new ZipSecurityError(
+        rejectEntry(
+          fileName,
           'ZIP_PATH_UNSAFE',
-          `Caminho excede a profundidade permitida no ZIP: ${entry.fileName}.`,
-          entry.fileName,
+          `Caminho excede a profundidade permitida no ZIP: ${fileName}.`,
         )
+        continue
       }
 
-      const directory = entry.fileName.endsWith('/')
+      const directory = fileName.endsWith('/')
       const ratio = compressionRatio(entry)
       if (entry.uncompressedSize > policy.maxEntryUncompressedBytes) {
-        throw new ZipSecurityError(
+        rejectEntry(
+          fileName,
           'ZIP_ENTRY_TOO_LARGE',
-          `Entrada ZIP excede o limite descomprimido: ${entry.fileName}.`,
-          entry.fileName,
+          `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
         )
-      }
-      if (totalUncompressedBytes + entry.uncompressedSize > policy.maxTotalUncompressedBytes) {
-        throw new ZipSecurityError(
-          'ZIP_EXPANDED_CONTENT_TOO_LARGE',
-          'Conteúdo total descomprimido excede o limite do lote.',
-          entry.fileName,
-        )
+        continue
       }
       if (ratio > policy.maxCompressionRatio) {
-        throw new ZipSecurityError(
+        rejectEntry(
+          fileName,
           'ZIP_COMPRESSION_RATIO_EXCEEDED',
-          `Taxa de compressão excessiva na entrada: ${entry.fileName}.`,
-          entry.fileName,
+          `Taxa de compressão excessiva na entrada: ${fileName}.`,
         )
+        continue
       }
 
-      const actualBytes = directory
-        ? 0
-        : await verifyEntryContents(zipFile, entry, policy, totalUncompressedBytes)
-      totalUncompressedBytes += actualBytes
+      let actualBytes: number
+      try {
+        actualBytes = directory
+          ? 0
+          : await verifyEntryContents(zipFile, entry, policy, acceptedUncompressedBytes)
+      } catch (error) {
+        if (
+          error instanceof ZipSecurityError &&
+          (error.code === 'ZIP_CRC_MISMATCH' || error.code === 'ZIP_ENTRY_TOO_LARGE')
+        ) {
+          rejectEntry(fileName, error.code, error.message)
+          continue
+        }
+        throw error
+      }
+      acceptedUncompressedBytes += actualBytes
       entries.push({
         relativePath,
         directory,
@@ -295,7 +348,15 @@ async function inspectOpenedZip(
       })
     }
 
-    return { archiveName, archiveBytes, totalEntries, totalUncompressedBytes, entries }
+    return {
+      archiveName,
+      archiveBytes,
+      totalEntries,
+      totalUncompressedBytes,
+      acceptedUncompressedBytes,
+      entries,
+      rejectedEntries,
+    }
   } finally {
     zipFile.close()
   }
