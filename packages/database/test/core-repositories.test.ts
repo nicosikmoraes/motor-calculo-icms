@@ -103,7 +103,7 @@ beforeEach(() => {
 
 afterEach(() => database.close())
 
-describe('migration 0001 e repositórios centrais', () => {
+describe('migrations e repositórios centrais', () => {
   it('cria as tabelas e índices do núcleo persistente', () => {
     const tables = database
       .all<{ name: string }>(
@@ -167,6 +167,43 @@ describe('migration 0001 e repositórios centrais', () => {
       firstOccurrenceId,
       secondOccurrenceId,
     ])
+  })
+
+  it('cancela e retoma lote preservando checkpoints e data do cancelamento', () => {
+    seedRegistrations()
+    const batches = new SqliteBatchRepository(database)
+    batches.createWithOccurrences(batch({ status: 'PROCESSANDO' }), [
+      occurrence({ id: firstOccurrenceId, order: 1, ingestionStatus: 'PROCESSADA' }),
+      occurrence({ id: secondOccurrenceId, order: 2 }),
+    ])
+
+    const canceledAt = '2026-09-22T20:00:00.000Z'
+    batches.cancel(batchId, canceledAt)
+    expect(batches.findById(batchId)).toMatchObject({
+      status: 'CANCELADO',
+      lastCanceledAt: canceledAt,
+    })
+    expect(batches.listOccurrences(batchId).map(({ ingestionStatus }) => ingestionStatus)).toEqual([
+      'PROCESSADA',
+      'INVENTARIADA',
+    ])
+
+    const resumedAt = '2026-09-22T20:05:00.000Z'
+    batches.resume(batchId, resumedAt)
+    expect(batches.findById(batchId)).toMatchObject({
+      status: 'PROCESSANDO',
+      lastCanceledAt: canceledAt,
+      updatedAt: resumedAt,
+    })
+  })
+
+  it('recusa cancelamento ou retomada em estados incompatíveis', () => {
+    seedRegistrations()
+    const batches = new SqliteBatchRepository(database)
+    batches.createWithOccurrences(batch({ status: 'CONCLUIDO' }), [])
+
+    expect(() => batches.cancel(batchId, timestamp)).toThrow(/não permite cancelamento/)
+    expect(() => batches.resume(batchId, timestamp)).toThrow(/não permite retomada/)
   })
 
   it('desfaz o lote inteiro quando uma ocorrência viola restrição', () => {

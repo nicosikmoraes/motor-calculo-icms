@@ -65,6 +65,9 @@ desabilitar silenciosamente a proteção.
 ## Limites deste incremento
 
 - a inspeção não persiste nem extrai arquivos aprovados;
-- ainda falta decidir o destino temporário e a limpeza após cancelamento;
+- o pipeline deve preferir streams e buffers limitados; qualquer temporário futuro
+  fica em diretório exclusivo do lote e é removido ao concluir, falhar ou cancelar;
+- o cancelamento preserva checkpoints e diagnósticos persistidos, mas nenhum
+  resultado parcial participa dos totais até a conclusão após retomada manual;
 - ainda falta integrar a política definitiva ao processo principal do Electron;
 - testes de carga e arquivos ZIP64 representativos pertencem à homologação.

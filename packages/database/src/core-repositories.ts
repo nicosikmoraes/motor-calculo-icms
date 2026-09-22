@@ -30,6 +30,7 @@ export interface FiscalBatchRecord {
   originalName?: string
   receivedAt: string
   status: BatchStatus
+  lastCanceledAt?: string
   totalFiles: number
   totalDocuments: number
   totalPendencies: number
@@ -85,6 +86,7 @@ interface BatchRow extends Record<string, unknown> {
   nome_original: string | null
   recebido_em: string
   status: BatchStatus
+  ultimo_cancelamento_em: string | null
   total_arquivos: number
   total_notas: number
   total_pendencias: number
@@ -164,6 +166,7 @@ function mapBatch(row: BatchRow): FiscalBatchRecord {
     ...(row.nome_original ? { originalName: row.nome_original } : {}),
     receivedAt: row.recebido_em,
     status: row.status,
+    ...(row.ultimo_cancelamento_em ? { lastCanceledAt: row.ultimo_cancelamento_em } : {}),
     totalFiles: row.total_arquivos,
     totalDocuments: row.total_notas,
     totalPendencies: row.total_pendencias,
@@ -298,14 +301,18 @@ export class SqliteBatchRepository {
       this.database.run(
         `INSERT INTO lotes (
            id, organizacao_id, empresa_id, nome_original, recebido_em, status,
-           total_arquivos, total_notas, total_pendencias, criado_em, atualizado_em
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+           ultimo_cancelamento_em, total_arquivos, total_notas, total_pendencias,
+           criado_em, atualizado_em
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         requiredText(batch.id, 'batch.id'),
         requiredText(batch.organizationId, 'batch.organizationId'),
         optionalText(batch.companyId) ?? null,
         optionalText(batch.originalName) ?? null,
         assertCanonicalUtcTimestamp(batch.receivedAt, 'batch.receivedAt'),
         batch.status,
+        batch.lastCanceledAt
+          ? assertCanonicalUtcTimestamp(batch.lastCanceledAt, 'batch.lastCanceledAt')
+          : null,
         ordered.length,
         assertCanonicalUtcTimestamp(batch.createdAt, 'batch.createdAt'),
         assertCanonicalUtcTimestamp(batch.updatedAt, 'batch.updatedAt'),
@@ -318,11 +325,43 @@ export class SqliteBatchRepository {
   findById(id: string): FiscalBatchRecord | undefined {
     const row = this.database.get<BatchRow>(
       `SELECT id, organizacao_id, empresa_id, nome_original, recebido_em, status,
+              ultimo_cancelamento_em,
               total_arquivos, total_notas, total_pendencias, criado_em, atualizado_em
        FROM lotes WHERE id = ?`,
       id,
     )
     return row ? mapBatch(row) : undefined
+  }
+
+  cancel(id: string, canceledAt: string): void {
+    const timestamp = assertCanonicalUtcTimestamp(canceledAt, 'canceledAt')
+    this.database.run(
+      `UPDATE lotes
+       SET status = 'CANCELADO', ultimo_cancelamento_em = ?, atualizado_em = ?
+       WHERE id = ? AND status IN ('VALIDANDO', 'PROCESSANDO', 'INTERROMPIDO')`,
+      timestamp,
+      timestamp,
+      requiredText(id, 'batch.id'),
+    )
+    const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
+    if (Number(changes?.changes ?? 0) !== 1) {
+      throw new Error('Lote inexistente ou em estado que não permite cancelamento.')
+    }
+  }
+
+  resume(id: string, resumedAt: string): void {
+    const timestamp = assertCanonicalUtcTimestamp(resumedAt, 'resumedAt')
+    this.database.run(
+      `UPDATE lotes
+       SET status = 'PROCESSANDO', atualizado_em = ?
+       WHERE id = ? AND status IN ('CANCELADO', 'INTERROMPIDO')`,
+      timestamp,
+      requiredText(id, 'batch.id'),
+    )
+    const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
+    if (Number(changes?.changes ?? 0) !== 1) {
+      throw new Error('Lote inexistente ou em estado que não permite retomada.')
+    }
   }
 
   listOccurrences(batchId: string): readonly FileOccurrenceRecord[] {

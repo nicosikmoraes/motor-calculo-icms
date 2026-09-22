@@ -7,6 +7,7 @@ export type BatchStatus =
   | 'VALIDANDO'
   | 'PROCESSANDO'
   | 'INTERROMPIDO'
+  | 'CANCELADO'
   | 'CONCLUIDO'
   | 'CONCLUIDO_COM_PENDENCIAS'
   | 'FALHOU'

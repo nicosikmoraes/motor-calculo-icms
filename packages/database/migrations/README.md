@@ -18,3 +18,7 @@ Regras:
 `0001_nucleo_persistencia.sql` contém o primeiro recorte aprovado: organização,
 empresa, lote e ocorrência de arquivo. Novas entidades entram somente por novos
 arquivos numerados; a `0001` não deve ser editada depois de publicada.
+
+`0002_cancelamento_lote.sql` acrescenta o estado `CANCELADO` e preserva a data do
+último cancelamento para distinguir uma interrupção solicitada de uma queda do
+aplicativo. A migration reconstrói `lotes` sem perder ocorrências relacionadas.

@@ -353,9 +353,18 @@ preservadas e a retomada agenda somente as unidades que não possuem checkpoint
 válido. A retomada nunca sobrescreve uma execução concluída.
 
 Os estados de lote do MVP são `RECEBIDO`, `VALIDANDO`, `PROCESSANDO`,
-`INTERROMPIDO`, `CONCLUIDO`, `CONCLUIDO_COM_PENDENCIAS` e `FALHOU`. `FALHOU` é
+`INTERROMPIDO`, `CANCELADO`, `CONCLUIDO`, `CONCLUIDO_COM_PENDENCIAS` e `FALHOU`.
+`CANCELADO` representa uma interrupção solicitada pelo usuário e preserva a data
+do último cancelamento; difere de `INTERROMPIDO`, usado para queda ou encerramento
+inesperado. `FALHOU` é
 reservado para falha do lote como um todo ou impossibilidade segura de continuar;
 falhas isoladas permanecem associadas aos respectivos arquivos ou documentos.
+
+O cancelamento passa a valer depois da unidade em execução, remove temporários,
+preserva diagnósticos e checkpoints concluídos e impede que o resultado parcial
+participe dos totais. A retomada é manual, conserva o mesmo lote e agenda somente
+unidades sem checkpoint válido. A migration `0002` adiciona o estado sem alterar a
+`0001` já publicada.
 
 ## DT-026 — Idempotência de processamento e recálculo
 

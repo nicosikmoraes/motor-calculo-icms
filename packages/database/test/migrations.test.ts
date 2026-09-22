@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  CORE_MIGRATIONS,
   SqliteDatabase,
   createSqlMigration,
   discoverSqlMigrations,
@@ -234,6 +235,81 @@ describe('SQLite e migrations', () => {
       expect(() =>
         database.run("INSERT INTO filho (id, pai_id) VALUES ('f-1', 'inexistente')"),
       ).toThrow(/FOREIGN KEY constraint failed/)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('migra lote existente para CANCELADO sem perder ocorrências', () => {
+    const database = new SqliteDatabase(':memory:')
+    const organizationId = '00000000-0000-4000-8000-000000000001'
+    const companyId = '00000000-0000-4000-8000-000000000002'
+    const batchId = '00000000-0000-4000-8000-000000000003'
+    const occurrenceId = '00000000-0000-4000-8000-000000000004'
+    const timestamp = '2026-09-21T18:00:00.000Z'
+
+    try {
+      runSqlMigrations(database, [CORE_MIGRATIONS[0]!], migrationOptions)
+      database.run(
+        `INSERT INTO organizacoes (id, nome, criado_em, atualizado_em)
+         VALUES (?, 'Escritório sintético', ?, ?)`,
+        organizationId,
+        timestamp,
+        timestamp,
+      )
+      database.run(
+        `INSERT INTO empresas (
+           id, organizacao_id, razao_social, cnpj, uf, criado_em, atualizado_em
+         ) VALUES (?, ?, 'Empresa sintética', '11222333000181', 'PR', ?, ?)`,
+        companyId,
+        organizationId,
+        timestamp,
+        timestamp,
+      )
+      database.run(
+        `INSERT INTO lotes (
+           id, organizacao_id, empresa_id, recebido_em, status, criado_em, atualizado_em
+         ) VALUES (?, ?, ?, ?, 'PROCESSANDO', ?, ?)`,
+        batchId,
+        organizationId,
+        companyId,
+        timestamp,
+        timestamp,
+        timestamp,
+      )
+      database.run(
+        `INSERT INTO ocorrencias_arquivo (
+           id, lote_id, nome_original, caminho_relativo, tipo_detectado, origem,
+           hash_conteudo, tamanho_bytes, ordem_no_envio, recebido_em
+         ) VALUES (?, ?, 'nota.xml', 'nota.xml', 'XML', 'SELECTED_FILE', ?, 6, 1, ?)`,
+        occurrenceId,
+        batchId,
+        'a'.repeat(64),
+        timestamp,
+      )
+
+      const result = runSqlMigrations(database, CORE_MIGRATIONS, migrationOptions)
+      database.run(
+        `UPDATE lotes
+         SET status = 'CANCELADO', ultimo_cancelamento_em = ?, atualizado_em = ?
+         WHERE id = ?`,
+        timestamp,
+        timestamp,
+        batchId,
+      )
+
+      expect(result.applied.map(({ version }) => version)).toEqual([2])
+      expect(database.get<{ status: string }>('SELECT status FROM lotes WHERE id = ?', batchId))
+        .toEqual({ status: 'CANCELADO' })
+      expect(
+        database.get<{ lote_id: string }>(
+          'SELECT lote_id FROM ocorrencias_arquivo WHERE id = ?',
+          occurrenceId,
+        ),
+      ).toEqual({ lote_id: batchId })
+      expect(database.get<{ integrity_check: string }>('PRAGMA integrity_check')).toEqual({
+        integrity_check: 'ok',
+      })
     } finally {
       database.close()
     }

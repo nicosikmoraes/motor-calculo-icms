@@ -112,7 +112,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
   aninhados no XML;
 - [x] rejeitar isoladamente entradas inseguras e aproveitar as entradas válidas;
   rejeitar o ZIP inteiro somente em falha estrutural ou violação de limite global;
-- política para temporários e cancelamento da importação.
+- [x] no cancelamento, concluir somente a unidade atual, limpar temporários,
+  preservar checkpoints e diagnósticos fora dos totais e permitir retomada manual.
 
 **Desbloqueia:** upload de pasta/ZIP com proteção operacional definida.
 
