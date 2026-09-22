@@ -23,6 +23,9 @@ importers:
       '@motor/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@motor/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@motor/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -54,7 +57,11 @@ importers:
 
   packages/contracts: {}
 
-  packages/database: {}
+  packages/database:
+    dependencies:
+      '@motor/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/domain: {}
 

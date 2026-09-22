@@ -1,6 +1,6 @@
 # Software Design Document — Arquitetura
 
-**Projeto:** Motor de Cálculo de ICMS
+**Projeto:** ContabiliNico
 **Versão:** 0.1.0 — arquitetura em evolução
 **Última atualização:** 16/09/2026
 
@@ -22,7 +22,7 @@
 
 ```mermaid
 flowchart LR
-    OP["Usuário operacional"] --> APP["Aplicativo Motor ICMS"]
+    OP["Usuário operacional"] --> APP["Aplicativo ContabiliNico"]
     CT["Contador responsável"] --> APP
     XML["XMLs NF-e/NFC-e<br/>e arquivos ZIP"] --> APP
     APP --> XLSX["Relatório XLSX<br/>auditável"]

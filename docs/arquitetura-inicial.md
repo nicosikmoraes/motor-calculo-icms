@@ -14,6 +14,7 @@ Vite
 Pinia
 Vue Router
 SQLite por máquina
+node:sqlite no processo principal
 fast-xml-parser para leitura XML
 xmllint-wasm para validação XSD em worker
 ```
@@ -127,6 +128,11 @@ A unidade inicial de paralelização é a nota. A concorrência será limitada p
 Cada instalação possui seu próprio SQLite. Não existe sincronização automática entre máquinas. Migrações de schema acompanham as versões do aplicativo.
 
 O SQLite não deve ser colocado em pasta de rede para acesso simultâneo por diferentes computadores.
+
+O processo principal mantém a única conexão por `node:sqlite`. O banco fica na
+pasta `userData` da instalação, com chaves estrangeiras habilitadas. O schema
+evolui por migrations SQL imutáveis, ordenadas e verificadas por SHA-256; cada
+migration executa em transação e seu histórico fica em `schema_migrations`.
 
 O XML original possui retenção padrão de um mês, configurável. A rotina segura de expurgo e o conjunto de evidências preservadas ainda serão definidos.
 

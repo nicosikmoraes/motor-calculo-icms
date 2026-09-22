@@ -84,6 +84,9 @@ O MVP atende inicialmente a um único escritório e não implementa distinção 
 
 O sistema tenta identificar a empresa analisada pelos CNPJ presentes no XML. Quando não houver correspondência, solicita ao usuário que selecione uma empresa existente ou cadastre uma nova. O envio do lote não exige preenchimento de parâmetros fiscais por nota.
 
+A DT-030 refinou esta decisão: no MVP, cada lote confirmado possui exatamente
+uma empresa analisada e o reconhecimento por CNPJ é assistido pelo usuário.
+
 ## DT-009 — Modelos fiscais
 
 **Status:** aprovado.
@@ -279,6 +282,177 @@ entrada, tamanho total expandido, taxa de compressão e profundidade de caminho.
 Os valores de produção serão registrados quando a MD-04 for aprovada.
 
 O contrato completo está em [Segurança das entradas XML e ZIP](seguranca-entradas.md).
+
+## DT-023 — Imutabilidade dos resultados históricos
+
+**Status:** aprovado.
+
+Uma execução de cálculo concluída é um registro histórico imutável. Alterações
+posteriores em cadastros, dados complementados, regras fiscais ou versões do
+motor não reescrevem o resultado existente.
+
+Cada execução preserva a fotografia necessária para reproduzir e auditar o que
+ocorreu: dados de entrada utilizados, origem dos dados, versão exata das regras,
+versão do motor e memória de cálculo. Uma correção ou solicitação de recálculo
+cria uma nova execução vinculada ao documento e ao lote correspondentes. A nova
+execução pode ser a vigente para consultas e consolidações, mas mantém relação
+explícita com a anterior e nunca a apaga ou sobrescreve.
+
+Cadastros operacionais poderão ter edição ou inativação, porém referências
+históricas apontam para versões ou snapshots estáveis. A política de retenção
+poderá excluir o XML original conforme decisão específica, sem eliminar as
+evidências mínimas da execução.
+
+## DT-024 — Instância única e escrita centralizada
+
+**Status:** aprovado.
+
+Cada instalação executa apenas uma instância do aplicativo por vez. Uma segunda
+tentativa de abertura direciona o usuário para a janela existente, em vez de
+iniciar outro processo concorrente sobre o mesmo banco.
+
+O processo principal do Electron é o único responsável por abrir o SQLite e
+executar escritas. Workers podem analisar XMLs e calcular documentos em paralelo,
+mas devolvem resultados ao processo principal. A persistência recebe esses
+resultados por uma fila de gravação e aplica cada unidade consistente dentro de
+uma transação.
+
+A fila de gravação não obriga o processamento fiscal a ser sequencial: ela apenas
+ordena as alterações no banco. Controle de concorrência, capacidade da fila,
+pressão de retorno e granularidade das transações serão medidos antes de fixar os
+limites de produção.
+
+## DT-025 — Checkpoints e retomada de lote
+
+**Status:** aprovado.
+
+O lote é persistido antes do início do trabalho e cada documento concluído é
+confirmado separadamente em uma transação. Erro isolado em uma nota não desfaz os
+resultados já confirmados nem interrompe automaticamente as demais.
+
+Se o processo for encerrado durante o trabalho, o lote em `PROCESSANDO` passa a
+`INTERROMPIDO` na recuperação da aplicação. As execuções já concluídas são
+preservadas e a retomada agenda somente as unidades que não possuem checkpoint
+válido. A retomada nunca sobrescreve uma execução concluída.
+
+Os estados de lote do MVP são `RECEBIDO`, `VALIDANDO`, `PROCESSANDO`,
+`INTERROMPIDO`, `CONCLUIDO`, `CONCLUIDO_COM_PENDENCIAS` e `FALHOU`. `FALHOU` é
+reservado para falha do lote como um todo ou impossibilidade segura de continuar;
+falhas isoladas permanecem associadas aos respectivos arquivos ou documentos.
+
+## DT-026 — Idempotência de processamento e recálculo
+
+**Status:** aprovado.
+
+Cada solicitação de processamento recebe um UUID estável. Retomadas e tentativas
+automáticas conservam o mesmo identificador; uma ação explícita de recálculo cria
+uma nova solicitação e, portanto, uma nova execução histórica.
+
+O banco impede mais de uma execução para a mesma combinação de solicitação e
+documento. Se uma mensagem ou resultado for entregue novamente, o processo de
+persistência reconhece a execução já confirmada e não duplica documento,
+resultado, memória ou totais. O checkpoint é gravado na mesma transação que a
+execução completa e seus resultados.
+
+Essa idempotência não deduplica ocorrências do lote: arquivos repetidos continuam
+preservados e classificados conforme a DT-019. Ela impede somente que a mesma
+unidade de trabalho seja confirmada duas vezes por reinício, repetição da fila ou
+duplo acionamento acidental.
+
+## DT-027 — SQLite e migrations versionadas
+
+**Status:** aprovado.
+
+O MVP usa o módulo `node:sqlite` fornecido pelo runtime fixado do Electron, sem
+ORM. Todo acesso fica encapsulado no pacote `database`; domínio, casos de uso e
+interface não importam o driver nem executam SQL diretamente.
+
+O schema evolui por migrations SQL incrementais, imutáveis e versionadas no
+repositório. Cada migration possui número sequencial, nome descritivo e checksum.
+O banco mantém uma tabela de controle com versão, checksum, data de aplicação e
+versão do aplicativo. Alterar uma migration já publicada é proibido; correções
+exigem uma nova migration.
+
+As migrations são aplicadas em ordem na inicialização, antes de liberar operações
+do usuário. Cada migration deve ser atômica e transacional. Antes de migrar um
+banco existente, o aplicativo cria e valida um backup recuperável. Falha de
+migration interrompe a abertura operacional, preserva o banco anterior e oferece
+restauração ou diagnóstico; o aplicativo não continua com schema parcial.
+
+A evolução instalada é somente para frente. Não serão mantidas migrations `down`
+automáticas sobre dados do usuário: rollback de versão usa backup validado e uma
+versão compatível do aplicativo. Testes de integração devem cobrir banco vazio,
+atualização de cada versão suportada, repetição idempotente e falha interrompida.
+
+Como `node:sqlite` acompanha o Node embarcado, atualizar o Electron exige executar
+a suíte de compatibilidade e migrations antes da publicação. A abstração do pacote
+`database` preserva a possibilidade de trocar o driver se surgir bloqueio técnico.
+
+## DT-028 — Inativação e exclusão controlada
+
+**Status:** aprovado.
+
+Cadastros referenciados por documentos, regras, cálculos ou auditoria não são
+apagados pelo fluxo operacional. Empresa, perfil fiscal, produto de fornecedor e
+outros cadastros utilizados recebem estado ativo/inativo e data de inativação.
+Inativar impede novos usos, mas preserva consultas e referências históricas.
+
+Regra publicada é imutável e nunca pode ser excluída; correção cria nova versão.
+Um rascunho sem qualquer referência pode ser excluído. Lotes e execuções
+concluídas não possuem exclusão no fluxo comum.
+
+O expurgo do XML original segue a política de retenção e não remove dados
+normalizados, resultados, versões aplicadas ou auditoria. Um futuro expurgo
+definitivo de dados derivados exige caso de uso separado, confirmação explícita,
+motivo, avaliação das dependências e evento de auditoria. Nenhum repositório pode
+aplicar exclusão em cascata que apague silenciosamente evidência fiscal.
+
+## DT-029 — Representação exata de valores, datas e identificadores
+
+**Status:** aprovado.
+
+Valores fiscais decimais são persistidos como texto canônico em base dez, com
+ponto como separador e sem notação exponencial. SQLite `REAL` e ponto flutuante
+binário não são usados para valores monetários, quantidades, alíquotas, bases ou
+resultados fiscais. O formato e a escala são validados conforme o tipo do campo;
+como referência inicial, dinheiro usa duas casas, alíquotas e quantidades admitem
+até quatro e valor unitário admite até dez, respeitando o contrato oficial de cada
+dado quando ele for mais restritivo.
+
+O valor original extraído do XML é preservado quando necessário para evidência.
+Operações aritméticas usam uma biblioteca decimal exata ainda sujeita à decisão
+do contrato fiscal. Agregações fiscais não usam `SUM` sobre texto no SQLite: são
+executadas pelo domínio com decimal exato e persistidas com sua memória de
+cálculo. A conversão para célula numérica ocorre somente na geração do XLSX.
+
+Identificadores internos são UUIDs armazenados como texto. Instantes internos são
+normalizados para UTC em formato canônico. Datas fiscais preservam também a
+representação original e o deslocamento informados no XML, porque a data local de
+emissão pode afetar vigência e regras tributárias.
+
+## DT-030 — Uma empresa analisada por lote no MVP
+
+**Status:** aprovado para o MVP.
+
+Cada lote confirmado pertence a exatamente uma empresa analisada. O usuário pode
+selecioná-la antes da importação; caso não selecione, o sistema compara os CNPJs
+de emitente e destinatário dos XMLs com os cadastros e propõe uma empresa para
+confirmação. O processamento fiscal só começa depois que `empresaId` estiver
+definida.
+
+Quando houver mais de uma empresa candidata, a escolha não é automática. O
+usuário deve indicar a perspectiva do lote. Documento que não envolva a empresa
+confirmada recebe `EMPRESA_DIVERGENTE`, permanece visível para auditoria e não
+participa do cálculo nem dos totais daquele lote.
+
+Se emitente e destinatário forem empresas cadastradas, o documento é analisado
+pela perspectiva da empresa do lote. Para analisar a outra perspectiva, o mesmo
+XML pode integrar outro lote, preservando execução e histórico próprios.
+
+Como evolução, um único envio poderá ser separado automaticamente em lotes ou
+perspectivas por CNPJ. Essa automação exigirá fluxo explícito de confirmação e não
+altera a regra do MVP de que cada consolidação e relatório pertencem a uma única
+empresa.
 
 ## Fila de decisões
 

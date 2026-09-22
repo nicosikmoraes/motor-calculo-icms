@@ -64,6 +64,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] cada envio confirmado cria um lote com UUID e data/hora de recebimento;
 - [x] repetição idêntica: somente a primeira ocorrência elegível participa dos totais;
 - [x] conteúdo conflitante: todas as ocorrências ficam fora dos totais até resolução auditada;
+- [x] classificador determinístico implementado com repetição e conflito em eixos
+  separados, vínculo à original e elegibilidade para totais;
 - deduplicação de protocolos e eventos;
 - retenção e reprocessamento de eventos órfãos quando eventos forem implementados;
 - identidade fiscal usada para considerar dois eventos iguais.
@@ -74,12 +76,27 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 
 **Aqui precisamos decidir para avançar:**
 
-- biblioteca SQLite e uso ou não de ORM/query builder;
-- schema físico inicial, índices e restrições;
-- ferramenta e política de migrações;
-- estratégia de transações e acesso concorrente pelos workers;
-- recuperação de execução interrompida;
-- idempotência no banco.
+- [x] resultados históricos imutáveis; recálculo cria nova execução com snapshot
+  das entradas, regras, versão do motor e memória de cálculo, conforme DT-023;
+- [x] `node:sqlite` encapsulado no pacote `database`, sem ORM, conforme DT-027;
+- [ ] schema físico inicial, índices e restrições;
+- [x] inativação de cadastros utilizados, imutabilidade de regras publicadas e
+  proibição de cascatas destrutivas sobre o histórico, conforme DT-028;
+- [x] decimais como texto canônico, UUIDs textuais e datas fiscais preservadas
+  junto ao instante UTC normalizado, conforme DT-029;
+- [x] uma empresa analisada por lote, com identificação assistida pelos CNPJs dos
+  XMLs e rejeição fiscal de documentos divergentes, conforme DT-030;
+- [x] migrations SQL incrementais, imutáveis, com checksum, backup prévio e
+  execução transacional somente para frente, conforme DT-027;
+- [x] instância única, SQLite controlado pelo processo principal e gravações
+  transacionais centralizadas; workers não acessam o banco diretamente, conforme
+  DT-024;
+- [x] checkpoint transacional por documento e retomada apenas do trabalho não
+  concluído, conforme DT-025;
+- [ ] capacidade da fila e pressão de retorno;
+- [x] recuperação de execução interrompida;
+- [x] idempotência por `solicitacaoId + documentoId`, distinguindo retomada de
+  recálculo explícito, conforme DT-026.
 
 **Desbloqueia:** cadastros persistentes, histórico, auditoria e lotes reais.
 
@@ -241,6 +258,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] criar builders de teste e fixtures sintéticas sem dados reais;
 - [x] testar inventário independente da ordem dos arquivos;
 - [x] criar contrato de hash e proveniência do arquivo;
+- [x] classificar ocorrências repetidas e conteúdos conflitantes sem depender da
+  ordem de entrada;
 - [x] preparar testes de segurança para XXE, Zip Slip, ZIP corrompido e ZIP
   expansivo;
 
@@ -260,15 +279,26 @@ ingestão prontos para receber a implementação.
 - [ ] definir casos de uso sem detalhes de SQLite;
 - [ ] validar CNPJ, UF, vigência e identificadores normalizados no domínio.
 
-**DECISÃO NECESSÁRIA:** aprovar MD-03 antes de criar schema, migrations e
-repositórios SQLite concretos.
+**DECISÃO NECESSÁRIA:** aprovar o schema físico restante da MD-03 antes de criar
+a primeira migration de domínio e os repositórios concretos.
 
 Após a decisão:
 
-- [ ] criar banco da instalação e migração inicial;
-- [ ] persistir organização, empresa, perfil e produto de fornecedor;
+- [x] criar conexão `node:sqlite`, banco da instalação e executor de migrations;
+- [x] registrar versão, checksum, data e versão do aplicativo, com rollback da
+  migration que falhar;
+- [x] criar e validar backup antes de aplicar migrations pendentes sobre um banco
+  com schema de usuário;
+- [x] testar criação, ordenação, idempotência, checksum, rollback, reabertura e
+  chaves estrangeiras;
+- [x] criar a migration `0001` com organização, empresa, lote e ocorrência de
+  arquivo, incluindo índices, checks e foreign keys restritivas;
+- [x] persistir e consultar organização, empresa, lote e ocorrência de arquivo;
+- [ ] persistir perfil fiscal e produto de fornecedor;
 - [ ] implementar transações e trilha básica de auditoria;
-- [ ] testar criação, consulta, atualização versionada e reinicialização.
+- [x] testar criação, consulta, inativação, rollback e reinicialização para as
+  entidades da migration `0001`;
+- [ ] testar atualização versionada após implementar perfis, produtos e regras.
 
 **SAÍDA:** cadastros permanecem íntegros após fechar e reabrir o aplicativo.
 

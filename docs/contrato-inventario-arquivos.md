@@ -50,6 +50,24 @@ A condição `REPETIDA` depende também da chave da nota e somente será atribu�
 depois do parsing. O inventário não presume que dois arquivos de mesmo conteúdo
 representam uma decisão fiscal duplicada.
 
+Após a normalização, o classificador do domínio agrupa por lote e chave de acesso
+e, dentro de cada chave, por hash. Ele mantém separadas duas dimensões:
+
+- `repetition`: `ORIGINAL`, `REPETIDA` ou `NAO_CLASSIFICAVEL`;
+- `contentConflict`: `SEM_CONFLITO`, `CONFLITO_CONTEUDO` ou
+  `NAO_CLASSIFICAVEL`.
+
+Essa separação preserva cópias repetidas dentro de cada variante quando uma mesma
+chave possui conteúdos conflitantes. A repetida aponta para a ocorrência original
+do mesmo hash. Em conflito, todas as variantes ficam fora dos totais; sem conflito,
+somente a original é elegível pela política de ocorrências. Ausência de chave não
+é inferida por nome ou hash e permanece não classificável.
+
+O resultado é ordenado por lote, posição canônica e identificador, portanto não
+depende da ordem recebida pelo classificador. A elegibilidade indicada considera
+somente repetição e conflito; pendências fiscais posteriores ainda podem excluir
+uma ocorrência que seria elegível por esta política.
+
 ## Limites deste incremento
 
 - o adaptador recebe arquivos já enumerados; seleção recursiva de pastas ainda

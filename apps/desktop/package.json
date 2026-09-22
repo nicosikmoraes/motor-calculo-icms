@@ -1,5 +1,6 @@
 {
   "name": "@motor/desktop",
+  "productName": "ContabiliNico",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,6 +13,7 @@
   },
   "dependencies": {
     "@motor/contracts": "workspace:*",
+    "@motor/database": "workspace:*",
     "@motor/domain": "workspace:*",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",

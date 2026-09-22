@@ -1,6 +1,6 @@
 # Tokens de Design
 
-**Projeto:** Motor de Cálculo de ICMS
+**Projeto:** ContabiliNico
 **Versão:** 0.1.0 — baseline da interface atual
 **Última atualização:** 16/09/2026
 

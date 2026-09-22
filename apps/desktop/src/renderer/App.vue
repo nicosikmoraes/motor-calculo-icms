@@ -14,7 +14,7 @@ onMounted(async () => {
     <aside class="sidebar">
       <div>
         <p class="eyebrow">Auditoria fiscal local</p>
-        <h1>Motor ICMS</h1>
+        <h1>ContabiliNico</h1>
       </div>
 
       <nav aria-label="Navegação principal">

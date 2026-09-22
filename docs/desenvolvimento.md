@@ -24,7 +24,7 @@ packages/contracts/ contratos IPC compartilhados
 packages/domain/    estados e conceitos de negócio
 packages/tax-engine seleção de regras e, futuramente, cálculo fiscal
 packages/nfe-parser porta de ingestão e normalização
-packages/database/  portas de persistência
+packages/database/  SQLite local, migrations e repositórios
 packages/reporting/ porta de geração de relatórios
 ```
 
@@ -47,9 +47,19 @@ Slip, corrupção e expansão excessiva sem escrever entradas no disco. Os teste
 geram os arquivos ZIP em memória com `yazl`; essa biblioteca é dependência apenas
 de desenvolvimento.
 
-As portas sem implementação são intencionais. Elas impedem que escolhas ainda
-registradas em `decisoes-pendentes.md` — como biblioteca SQLite, parser XML,
-decimal exato e contrato XLSX — sejam incorporadas silenciosamente à arquitetura.
+O pacote `database` usa `node:sqlite`, habilita chaves estrangeiras e mantém uma
+única conexão controlada pelo processo principal. O arquivo
+`motor-icms.sqlite` fica em `app.getPath('userData')`. Migrations seguem o formato
+`0001_nome.sql`, são aplicadas em transações e registram checksum em
+`schema_migrations`. Ao evoluir um banco que já contém schema de usuário, o
+executor cria e valida um backup antes da primeira migration pendente. A primeira
+migration de domínio, `0001_nucleo_persistencia.sql`, cria organização, empresa,
+lote e ocorrência de arquivo. O SQL é importado como recurso bruto e incorporado
+ao bundle do processo principal.
+
+As portas ainda sem implementação são intencionais. Elas impedem que escolhas
+pendentes — como biblioteca decimal e contrato XLSX — sejam incorporadas
+silenciosamente à arquitetura.
 
 ## Primeiro incremento implementado
 
@@ -61,4 +71,7 @@ decimal exato e contrato XLSX — sejam incorporadas silenciosamente à arquitet
 - detecção explícita de regra inexistente e ambígua;
 - testes unitários da precedência aprovada;
 - parser NF-e/NFC-e 4.00, catálogo de severidades, normalização e builders de XML
-  sintético.
+  sintético;
+- classificação determinística de repetições e conflitos de conteúdo;
+- conexão SQLite local e executor versionado de migrations.
+- migration inicial e repositórios de organização, empresa, lote e ocorrência.

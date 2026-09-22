@@ -1,12 +1,13 @@
-/**
- * Unidade transacional abstrata. A biblioteca SQLite e o schema físico ainda
- * dependem das decisões de persistência do MVP.
- */
+export * from './core-migrations'
+export * from './core-repositories'
+export * from './migrations'
+export * from './sqlite-database'
+
 export interface UnitOfWork {
-  transaction<T>(operation: () => Promise<T>): Promise<T>
+  transaction<T>(operation: () => T): T
 }
 
 export interface Repository<TEntity extends { id: string }> {
-  findById(id: string): Promise<TEntity | undefined>
-  save(entity: TEntity): Promise<void>
+  findById(id: string): TEntity | undefined
+  save(entity: TEntity): void
 }

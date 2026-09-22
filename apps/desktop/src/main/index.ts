@@ -1,8 +1,34 @@
+import { randomUUID } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { IPC_CHANNELS, type SelectedSource } from '@motor/contracts'
+import {
+  CORE_MIGRATIONS,
+  SqliteDatabase,
+  runSqlMigrationsWithBackup,
+} from '@motor/database'
 
 const allowedExtensions = new Set(['.xml', '.zip'])
+let database: SqliteDatabase | undefined
+
+async function openDatabase(): Promise<void> {
+  const dataDirectory = app.getPath('userData')
+  const backupDirectory = join(dataDirectory, 'backups')
+  await mkdir(backupDirectory, { recursive: true })
+
+  database = new SqliteDatabase(join(dataDirectory, 'motor-icms.sqlite'))
+  try {
+    await runSqlMigrationsWithBackup(database, CORE_MIGRATIONS, {
+      appVersion: app.getVersion(),
+      backupPath: join(backupDirectory, `pre-migration-${Date.now()}-${randomUUID()}.sqlite`),
+    })
+  } catch (error) {
+    database.close()
+    database = undefined
+    throw error
+  }
+}
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -48,9 +74,17 @@ function registerIpcHandlers(): void {
   })
 }
 
-app.whenReady().then(() => {
-  registerIpcHandlers()
-  createWindow()
+app.whenReady().then(async () => {
+  try {
+    await openDatabase()
+    registerIpcHandlers()
+    createWindow()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha desconhecida.'
+    dialog.showErrorBox('Não foi possível abrir o banco de dados', message)
+    app.quit()
+    return
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -59,4 +93,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  database?.close()
+  database = undefined
 })

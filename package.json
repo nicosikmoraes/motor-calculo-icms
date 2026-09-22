@@ -1,8 +1,8 @@
 {
-  "name": "motor-calculo-icms",
+  "name": "contabilinico",
   "version": "0.1.0",
   "private": true,
-  "description": "Aplicativo desktop local-first para cálculo e auditoria de ICMS.",
+  "description": "ContabiliNico — aplicativo desktop local-first para cálculo e auditoria fiscal.",
   "packageManager": "pnpm@10.32.1",
   "engines": {
     "node": ">=22"

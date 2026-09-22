@@ -186,7 +186,8 @@ RN-027 — A comparação deve conservar base, alíquota, imposto, regra e fórm
 - `CALCULADA_DIVERGENTE`: todos calculados e algum divergente;
 - `PENDENTE`: algum item sem conclusão;
 - `ERRO`: documento inválido ou falha impeditiva;
-- `DUPLICADA`: chave já presente no mesmo lote ou segundo política configurada.
+- `REPETIDA`: mesma chave e mesmo conteúdo já presentes no lote, conforme a
+  política de ocorrências.
 
 Ocorrências com mesma chave e mesmo hash são calculadas e, a partir da segunda no
 mesmo lote, recebem `REPETIDA`. Ocorrências com a mesma chave e hashes diferentes
@@ -209,7 +210,8 @@ nova execução ao reprocessar a nota.
 
 ### Lote
 
-- `RECEBIDO`, `VALIDANDO`, `PROCESSANDO`, `CONCLUIDO`, `CONCLUIDO_COM_PENDENCIAS` ou `FALHOU`.
+- `RECEBIDO`, `VALIDANDO`, `PROCESSANDO`, `INTERROMPIDO`, `CONCLUIDO`,
+  `CONCLUIDO_COM_PENDENCIAS` ou `FALHOU`.
 
 ## 10. Planilha de saída
 
@@ -255,3 +257,27 @@ RN-029 — Campos, operadores e valores possíveis serão controlados pela aplic
 RN-030 — Fórmulas fiscais serão implementadas e versionadas no motor. A regra escolhe fórmula e parâmetros autorizados, mas não executa código fornecido pelo usuário.
 
 RN-031 — O sistema deve detectar sobreposição potencial no momento do cadastro ou importação e informar quais regras entram em conflito.
+
+RN-036 — Uma execução de cálculo concluída é imutável. Correções e recálculos
+criam nova execução, preservando os dados utilizados, as versões das regras e do
+motor, a memória de cálculo e a relação com a execução anterior.
+
+RN-037 — Cada documento concluído gera um checkpoint transacional. Após uma
+interrupção, o lote preserva o trabalho confirmado e retoma somente unidades sem
+checkpoint válido, sem duplicar ou sobrescrever execuções.
+
+RN-038 — Retomadas e tentativas automáticas mantêm o identificador da solicitação
+original e são idempotentes por documento. Um recálculo solicitado pelo usuário
+recebe novo identificador e cria nova execução histórica.
+
+RN-039 — Cadastros já utilizados são inativados em vez de excluídos. Regras
+publicadas, lotes e execuções concluídas não podem ser apagados pelo fluxo
+operacional, e nenhuma exclusão em cascata pode remover evidência fiscal.
+
+RN-040 — Valores fiscais são persistidos em representação decimal exata e nunca
+em ponto flutuante binário. Datas fiscais preservam o valor e o deslocamento do
+XML além do instante normalizado usado internamente.
+
+RN-041 — Cada lote confirmado possui exatamente uma empresa analisada. Documento
+que não envolva essa empresa recebe `EMPRESA_DIVERGENTE`, permanece auditável e
+não participa do cálculo ou dos totais do lote.

@@ -36,11 +36,19 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 
 ## Prioridade 4 — persistência local
 
-1. Biblioteca de acesso ao SQLite e decisão sobre ORM/query builder.
-2. Schema físico, índices e restrições definitivas.
-3. Migrações e compatibilidade entre versões do aplicativo.
-4. Política de idempotência e duplicidade no banco.
-5. Estratégia para transações, concorrência entre workers e recuperação após interrupção.
+1. `node:sqlite` sem ORM foi aprovado na DT-027; falta homologar o runtime no
+   instalador Windows antes da distribuição.
+2. Completar o schema físico de perfis fiscais, produtos, regras, documentos e
+   cálculos. A migration `0001` já cobre organização, empresa, lote e ocorrência
+   de arquivo; a política de inativação e proteção contra exclusões em cascata foi
+   aprovada na DT-028.
+3. Definir a matriz de versões antigas suportadas nos testes de atualização. A
+   política de migrations foi aprovada na DT-027.
+4. Detalhes de índices e restrições do schema. A idempotência de execução foi
+   aprovada na DT-026 e a política de ocorrências repetidas permanece na DT-019.
+5. Capacidade da fila e pressão de retorno. A instância única, a escrita
+   centralizada, os checkpoints por documento e a recuperação após interrupção
+   já foram aprovados nas DT-024 e DT-025.
 
 ## Prioridade 5 — retenção e proteção de dados
 

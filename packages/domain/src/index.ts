@@ -1,9 +1,12 @@
+export * from './document-occurrence-classifier'
 export * from './normalized-nfe'
+export * from './registrations'
 
 export type BatchStatus =
   | 'RECEBIDO'
   | 'VALIDANDO'
   | 'PROCESSANDO'
+  | 'INTERROMPIDO'
   | 'CONCLUIDO'
   | 'CONCLUIDO_COM_PENDENCIAS'
   | 'FALHOU'
@@ -23,7 +26,7 @@ export type DocumentCalculationStatus =
   | 'CALCULADA_DIVERGENTE'
   | 'PENDENTE'
   | 'ERRO'
-  | 'DUPLICADA'
+  | 'REPETIDA'
 
 export type ResultCharacter = 'DEFINITIVO' | 'PROVISORIO' | 'DIAGNOSTICO'
 

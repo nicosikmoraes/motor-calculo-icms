@@ -1,6 +1,6 @@
-# Motor de Cálculo de ICMS
+# ContabiliNico
 
-Aplicação local para contadores recalcularem ICMS em lote a partir de XMLs de
+Aplicação local de cálculo e auditoria fiscal para contadores recalcularem ICMS em lote a partir de XMLs de
 NF-e/NFC-e, compararem o resultado com os valores declarados e investigarem
 divergências com rastreabilidade.
 

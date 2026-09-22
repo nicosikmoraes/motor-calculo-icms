@@ -71,7 +71,13 @@ status, totalArquivos, totalNotas, totalPendencias, instalacaoOrigemId
 ```
 
 Cada envio confirmado recebe UUID próprio; `recebidoEm` não é usado sozinho como
-identidade técnica.
+identidade técnica. `empresaId` pode permanecer ausente durante a identificação
+inicial, mas é obrigatório antes de iniciar o processamento fiscal. Um lote
+confirmado representa somente uma empresa analisada.
+
+Na migration `0001`, estados a partir de `PROCESSANDO` exigem `empresaId`. A
+foreign key composta também garante que a empresa pertença à mesma organização do
+lote.
 
 ### `OcorrenciaArquivo`
 
@@ -86,6 +92,11 @@ evidência nem confundir lotes diferentes.
 
 O formato canônico, o SHA-256 e a proveniência estão definidos em
 [Contrato do inventário de arquivos](contrato-inventario-arquivos.md).
+
+A migration `0001` preserva todas as ocorrências, não torna chave ou hash únicos e
+garante apenas a unicidade de `loteId + ordemNoEnvio`. Repetições apontam para uma
+ocorrência original do mesmo lote e nunca são elegíveis para os totais; conflitos
+de conteúdo também ficam inelegíveis por restrição do banco.
 
 ### `DocumentoFiscal`
 
@@ -133,9 +144,12 @@ decimal.
 ### `ExecucaoCalculo`
 
 ```text
-id, documentoId, execucaoAnteriorId, versaoMotor,
+id, solicitacaoId, documentoId, execucaoAnteriorId, versaoMotor,
 iniciadaEm, concluidaEm, status, instalacaoOrigemId
 ```
+
+`solicitacaoId + documentoId` possui unicidade no banco. Retomadas reutilizam a
+solicitação; recálculos explícitos criam uma nova.
 
 ### `ResultadoItem`
 
@@ -184,7 +198,20 @@ totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
 - Regra publicada é imutável; correção cria nova versão.
 - Datas de vigência são obrigatórias para regra aprovada.
 - Resultado referencia exatamente a versão utilizada.
-- Valores monetários usam decimal exato, nunca ponto flutuante binário.
+- Execução de cálculo concluída é imutável; recálculo cria uma nova execução
+  vinculada à anterior e preserva entradas, versões e memória de cálculo.
+- A combinação `solicitacaoId + documentoId` é idempotente e não pode gerar duas
+  execuções confirmadas.
+- Cadastros utilizados são inativados, não excluídos; regras publicadas, lotes e
+  execuções históricas não admitem exclusão operacional.
+- Todo lote em processamento possui exatamente uma empresa analisada; documento
+  alheio a ela permanece registrado com `EMPRESA_DIVERGENTE` e fora dos totais.
+- Chaves estrangeiras históricas usam comportamento restritivo e não podem
+  apagar evidências por cascata.
+- Valores monetários, bases, alíquotas, quantidades e valores unitários usam texto
+  decimal canônico com escala validada, nunca ponto flutuante binário.
+- Instantes internos usam UTC canônico; datas fiscais preservam também o valor e
+  o deslocamento originais do XML.
 - NCM, CEST, CNPJ, chave e códigos fiscais são armazenados como texto normalizado.
 - Identificadores UUID permanecem estáveis entre exportações e importações.
 - A aplicação nunca mescla arquivos SQLite diretamente.

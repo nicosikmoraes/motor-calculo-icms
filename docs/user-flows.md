@@ -1,6 +1,6 @@
 # Jornadas de Usuário
 
-**Projeto:** Motor de Cálculo de ICMS
+**Projeto:** ContabiliNico
 **Versão:** 0.1.0 — rascunho acadêmico
 **Última atualização:** 16/09/2026
 
