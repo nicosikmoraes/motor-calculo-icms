@@ -72,9 +72,9 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 1. Homologar o volume de referência aprovado de 1.000 notas e o processamento
    incremental sem limite comercial por quantidade.
-2. Os limites de 10 MB por XML, 500 MB por ZIP, 2 GB expandidos e taxa de 100:1
-   foram aprovados; falta definir quantidade técnica de entradas e profundidade
-   máxima de caminho/XML.
+2. Homologar em carga os limites aprovados de 10 MB por XML, 500 MB por ZIP, 2 GB
+   expandidos, taxa de 100:1, 10.000 entradas, 20 segmentos de caminho e 100
+   elementos aninhados no XML.
 3. Metas de tempo em computadores de referência para as 1.000 notas.
 4. Número de workers, uso máximo de memória e responsividade da interface.
 5. Pausa, retomada, cancelamento e recuperação de lote interrompido.

@@ -231,9 +231,9 @@ esse volume em bloqueio por quantidade.
 
 Foram aprovados como limites iniciais de produção: 10 MB por XML, 500 MB por
 arquivo ZIP, 2 GB de conteúdo total expandido por ZIP e taxa máxima de compressão
-de 100:1. Quantidade técnica de entradas por ZIP, profundidade de caminhos,
-profundidade do XML e política de temporários ainda precisam ser fechadas na
-MD-04.
+de 100:1. Cada ZIP aceita no máximo 10.000 entradas e profundidade de 20 segmentos
+de caminho; cada XML aceita profundidade máxima de 100 elementos. A política de
+temporários ainda precisa ser fechada na MD-04.
 
 ## DT-020 — Bibliotecas de parsing e validação XML
 
@@ -288,8 +288,8 @@ Os limites não são fixados pela biblioteca nem escondidos no código. O chamad
 obrigado a fornecer tamanho do arquivo, quantidade de entradas, tamanho por
 entrada, tamanho total expandido, taxa de compressão e profundidade de caminho.
 Os limites iniciais aprovados são 500 MB para o ZIP, 10 MB por entrada XML, 2 GB
-para a soma expandida e taxa de compressão de 100:1. O limite técnico de entradas
-e a profundidade máxima de caminho permanecem pendentes na MD-04.
+para a soma expandida, taxa de compressão de 100:1, 10.000 entradas e profundidade
+máxima de 20 segmentos de caminho. XMLs aceitam no máximo 100 elementos aninhados.
 
 O contrato completo está em [Segurança das entradas XML e ZIP](seguranca-entradas.md).
 

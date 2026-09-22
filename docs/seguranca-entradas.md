@@ -55,9 +55,9 @@ Não existem constantes ocultas. Toda inspeção exige uma `ZipSecurityPolicy` c
 
 Os testes usam valores pequenos e explícitos para provar os bloqueios. A política
 inicial de produção aprovada limita cada ZIP a 500 MB, cada XML expandido a 10 MB,
-o conteúdo total expandido a 2 GB e a taxa de compressão a 100:1. O limite
-técnico de entradas e a profundidade máxima de caminho permanecem pendentes na
-MD-04. Uma política ausente, infinita, zero ou negativa é rejeitada em vez de
+o conteúdo total expandido a 2 GB, a taxa de compressão a 100:1, o total de
+entradas a 10.000 e a profundidade do caminho a 20 segmentos. XMLs aceitam no
+máximo 100 elementos aninhados. Uma política ausente, infinita, zero ou negativa é rejeitada em vez de
 desabilitar silenciosamente a proteção.
 
 ## Limites deste incremento

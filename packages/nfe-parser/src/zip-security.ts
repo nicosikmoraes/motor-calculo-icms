@@ -13,6 +13,15 @@ export interface ZipSecurityPolicy {
   maxPathDepth: number
 }
 
+export const PRODUCTION_ZIP_SECURITY_POLICY: Readonly<ZipSecurityPolicy> = Object.freeze({
+  maxArchiveBytes: 500 * 1024 * 1024,
+  maxEntries: 10_000,
+  maxEntryUncompressedBytes: 10 * 1024 * 1024,
+  maxTotalUncompressedBytes: 2 * 1024 * 1024 * 1024,
+  maxCompressionRatio: 100,
+  maxPathDepth: 20,
+})
+
 export type ZipSecurityErrorCode =
   | 'ZIP_INVALID'
   | 'ZIP_CRC_MISMATCH'

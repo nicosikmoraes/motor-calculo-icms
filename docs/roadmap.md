@@ -108,7 +108,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
   com processamento incremental e cancelável;
 - [x] tamanho máximo de 10 MB por XML e 500 MB por ZIP;
 - [x] limite de 2 GB de conteúdo expandido e taxa máxima de compressão de 100:1;
-- [ ] limite técnico de entradas por ZIP e profundidade máxima de caminho/XML;
+- [x] limite de 10.000 entradas por ZIP, 20 segmentos de caminho e 100 elementos
+  aninhados no XML;
 - comportamento diante de ZIP protegido, corrompido ou com caminhos maliciosos;
 - política para temporários e cancelamento da importação.
 

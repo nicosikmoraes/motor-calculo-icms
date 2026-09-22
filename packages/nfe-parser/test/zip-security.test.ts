@@ -2,6 +2,8 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import yazl from 'yazl'
 import {
+  PRODUCTION_XML_SECURITY_POLICY,
+  PRODUCTION_ZIP_SECURITY_POLICY,
   XmlSecurityError,
   ZipSecurityError,
   assertSafeXml,
@@ -65,6 +67,30 @@ describe('segurança de XML e ZIP', () => {
     const xxe = '<!DOCTYPE NFe [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><NFe>&xxe;</NFe>'
 
     expect(() => assertSafeXml(xxe)).toThrowError(XmlSecurityError)
+  })
+
+  it('aplica os limites de produção aprovados', () => {
+    expect(PRODUCTION_XML_SECURITY_POLICY).toEqual({
+      maxBytes: 10 * 1024 * 1024,
+      maxDepth: 100,
+    })
+    expect(PRODUCTION_ZIP_SECURITY_POLICY).toEqual({
+      maxArchiveBytes: 500 * 1024 * 1024,
+      maxEntries: 10_000,
+      maxEntryUncompressedBytes: 10 * 1024 * 1024,
+      maxTotalUncompressedBytes: 2 * 1024 * 1024 * 1024,
+      maxCompressionRatio: 100,
+      maxPathDepth: 20,
+    })
+  })
+
+  it('recusa XML acima do tamanho e da profundidade permitidos', () => {
+    expect(() => assertSafeXml('<NFe/>', { maxBytes: 5, maxDepth: 100 })).toThrowError(
+      expect.objectContaining({ code: 'XML_TOO_LARGE' }),
+    )
+    expect(() => assertSafeXml('<a><b><c/></b></a>', { maxBytes: 100, maxDepth: 2 })).toThrowError(
+      expect.objectContaining({ code: 'XML_DEPTH_EXCEEDED' }),
+    )
   })
 
   it('inspeciona ZIP válido sem escrever entradas no disco', async () => {
