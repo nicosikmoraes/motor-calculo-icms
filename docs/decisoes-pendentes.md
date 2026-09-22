@@ -70,9 +70,12 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 ## Prioridade 7 — escala e desempenho local
 
-1. Quantidade esperada por lote e estratégia para processar volumes grandes sem limite comercial.
-2. Limites técnicos de segurança para XML e ZIP e proteção contra ZIP expansivo.
-3. Metas de tempo em computadores de referência.
+1. Homologar o volume de referência aprovado de 1.000 notas e o processamento
+   incremental sem limite comercial por quantidade.
+2. Os limites de 10 MB por XML, 500 MB por ZIP, 2 GB expandidos e taxa de 100:1
+   foram aprovados; falta definir quantidade técnica de entradas e profundidade
+   máxima de caminho/XML.
+3. Metas de tempo em computadores de referência para as 1.000 notas.
 4. Número de workers, uso máximo de memória e responsividade da interface.
 5. Pausa, retomada, cancelamento e recuperação de lote interrompido.
 6. Expurgo de temporários e crescimento do banco local.

@@ -53,10 +53,12 @@ Não existem constantes ocultas. Toda inspeção exige uma `ZipSecurityPolicy` c
 - taxa máxima de compressão;
 - profundidade máxima de caminho.
 
-Os testes usam valores pequenos e explícitos para provar os bloqueios. Os valores
-de produção continuam pendentes na MD-04 e deverão ser definidos por teste de
-carga em computadores de referência. Uma política ausente, infinita, zero ou
-negativa é rejeitada em vez de desabilitar silenciosamente a proteção.
+Os testes usam valores pequenos e explícitos para provar os bloqueios. A política
+inicial de produção aprovada limita cada ZIP a 500 MB, cada XML expandido a 10 MB,
+o conteúdo total expandido a 2 GB e a taxa de compressão a 100:1. O limite
+técnico de entradas e a profundidade máxima de caminho permanecem pendentes na
+MD-04. Uma política ausente, infinita, zero ou negativa é rejeitada em vez de
+desabilitar silenciosamente a proteção.
 
 ## Limites deste incremento
 

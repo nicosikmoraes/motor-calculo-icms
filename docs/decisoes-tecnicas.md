@@ -224,9 +224,16 @@ podem ser criados no mesmo instante e horários podem sofrer ajustes.
 
 Não haverá limite comercial de quantidade de notas por plano ou licença no MVP.
 Limites técnicos de segurança continuam obrigatórios para impedir exaustão de
-memória, disco, CPU, XML excessivamente profundo e ZIP expansivo. Os valores serão
-definidos por teste de carga e poderão resultar em processamento por partes, sem
-reduzir arbitrariamente a quantidade de notas aceita pelo produto.
+memória, disco, CPU, XML excessivamente profundo e ZIP expansivo. O processamento
+deve ser incremental e cancelável, sem carregar o lote inteiro na memória. O MVP
+será testado com o volume de referência de 1.000 notas por lote, sem transformar
+esse volume em bloqueio por quantidade.
+
+Foram aprovados como limites iniciais de produção: 10 MB por XML, 500 MB por
+arquivo ZIP, 2 GB de conteúdo total expandido por ZIP e taxa máxima de compressão
+de 100:1. Quantidade técnica de entradas por ZIP, profundidade de caminhos,
+profundidade do XML e política de temporários ainda precisam ser fechadas na
+MD-04.
 
 ## DT-020 — Bibliotecas de parsing e validação XML
 
@@ -270,7 +277,8 @@ O catálogo completo está em
 
 ## DT-022 — Inspeção segura de arquivos ZIP
 
-**Status:** solução técnica aprovada; limites de produção pendentes na MD-04.
+**Status:** solução técnica e limites de tamanho aprovados; demais controles
+pendentes na MD-04.
 
 O MVP usa `yauzl` 3.4.0 para ler o diretório central e verificar cada entrada de
 forma sequencial, sem extrair no disco. Caminhos inseguros, criptografia, links
@@ -279,7 +287,9 @@ simbólicos, corrupção e violações da política de expansão são impeditivo
 Os limites não são fixados pela biblioteca nem escondidos no código. O chamador é
 obrigado a fornecer tamanho do arquivo, quantidade de entradas, tamanho por
 entrada, tamanho total expandido, taxa de compressão e profundidade de caminho.
-Os valores de produção serão registrados quando a MD-04 for aprovada.
+Os limites iniciais aprovados são 500 MB para o ZIP, 10 MB por entrada XML, 2 GB
+para a soma expandida e taxa de compressão de 100:1. O limite técnico de entradas
+e a profundidade máxima de caminho permanecem pendentes na MD-04.
 
 O contrato completo está em [Segurança das entradas XML e ZIP](seguranca-entradas.md).
 
