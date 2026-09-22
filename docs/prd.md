@@ -94,7 +94,13 @@ notas sejam inventariadas, validadas e preparadas para cálculo em conjunto.
 - [ ] **Dado** um conjunto de NF-e/NFC-e 4.00, **quando** o envio é confirmado, **então** um lote com identidade própria registra cada ocorrência e seu hash.
 - [ ] **Dado** um arquivo inválido, inseguro ou não suportado, **quando** o lote é analisado, **então** o problema é registrado sem interromper os demais arquivos seguros.
 - [ ] **Dado** o mesmo conjunto em outra ordem, **quando** ele é inventariado, **então** a ordem canônica e o hash do inventário permanecem iguais.
-- [ ] **Dado** um ZIP expansivo ou com caminho malicioso, **quando** ele é inspecionado, **então** nenhuma entrada é gravada e o motivo da rejeição é apresentado.
+- [ ] **Dado** um ZIP com uma entrada individual insegura, **quando** ele é
+  inspecionado, **então** a entrada é rejeitada com motivo explícito e as demais
+  entradas seguras são preservadas; violação estrutural ou de limite global
+  rejeita o ZIP inteiro.
+- [ ] **Dado** um CNPJ candidato ainda não cadastrado, **quando** o lote é preparado,
+  **então** o sistema solicita a criação e confirmação da empresa antes do
+  processamento, sem cadastrá-la automaticamente.
 
 **Regras relacionadas:** RN-001, RN-003, RN-032 a RN-035 e DT-018 a DT-022.
 

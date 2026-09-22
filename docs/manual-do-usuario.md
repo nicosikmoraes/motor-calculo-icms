@@ -67,7 +67,8 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 1. Acesse **Novo lote**.
 2. Envie uma pasta, XMLs individuais ou um ZIP.
 3. O sistema tenta localizar a empresa pelo CNPJ do XML.
-4. Se o CNPJ não estiver cadastrado, selecione uma empresa existente ou crie uma nova.
+4. Se o CNPJ escolhido não estiver cadastrado, crie e confirme a empresa; o
+   sistema pode pré-preencher o CNPJ, mas nunca cria o cadastro automaticamente.
 5. Confirme o envio.
 6. Acompanhe os estados `Recebido`, `Validando` e `Processando`.
 7. Ao concluir, veja a quantidade de notas aderentes, divergentes, provisórias, excluídas e inválidas.

@@ -17,8 +17,11 @@ flowchart TD
     A(["Usuário acessa Novo lote"]) --> B["«pessoa» seleciona XMLs ou ZIP"]
     B --> C{"As entradas são seguras e reconhecidas?"}
     C -->|"não, em alguns arquivos"| D["Sistema registra os erros<br/>e preserva os arquivos seguros"]
-    C -->|"sim"| E["«pessoa» confirma o envio"]
-    D --> E
+    C -->|"sim"| CNPJ{"A empresa do CNPJ<br/>está cadastrada?"}
+    D --> CNPJ
+    CNPJ -->|"não"| CAD["«pessoa» cria e confirma<br/>o cadastro da empresa"]
+    CNPJ -->|"sim"| E["«pessoa» confirma o envio"]
+    CAD --> E
     E --> F["Sistema cria o lote<br/>e processa cada ocorrência"]
     F --> G{"Todas as notas têm<br/>dados suficientes?"}
     G -->|"sim"| H["«pessoa» consulta os resultados<br/>e exporta o XLSX"]

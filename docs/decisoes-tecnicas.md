@@ -471,6 +471,11 @@ usuário deve indicar a perspectiva do lote. Documento que não envolva a empres
 confirmada recebe `EMPRESA_DIVERGENTE`, permanece visível para auditoria e não
 participa do cálculo nem dos totais daquele lote.
 
+Se o CNPJ escolhido não estiver cadastrado, a importação fica aguardando e o
+sistema solicita que o usuário crie a empresa. O CNPJ pode ser pré-preenchido a
+partir do XML, mas o cadastro nunca é criado automaticamente. O processamento só
+continua depois da validação e confirmação explícita do cadastro.
+
 Se emitente e destinatário forem empresas cadastradas, o documento é analisado
 pela perspectiva da empresa do lote. Para analisar a outra perspectiva, o mesmo
 XML pode integrar outro lote, preservando execução e histórico próprios.
