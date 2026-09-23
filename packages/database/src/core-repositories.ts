@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   assertCanonicalUtcTimestamp,
   normalizeBrazilianState,
@@ -5,6 +6,7 @@ import {
   type BatchStatus,
   type Company,
   type Organization,
+  type NormalizedNfe,
 } from '@motor/domain'
 import type { SqliteDatabase } from './sqlite-database'
 
@@ -65,6 +67,15 @@ export interface IngestionDiagnosticRecord {
   source: string
   code: string
   message: string
+  createdAt: string
+}
+
+export interface NormalizedFiscalDocumentRecord {
+  id: string
+  batchId: string
+  occurrenceId: string
+  contentHash: string
+  normalized: NormalizedNfe
   createdAt: string
 }
 
@@ -348,6 +359,7 @@ export class SqliteBatchRepository {
     batch: Omit<FiscalBatchRecord, 'totalFiles' | 'totalDocuments' | 'totalPendencies'>,
     occurrences: readonly FileOccurrenceRecord[],
     diagnostics: readonly IngestionDiagnosticRecord[] = [],
+    documents: readonly NormalizedFiscalDocumentRecord[] = [],
   ): void {
     const ordered = [...occurrences].sort(
       (left, right) =>
@@ -358,6 +370,9 @@ export class SqliteBatchRepository {
     }
     if (diagnostics.some(({ batchId }) => batchId !== batch.id)) {
       throw new Error('Todos os diagnósticos devem pertencer ao lote criado.')
+    }
+    if (documents.some(({ batchId }) => batchId !== batch.id)) {
+      throw new Error('Todos os documentos devem pertencer ao lote criado.')
     }
     const totalDocuments = ordered.filter(({ accessKey }) => accessKey !== undefined).length
 
@@ -399,6 +414,7 @@ export class SqliteBatchRepository {
           assertCanonicalUtcTimestamp(diagnostic.createdAt, 'diagnostic.createdAt'),
         )
       }
+      for (const document of documents) this.insertNormalizedDocument(document)
     })
   }
 
@@ -476,6 +492,71 @@ export class SqliteBatchRepository {
       message: row.mensagem,
       createdAt: row.criado_em,
     }))
+  }
+
+  listNormalizedDocuments(batchId: string): readonly NormalizedFiscalDocumentRecord[] {
+    return this.database.all<{
+      id: string; lote_id: string; ocorrencia_arquivo_id: string; hash_xml: string;
+      dados_normalizados_json: string; criado_em: string
+    }>(
+      `SELECT id, lote_id, ocorrencia_arquivo_id, hash_xml, dados_normalizados_json, criado_em
+       FROM documentos_fiscais WHERE lote_id = ? ORDER BY chave_acesso, id`,
+      batchId,
+    ).map((row) => ({
+      id: row.id,
+      batchId: row.lote_id,
+      occurrenceId: row.ocorrencia_arquivo_id,
+      contentHash: row.hash_xml,
+      normalized: JSON.parse(row.dados_normalizados_json) as NormalizedNfe,
+      createdAt: row.criado_em,
+    }))
+  }
+
+  private insertNormalizedDocument(document: NormalizedFiscalDocumentRecord): void {
+    const normalized = document.normalized
+    this.database.run(
+      `INSERT INTO documentos_fiscais (
+         id, lote_id, ocorrencia_arquivo_id, chave_acesso, modelo, numero, serie,
+         emissao_original, emitente_cnpj, destinatario_cnpj_cpf, uf_origem, uf_destino,
+         ambiente, finalidade, hash_xml, dados_normalizados_json,
+         motivo_exclusao_pendencia, criado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      requiredText(document.id, 'document.id'),
+      requiredText(document.batchId, 'document.batchId'),
+      requiredText(document.occurrenceId, 'document.occurrenceId'),
+      requiredText(normalized.accessKey, 'document.accessKey'),
+      normalized.model,
+      requiredText(normalized.number, 'document.number'),
+      requiredText(normalized.series, 'document.series'),
+      normalized.issuedAt ?? null,
+      normalized.issuer.taxIdType === 'CNPJ' ? normalized.issuer.taxId ?? null : null,
+      normalized.recipient?.taxId ?? null,
+      normalized.issuer.state ?? null,
+      normalized.recipient?.state ?? null,
+      normalized.environmentCode ?? null,
+      normalized.purposeCode ?? null,
+      normalizedHash(document.contentHash),
+      JSON.stringify(normalized),
+      'AGUARDANDO_CALCULO',
+      assertCanonicalUtcTimestamp(document.createdAt, 'document.createdAt'),
+    )
+    for (const item of normalized.items) {
+      this.database.run(
+        `INSERT INTO itens_documento (
+           id, documento_id, numero_item, codigo_produto_fornecedor,
+           descricao, ncm, cest, cfop, dados_normalizados_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        randomUUID(),
+        document.id,
+        requiredText(item.itemNumber, 'item.itemNumber'),
+        item.supplierProductCode ?? null,
+        item.description ?? null,
+        item.ncm ?? null,
+        item.cest ?? null,
+        item.cfop ?? null,
+        JSON.stringify(item),
+      )
+    }
   }
 
   private insertOccurrence(occurrence: FileOccurrenceRecord): void {

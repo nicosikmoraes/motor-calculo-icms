@@ -57,6 +57,11 @@ migration de domínio, `0001_nucleo_persistencia.sql`, cria organização, empre
 lote e ocorrência de arquivo. O SQL é importado como recurso bruto e incorporado
 ao bundle do processo principal.
 
+As migrations seguintes acrescentam cancelamento retomável, diagnósticos de
+ingestão e snapshots normalizados de NF-e/NFC-e e itens. Campos usados em busca
+ficam em colunas; o contrato normalizado completo também é preservado como JSON
+validado pelo SQLite.
+
 As portas ainda sem implementação são intencionais. Elas impedem que escolhas
 pendentes — como biblioteca decimal e contrato XLSX — sejam incorporadas
 silenciosamente à arquitetura.
@@ -73,5 +78,6 @@ silenciosamente à arquitetura.
 - parser NF-e/NFC-e 4.00, catálogo de severidades, normalização e builders de XML
   sintético;
 - classificação determinística de repetições e conflitos de conteúdo;
-- conexão SQLite local e executor versionado de migrations.
-- migration inicial e repositórios de organização, empresa, lote e ocorrência.
+- conexão SQLite local e executor versionado de migrations;
+- persistência de organização, empresa, lote, ocorrência, diagnóstico, documento
+  fiscal normalizado e item.

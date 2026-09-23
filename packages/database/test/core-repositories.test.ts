@@ -118,7 +118,9 @@ describe('migrations e repositórios centrais', () => {
 
     expect(tables).toEqual([
       'diagnosticos_ingestao',
+      'documentos_fiscais',
       'empresas',
+      'itens_documento',
       'lotes',
       'ocorrencias_arquivo',
       'organizacoes',
@@ -232,6 +234,52 @@ describe('migrations e repositórios centrais', () => {
     expect(batches.listDiagnostics(batchId)).toEqual([
       expect.objectContaining({ code: 'ASSINATURA_NAO_VERIFICADA', source: 'nota.xml' }),
     ])
+  })
+
+  it('persiste e reconstitui documento normalizado com seus itens', () => {
+    seedRegistrations()
+    const batches = new SqliteBatchRepository(database)
+    const accessKey = '1'.repeat(44)
+    const documentId = '00000000-0000-4000-8000-000000000013'
+    const normalized = {
+      kind: 'NFE' as const,
+      layoutVersion: '4.00' as const,
+      model: '55' as const,
+      accessKey,
+      number: '123',
+      series: '1',
+      environmentCode: '1',
+      issuer: { taxId: '11222333000181', taxIdType: 'CNPJ' as const, state: 'PR' },
+      items: [{
+        itemNumber: '1', supplierProductCode: 'ABC', description: 'Produto sintético',
+        ncm: '12345678', cfop: '5102', productAmount: '10.00',
+        declaredIcms: { group: 'ICMS00', cst: '00', amount: '1.80' },
+        source: { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe.infNFe.det[1]' },
+      }],
+      declaredTotals: { productAmount: '10.00', icmsAmount: '1.80' },
+      source: { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe.infNFe' },
+    }
+    batches.createWithOccurrences(
+      batch(),
+      [occurrence({ id: firstOccurrenceId, order: 1, accessKey })],
+      [],
+      [{
+        id: documentId,
+        batchId,
+        occurrenceId: firstOccurrenceId,
+        contentHash: '1'.repeat(64),
+        normalized,
+        createdAt: timestamp,
+      }],
+    )
+
+    expect(batches.listNormalizedDocuments(batchId)).toEqual([
+      expect.objectContaining({ id: documentId, normalized }),
+    ])
+    expect(database.get<{ total: number }>(
+      'SELECT count(*) AS total FROM itens_documento WHERE documento_id = ?',
+      documentId,
+    )?.total).toBe(1)
   })
 
   it('cancela e retoma lote preservando checkpoints e data do cancelamento', () => {

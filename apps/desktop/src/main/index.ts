@@ -25,7 +25,7 @@ import {
   SqliteOrganizationRepository,
   runSqlMigrationsWithBackup,
 } from '@motor/database'
-import { classifyDocumentOccurrences, normalizeBrazilianState, normalizeCnpj } from '@motor/domain'
+import { classifyDocumentOccurrences, normalizeBrazilianState, normalizeCnpj, type NormalizedNfe } from '@motor/domain'
 import {
   PRODUCTION_XML_SECURITY_POLICY,
   PRODUCTION_ZIP_SECURITY_POLICY,
@@ -359,16 +359,19 @@ function registerIpcHandlers(): void {
       type Pending = {
         relativePath: string; originalName: string; kind: 'XML' | 'ZIP';
         origin: 'SELECTED_FILE' | 'ZIP_ENTRY'; containerName?: string;
-        hash: string; size: number; accessKey?: string; issue?: { code: string; message: string }
+        hash: string; size: number; accessKey?: string; normalized?: NormalizedNfe;
+        issue?: { code: string; message: string }
       }
       const pending: Pending[] = []
       const issues: { source: string; code: string; message: string }[] = []
 
       const addXml = (contents: Buffer, relativePath: string, origin: Pending['origin'], containerName?: string): void => {
         let accessKey: string | undefined
+        let normalized: NormalizedNfe | undefined
         let issue: Pending['issue']
         try {
-          accessKey = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8'))).accessKey
+          normalized = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8')))
+          accessKey = normalized.accessKey
         } catch (cause) {
           issue = { code: 'XML_NAO_IDENTIFICADO', message: cause instanceof Error ? cause.message : 'XML inválido.' }
         }
@@ -377,7 +380,8 @@ function registerIpcHandlers(): void {
           originalName: basename(relativePath),
           kind: 'XML', origin, ...(containerName ? { containerName } : {}),
           hash: createHash('sha256').update(contents).digest('hex'), size: contents.byteLength,
-          ...(accessKey ? { accessKey } : {}), ...(issue ? { issue } : {}),
+          ...(accessKey ? { accessKey } : {}), ...(normalized ? { normalized } : {}),
+          ...(issue ? { issue } : {}),
         })
       }
 
@@ -442,12 +446,16 @@ function registerIpcHandlers(): void {
         id: randomUUID(), batchId, source: issue.source, code: issue.code,
         message: issue.message, createdAt: receivedAt,
       }))
+      const documents = baseOccurrences.flatMap(({ item, id }) => item.normalized ? [{
+        id: randomUUID(), batchId, occurrenceId: id, contentHash: item.hash,
+        normalized: item.normalized, createdAt: receivedAt,
+      }] : [])
       const batches = new SqliteBatchRepository(connection)
       batches.createWithOccurrences({
         id: batchId, organizationId: organization.id, companyId: company.id,
         originalName: sources.length === 1 ? basename(sources[0]!.path) : `Lote com ${sources.length} fontes`,
         receivedAt, status: 'RECEBIDO', createdAt: receivedAt, updatedAt: receivedAt,
-      }, occurrences, diagnostics)
+      }, occurrences, diagnostics, documents)
       const stored = batches.findById(batchId)!
       return {
         id: stored.id, status: stored.status, totalFiles: stored.totalFiles,

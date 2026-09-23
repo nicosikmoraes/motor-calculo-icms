@@ -316,7 +316,8 @@ Após a decisão:
 - [x] inventariar e persistir arquivos antes de relacioná-los;
 - [x] ler XML/ZIP sequencialmente com limites de segurança;
 - [ ] validar formato, versão, ambiente e schema;
-- [ ] normalizar NF-e/NFC-e, itens, protocolos e eventos;
+- [x] normalizar e persistir NF-e/NFC-e e seus itens;
+- [ ] normalizar protocolos e eventos quando suas versões forem aprovadas;
 - [x] calcular e persistir hashes SHA-256;
 - [x] classificar repetições e conflitos por chave independentemente da ordem;
 - [x] identificar candidatos a empresa pelos CNPJ de XMLs diretos e de ZIPs,

@@ -25,3 +25,7 @@ aplicativo. A migration reconstrói `lotes` sem perder ocorrências relacionadas
 
 `0003_diagnosticos_ingestao.sql` persiste pendências e rejeições do lote, com
 vínculo opcional à ocorrência quando ela possui conteúdo inventariável.
+
+`0004_documentos_itens_normalizados.sql` persiste o snapshot normalizado de cada
+NF-e/NFC-e e de seus itens, mantendo campos de busca em colunas e o contrato
+completo em JSON validado pelo SQLite.
