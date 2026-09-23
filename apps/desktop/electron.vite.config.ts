@@ -4,7 +4,9 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@motor/contracts', '@motor/database', '@motor/nfe-parser'] })],
+    plugins: [externalizeDepsPlugin({
+      exclude: ['@motor/contracts', '@motor/database', '@motor/domain', '@motor/nfe-parser'],
+    })],
   },
   preload: {
     plugins: [externalizeDepsPlugin({ exclude: ['@motor/contracts'] })],
