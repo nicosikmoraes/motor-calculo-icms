@@ -476,6 +476,13 @@ sistema solicita que o usuário crie a empresa. O CNPJ pode ser pré-preenchido 
 partir do XML, mas o cadastro nunca é criado automaticamente. O processamento só
 continua depois da validação e confirmação explícita do cadastro.
 
+Nesse fluxo, o cadastro mínimo exige CNPJ, razão social e UF; nome fantasia é
+opcional. CNPJ, razão social e UF podem ser pré-preenchidos pelo XML, mas razão
+social e UF devem permanecer revisáveis. O CNPJ identificado fica bloqueado para
+evitar que o usuário cadastre outra empresa e associe indevidamente o lote.
+Inscrição estadual, regime tributário, vigência e benefícios pertencem ao perfil
+fiscal posterior e não bloqueiam esse cadastro inicial.
+
 Se emitente e destinatário forem empresas cadastradas, o documento é analisado
 pela perspectiva da empresa do lote. Para analisar a outra perspectiva, o mesmo
 XML pode integrar outro lote, preservando execução e histórico próprios.

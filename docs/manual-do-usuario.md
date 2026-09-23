@@ -32,7 +32,13 @@ Esses agrupamentos descrevem atividades, não perfis de acesso. Qualquer usuári
 
 ### 2.1 Cadastrar a empresa
 
-Informe CNPJ, UF, inscrição estadual, regime tributário, vigência, regimes especiais e benefícios próprios.
+No cadastro inicial, informe CNPJ, razão social e UF; o nome fantasia é opcional.
+Quando o cadastro nasce de uma importação, esses dados podem vir preenchidos pelo
+XML e precisam ser confirmados. O CNPJ fica bloqueado nesse fluxo.
+
+Inscrição estadual, regime tributário, vigência, regimes especiais e benefícios
+próprios são configurados depois no perfil fiscal e não impedem a identificação
+inicial da empresa.
 
 ### 2.2 Criar perfis fiscais
 

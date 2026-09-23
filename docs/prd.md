@@ -67,6 +67,9 @@ responsabilidades de negócio.
 
 - [ ] **Dado** um cadastro válido, **quando** o contador o confirma, **então** a empresa ou perfil fica disponível com sua vigência.
 - [ ] **Dado** um CNPJ, UF ou vigência inválida, **quando** o contador tenta confirmar, **então** o cadastro não é aceito e o campo problemático é indicado.
+- [ ] **Dado** um cadastro iniciado a partir de um XML, **quando** o contador o
+  revisa, **então** CNPJ, razão social e UF aparecem pré-preenchidos, o CNPJ não
+  pode ser trocado nesse fluxo e o nome fantasia permanece opcional.
 - [ ] **Dado** um perfil já utilizado, **quando** ele precisa mudar, **então** o histórico anterior permanece rastreável.
 
 **Regras relacionadas:** RN-006, RN-014, RN-015 a RN-019.
