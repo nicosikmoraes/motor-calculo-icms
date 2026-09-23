@@ -6,6 +6,7 @@ export const IPC_CHANNELS = {
   CREATE_COMPANY: 'companies:create',
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
+  CREATE_BATCH: 'batch:create',
 } as const
 
 export interface OrganizationSummary {
@@ -70,6 +71,19 @@ export interface BatchPreparation {
   inspectedXmlCount: number
 }
 
+export interface CreateBatchInput {
+  companyId: string
+  sources: readonly SelectedSource[]
+}
+
+export interface CreatedBatchSummary {
+  id: string
+  status: string
+  totalFiles: number
+  totalDocuments: number
+  totalPendencies: number
+}
+
 export interface DesktopApi {
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
@@ -78,4 +92,5 @@ export interface DesktopApi {
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
   selectSources(): Promise<SelectedSource[]>
   inspectSources(sources: readonly SelectedSource[]): Promise<BatchPreparation>
+  createBatch(input: CreateBatchInput): Promise<CreatedBatchSummary>
 }

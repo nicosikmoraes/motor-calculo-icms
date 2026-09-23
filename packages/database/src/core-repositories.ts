@@ -58,6 +58,16 @@ export interface FileOccurrenceRecord {
   receivedAt: string
 }
 
+export interface IngestionDiagnosticRecord {
+  id: string
+  batchId: string
+  occurrenceId?: string
+  source: string
+  code: string
+  message: string
+  createdAt: string
+}
+
 interface OrganizationRow extends Record<string, unknown> {
   id: string
   nome: string
@@ -337,6 +347,7 @@ export class SqliteBatchRepository {
   createWithOccurrences(
     batch: Omit<FiscalBatchRecord, 'totalFiles' | 'totalDocuments' | 'totalPendencies'>,
     occurrences: readonly FileOccurrenceRecord[],
+    diagnostics: readonly IngestionDiagnosticRecord[] = [],
   ): void {
     const ordered = [...occurrences].sort(
       (left, right) =>
@@ -345,6 +356,10 @@ export class SqliteBatchRepository {
     if (ordered.some(({ batchId }) => batchId !== batch.id)) {
       throw new Error('Todas as ocorrências devem pertencer ao lote criado.')
     }
+    if (diagnostics.some(({ batchId }) => batchId !== batch.id)) {
+      throw new Error('Todos os diagnósticos devem pertencer ao lote criado.')
+    }
+    const totalDocuments = ordered.filter(({ accessKey }) => accessKey !== undefined).length
 
     this.database.transaction(() => {
       this.database.run(
@@ -352,7 +367,7 @@ export class SqliteBatchRepository {
            id, organizacao_id, empresa_id, nome_original, recebido_em, status,
            ultimo_cancelamento_em, total_arquivos, total_notas, total_pendencias,
            criado_em, atualizado_em
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         requiredText(batch.id, 'batch.id'),
         requiredText(batch.organizationId, 'batch.organizationId'),
         optionalText(batch.companyId) ?? null,
@@ -363,11 +378,27 @@ export class SqliteBatchRepository {
           ? assertCanonicalUtcTimestamp(batch.lastCanceledAt, 'batch.lastCanceledAt')
           : null,
         ordered.length,
+        totalDocuments,
+        diagnostics.length,
         assertCanonicalUtcTimestamp(batch.createdAt, 'batch.createdAt'),
         assertCanonicalUtcTimestamp(batch.updatedAt, 'batch.updatedAt'),
       )
 
       for (const occurrence of ordered) this.insertOccurrence(occurrence)
+      for (const diagnostic of diagnostics) {
+        this.database.run(
+          `INSERT INTO diagnosticos_ingestao (
+             id, lote_id, ocorrencia_id, origem, codigo, mensagem, criado_em
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          requiredText(diagnostic.id, 'diagnostic.id'),
+          requiredText(diagnostic.batchId, 'diagnostic.batchId'),
+          optionalText(diagnostic.occurrenceId) ?? null,
+          requiredText(diagnostic.source, 'diagnostic.source'),
+          requiredText(diagnostic.code, 'diagnostic.code'),
+          requiredText(diagnostic.message, 'diagnostic.message'),
+          assertCanonicalUtcTimestamp(diagnostic.createdAt, 'diagnostic.createdAt'),
+        )
+      }
     })
   }
 
@@ -426,6 +457,25 @@ export class SqliteBatchRepository {
         batchId,
       )
       .map(mapOccurrence)
+  }
+
+  listDiagnostics(batchId: string): readonly IngestionDiagnosticRecord[] {
+    return this.database.all<{
+      id: string; lote_id: string; ocorrencia_id: string | null; origem: string;
+      codigo: string; mensagem: string; criado_em: string
+    }>(
+      `SELECT id, lote_id, ocorrencia_id, origem, codigo, mensagem, criado_em
+       FROM diagnosticos_ingestao WHERE lote_id = ? ORDER BY criado_em, id`,
+      batchId,
+    ).map((row) => ({
+      id: row.id,
+      batchId: row.lote_id,
+      ...(row.ocorrencia_id ? { occurrenceId: row.ocorrencia_id } : {}),
+      source: row.origem,
+      code: row.codigo,
+      message: row.mensagem,
+      createdAt: row.criado_em,
+    }))
   }
 
   private insertOccurrence(occurrence: FileOccurrenceRecord): void {

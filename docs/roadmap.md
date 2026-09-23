@@ -313,17 +313,17 @@ Após a decisão:
 
 **Dependências:** fases 1 e 2; MD-01, MD-02 e MD-04 aprovados.
 
-- [ ] inventariar arquivos antes de relacioná-los;
-- [ ] extrair XML/ZIP com limites de segurança;
+- [x] inventariar e persistir arquivos antes de relacioná-los;
+- [x] ler XML/ZIP sequencialmente com limites de segurança;
 - [ ] validar formato, versão, ambiente e schema;
 - [ ] normalizar NF-e/NFC-e, itens, protocolos e eventos;
-- [ ] calcular e persistir hashes;
-- [ ] relacionar artefatos por chave, independentemente da ordem;
+- [x] calcular e persistir hashes SHA-256;
+- [x] classificar repetições e conflitos por chave independentemente da ordem;
 - [x] identificar candidatos a empresa pelos CNPJ de XMLs diretos e de ZIPs,
   com escolha explícita e cadastro assistido quando necessário;
 - [ ] separar produção e homologação;
-- [ ] continuar o lote após erro isolado;
-- [ ] apresentar progresso, erros e pendências na interface.
+- [x] continuar o inventário após erro isolado;
+- [ ] apresentar progresso durante processamento e histórico detalhado do lote.
 
 **SAÍDA:** um lote real é importado de forma segura, idempotente e auditável, mas
 ainda sem promessa de cálculo fiscal completo.

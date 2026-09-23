@@ -51,6 +51,9 @@ button, a, input, select { font: inherit; }
 .issues-panel { margin-top: 18px; color: #56615a; }
 .issues-panel summary { cursor: pointer; font-weight: 700; }
 .issues-panel ul { display: grid; gap: 8px; padding-left: 22px; font-size: 13px; }
+.confirm-batch { margin-top: 18px; }
+.batch-result { display: grid; gap: 8px; margin-top: 18px; padding: 18px; border-radius: 9px; background: #e2f2e9; color: #1c6549; }
+.batch-result strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 .upload-mark { display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 18px; color: #173d32; background: #dce9df; font-weight: 900; font-size: 13px; letter-spacing: .08em; }
 .source-list { display: grid; gap: 8px; margin: 28px 0 0; padding: 0; list-style: none; text-align: left; }
 .source-list li { display: flex; align-items: center; gap: 10px; overflow: hidden; padding: 10px 12px; border-radius: 7px; background: #f4f1e8; color: #4d5851; font-size: 13px; }

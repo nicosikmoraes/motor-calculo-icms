@@ -1,11 +1,14 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { mkdir, readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   IPC_CHANNELS,
   type BatchCompanyCandidate,
   type BatchPreparation,
+  type CreatedBatchSummary,
+  type CreateBatchInput,
   type CompanySummary,
   type CreateCompanyInput,
   type CreateOrganizationInput,
@@ -17,11 +20,12 @@ import {
 import {
   CORE_MIGRATIONS,
   SqliteCompanyRepository,
+  SqliteBatchRepository,
   SqliteDatabase,
   SqliteOrganizationRepository,
   runSqlMigrationsWithBackup,
 } from '@motor/database'
-import { normalizeBrazilianState, normalizeCnpj } from '@motor/domain'
+import { classifyDocumentOccurrences, normalizeBrazilianState, normalizeCnpj } from '@motor/domain'
 import {
   PRODUCTION_XML_SECURITY_POLICY,
   PRODUCTION_ZIP_SECURITY_POLICY,
@@ -77,6 +81,24 @@ function companySummary(company: {
     state: company.state,
     active: company.active,
   }
+}
+
+function validatedSources(rawSources: unknown): SelectedSource[] {
+  if (!Array.isArray(rawSources)) throw new Error('Lista de arquivos inválida.')
+  return rawSources.map((value): SelectedSource => {
+    const source = inputRecord(value)
+    const path = requiredInputText(source.path, 'Caminho do arquivo')
+    const kind = source.kind
+    if (kind !== 'XML' && kind !== 'ZIP') throw new Error('Tipo de arquivo inválido.')
+    if (!approvedSourcePaths.has(path)) throw new Error('Arquivo não autorizado pelo seletor.')
+    return { path, kind }
+  })
+}
+
+async function hashFile(path: string): Promise<string> {
+  const hash = createHash('sha256')
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer)
+  return hash.digest('hex')
 }
 
 async function openDatabase(): Promise<void> {
@@ -215,15 +237,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.INSPECT_SOURCES,
     async (_event, rawSources: unknown): Promise<BatchPreparation> => {
-      if (!Array.isArray(rawSources)) throw new Error('Lista de arquivos inválida.')
-      const sources = rawSources.map((value): SelectedSource => {
-        const source = inputRecord(value)
-        const path = requiredInputText(source.path, 'Caminho do arquivo')
-        const kind = source.kind
-        if (kind !== 'XML' && kind !== 'ZIP') throw new Error('Tipo de arquivo inválido.')
-        if (!approvedSourcePaths.has(path)) throw new Error('Arquivo não autorizado pelo seletor.')
-        return { path, kind }
-      })
+      const sources = validatedSources(rawSources)
 
       const connection = activeDatabase()
       const organization = new SqliteOrganizationRepository(connection).findSingle()
@@ -321,6 +335,124 @@ function registerIpcHandlers(): void {
         .sort((left, right) => left.cnpj.localeCompare(right.cnpj))
 
       return { candidates: resultCandidates, issues, inspectedXmlCount }
+    },
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.CREATE_BATCH,
+    async (_event, rawInput: unknown): Promise<CreatedBatchSummary> => {
+      const input = inputRecord(rawInput) as unknown as CreateBatchInput
+      const sources = validatedSources(input.sources)
+      if (sources.length === 0) throw new Error('Selecione ao menos um arquivo.')
+      const connection = activeDatabase()
+      const organizations = new SqliteOrganizationRepository(connection)
+      const organization = organizations.findSingle()
+      if (!organization) throw new Error('Configure o escritório antes de criar o lote.')
+      const company = new SqliteCompanyRepository(connection).findById(
+        requiredInputText(input.companyId, 'Empresa'),
+      )
+      if (!company || company.organizationId !== organization.id || !company.active) {
+        throw new Error('Empresa inválida ou inativa para esta instalação.')
+      }
+
+      const batchId = randomUUID()
+      const receivedAt = new Date().toISOString()
+      type Pending = {
+        relativePath: string; originalName: string; kind: 'XML' | 'ZIP';
+        origin: 'SELECTED_FILE' | 'ZIP_ENTRY'; containerName?: string;
+        hash: string; size: number; accessKey?: string; issue?: { code: string; message: string }
+      }
+      const pending: Pending[] = []
+      const issues: { source: string; code: string; message: string }[] = []
+
+      const addXml = (contents: Buffer, relativePath: string, origin: Pending['origin'], containerName?: string): void => {
+        let accessKey: string | undefined
+        let issue: Pending['issue']
+        try {
+          accessKey = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8'))).accessKey
+        } catch (cause) {
+          issue = { code: 'XML_NAO_IDENTIFICADO', message: cause instanceof Error ? cause.message : 'XML inválido.' }
+        }
+        pending.push({
+          relativePath,
+          originalName: basename(relativePath),
+          kind: 'XML', origin, ...(containerName ? { containerName } : {}),
+          hash: createHash('sha256').update(contents).digest('hex'), size: contents.byteLength,
+          ...(accessKey ? { accessKey } : {}), ...(issue ? { issue } : {}),
+        })
+      }
+
+      for (const source of sources) {
+        const metadata = await stat(source.path)
+        if (source.kind === 'XML') {
+          if (metadata.size > PRODUCTION_XML_SECURITY_POLICY.maxBytes) {
+            issues.push({ source: source.path, code: 'XML_TOO_LARGE', message: 'XML excede 10 MB.' })
+            continue
+          }
+          addXml(await readFile(source.path), basename(source.path), 'SELECTED_FILE')
+        } else {
+          pending.push({
+            relativePath: basename(source.path), originalName: basename(source.path), kind: 'ZIP',
+            origin: 'SELECTED_FILE', hash: await hashFile(source.path), size: metadata.size,
+          })
+          try {
+            const inspection = await visitSafeZipFileEntries(
+              source.path,
+              PRODUCTION_ZIP_SECURITY_POLICY,
+              ({ relativePath, contents }) => {
+                if (relativePath.toLowerCase().endsWith('.xml')) {
+                  addXml(contents, relativePath, 'ZIP_ENTRY', basename(source.path))
+                }
+              },
+            )
+            for (const rejected of inspection.rejectedEntries) {
+              issues.push({ source: `${basename(source.path)}#${rejected.entryName}`, code: rejected.code, message: rejected.message })
+            }
+          } catch (cause) {
+            issues.push({ source: basename(source.path), code: 'ZIP_REJEITADO', message: cause instanceof Error ? cause.message : 'ZIP rejeitado.' })
+          }
+        }
+      }
+
+      pending.sort((left, right) => left.relativePath.localeCompare(right.relativePath) || left.hash.localeCompare(right.hash))
+      const baseOccurrences = pending.map((item, index) => ({ item, id: randomUUID(), order: index + 1 }))
+      const xmlClassifications = classifyDocumentOccurrences(
+        baseOccurrences.filter(({ item }) => item.kind === 'XML').map(({ item, id, order }) => ({
+          occurrenceId: id, batchId, order, contentHash: item.hash,
+          ...(item.accessKey ? { accessKey: item.accessKey } : {}),
+        })),
+      )
+      const classificationById = new Map(xmlClassifications.map((value) => [value.occurrenceId, value]))
+      const occurrences = baseOccurrences.map(({ item, id, order }) => {
+        const classified = classificationById.get(id)
+        if (item.issue) issues.push({ source: item.relativePath, ...item.issue })
+        return {
+          id, batchId, originalName: item.originalName, relativePath: item.relativePath,
+          detectedKind: item.kind, origin: item.origin, ...(item.containerName ? { containerName: item.containerName } : {}),
+          contentHash: item.hash, sizeBytes: item.size, order,
+          ...(item.accessKey ? { accessKey: item.accessKey } : {}),
+          ingestionStatus: item.issue ? 'PENDENTE' as const : 'INVENTARIADA' as const,
+          repetition: classified?.repetition ?? 'NAO_CLASSIFICAVEL' as const,
+          contentConflict: classified?.contentConflict ?? 'NAO_CLASSIFICAVEL' as const,
+          ...(classified?.originalOccurrenceId ? { originalOccurrenceId: classified.originalOccurrenceId } : {}),
+          eligibleForTotalsByOccurrencePolicy: classified?.eligibleForTotalsByOccurrencePolicy ?? false,
+          receivedAt,
+        }
+      })
+      const diagnostics = issues.map((issue) => ({
+        id: randomUUID(), batchId, source: issue.source, code: issue.code,
+        message: issue.message, createdAt: receivedAt,
+      }))
+      const batches = new SqliteBatchRepository(connection)
+      batches.createWithOccurrences({
+        id: batchId, organizationId: organization.id, companyId: company.id,
+        originalName: sources.length === 1 ? basename(sources[0]!.path) : `Lote com ${sources.length} fontes`,
+        receivedAt, status: 'RECEBIDO', createdAt: receivedAt, updatedAt: receivedAt,
+      }, occurrences, diagnostics)
+      const stored = batches.findById(batchId)!
+      return {
+        id: stored.id, status: stored.status, totalFiles: stored.totalFiles,
+        totalDocuments: stored.totalDocuments, totalPendencies: stored.totalPendencies,
+      }
     },
   )
 }

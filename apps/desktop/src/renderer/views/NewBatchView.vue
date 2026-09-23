@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { BatchCompanyCandidate, BatchPreparation, SelectedSource, WorkspaceState } from '@motor/contracts'
+import type { BatchCompanyCandidate, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
 
 const sources = ref<SelectedSource[]>([])
 const selecting = ref(false)
@@ -15,6 +15,8 @@ const registrationLegalName = ref('')
 const registrationTradeName = ref('')
 const registrationState = ref('')
 const registering = ref(false)
+const creatingBatch = ref(false)
+const createdBatch = ref<CreatedBatchSummary | null>(null)
 
 async function loadWorkspace(): Promise<void> {
   workspace.value = await window.desktopApi.getWorkspace()
@@ -26,6 +28,7 @@ async function selectSources(): Promise<void> {
   try {
     sources.value = await window.desktopApi.selectSources()
     preparation.value = null
+    createdBatch.value = null
     if (sources.value.length > 0) {
       inspecting.value = true
       preparation.value = await window.desktopApi.inspectSources(sources.value)
@@ -35,6 +38,22 @@ async function selectSources(): Promise<void> {
   } finally {
     selecting.value = false
     inspecting.value = false
+  }
+}
+
+async function createBatch(): Promise<void> {
+  if (!selectedCompanyId.value) return
+  error.value = ''
+  creatingBatch.value = true
+  try {
+    createdBatch.value = await window.desktopApi.createBatch({
+      companyId: selectedCompanyId.value,
+      sources: sources.value,
+    })
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Não foi possível criar o lote.'
+  } finally {
+    creatingBatch.value = false
   }
 }
 
@@ -148,8 +167,24 @@ onMounted(() => void loadWorkspace().catch((cause) => {
       </div>
 
       <p v-else class="form-success">
-        Empresa definida. O lote poderá ser criado na próxima etapa da integração.
+        Empresa definida. Confirme para inventariar e persistir o lote.
       </p>
+
+      <button
+        v-if="selectedCompanyId && !createdBatch"
+        class="button primary confirm-batch"
+        type="button"
+        :disabled="creatingBatch"
+        @click="createBatch"
+      >
+        {{ creatingBatch ? 'Criando lote…' : 'Confirmar e criar lote' }}
+      </button>
+
+      <div v-if="createdBatch" class="batch-result">
+        <p class="eyebrow">Lote criado</p>
+        <strong>{{ createdBatch.id }}</strong>
+        <span>{{ createdBatch.totalFiles }} arquivo(s) · {{ createdBatch.totalDocuments }} nota(s) · {{ createdBatch.totalPendencies }} pendência(s)</span>
+      </div>
 
       <details v-if="preparation.issues.length" class="issues-panel">
         <summary>{{ preparation.issues.length }} pendência(s) encontrada(s)</summary>

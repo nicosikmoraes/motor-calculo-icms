@@ -117,6 +117,7 @@ describe('migrations e repositórios centrais', () => {
       .map(({ name }) => name)
 
     expect(tables).toEqual([
+      'diagnosticos_ingestao',
       'empresas',
       'lotes',
       'ocorrencias_arquivo',
@@ -204,6 +205,32 @@ describe('migrations e repositórios centrais', () => {
     expect(batches.listOccurrences(batchId).map(({ id }) => id)).toEqual([
       firstOccurrenceId,
       secondOccurrenceId,
+    ])
+  })
+
+  it('persiste diagnósticos e atualiza os totais do lote atomicamente', () => {
+    seedRegistrations()
+    const batches = new SqliteBatchRepository(database)
+    batches.createWithOccurrences(
+      batch(),
+      [occurrence({ id: firstOccurrenceId, order: 1, accessKey: '1'.repeat(44) })],
+      [{
+        id: '00000000-0000-4000-8000-000000000012',
+        batchId,
+        source: 'nota.xml',
+        code: 'ASSINATURA_NAO_VERIFICADA',
+        message: 'Assinatura não verificada no MVP.',
+        createdAt: timestamp,
+      }],
+    )
+
+    expect(batches.findById(batchId)).toMatchObject({
+      totalFiles: 1,
+      totalDocuments: 1,
+      totalPendencies: 1,
+    })
+    expect(batches.listDiagnostics(batchId)).toEqual([
+      expect.objectContaining({ code: 'ASSINATURA_NAO_VERIFICADA', source: 'nota.xml' }),
     ])
   })
 

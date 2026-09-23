@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type BatchPreparation,
   type CompanySummary,
+  type CreatedBatchSummary,
   type DesktopApi,
   type OrganizationSummary,
   type SelectedSource,
@@ -23,6 +24,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_SOURCES) as Promise<SelectedSource[]>,
   inspectSources: (sources) =>
     ipcRenderer.invoke(IPC_CHANNELS.INSPECT_SOURCES, sources) as Promise<BatchPreparation>,
+  createBatch: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_BATCH, input) as Promise<CreatedBatchSummary>,
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

@@ -22,3 +22,6 @@ arquivos numerados; a `0001` não deve ser editada depois de publicada.
 `0002_cancelamento_lote.sql` acrescenta o estado `CANCELADO` e preserva a data do
 último cancelamento para distinguir uma interrupção solicitada de uma queda do
 aplicativo. A migration reconstrói `lotes` sem perder ocorrências relacionadas.
+
+`0003_diagnosticos_ingestao.sql` persiste pendências e rejeições do lote, com
+vínculo opcional à ocorrência quando ela possui conteúdo inventariável.
