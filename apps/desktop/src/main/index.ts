@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, readFile, stat } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   IPC_CHANNELS,
@@ -44,7 +45,9 @@ import {
 } from '@motor/nfe-parser'
 
 const allowedExtensions = new Set(['.xml', '.zip'])
+const currentDirectory = dirname(fileURLToPath(import.meta.url))
 let database: SqliteDatabase | undefined
+let mainWindow: BrowserWindow | undefined
 const approvedSourcePaths = new Set<string>()
 
 function activeDatabase(): SqliteDatabase {
@@ -129,27 +132,35 @@ async function openDatabase(): Promise<void> {
 }
 
 function createWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+    return
+  }
   const window = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 960,
     minHeight: 640,
-    show: false,
+    show: true,
     backgroundColor: '#f4f1e8',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(currentDirectory, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   })
+  mainWindow = window
 
-  window.once('ready-to-show', () => window.show())
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = undefined
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'))
+    void window.loadFile(join(currentDirectory, '../renderer/index.html'))
   }
 }
 

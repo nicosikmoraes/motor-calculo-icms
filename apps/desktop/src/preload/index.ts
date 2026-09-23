@@ -11,6 +11,7 @@ import {
   type SelectedSource,
   type WorkspaceState,
 } from '@motor/contracts'
+import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
   getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
@@ -25,9 +26,15 @@ const api: DesktopApi = {
   selectSources: () =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_SOURCES) as Promise<SelectedSource[]>,
   inspectSources: (sources) =>
-    ipcRenderer.invoke(IPC_CHANNELS.INSPECT_SOURCES, sources) as Promise<BatchPreparation>,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.INSPECT_SOURCES,
+      copySelectedSources(sources),
+    ) as Promise<BatchPreparation>,
   createBatch: (input) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CREATE_BATCH, input) as Promise<CreatedBatchSummary>,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.CREATE_BATCH,
+      copyCreateBatchInput(input),
+    ) as Promise<CreatedBatchSummary>,
   listBatches: () =>
     ipcRenderer.invoke(IPC_CHANNELS.LIST_BATCHES) as Promise<readonly BatchListItem[]>,
   getBatchDetail: (batchId) =>
