@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
   CREATE_BATCH: 'batch:create',
+  LIST_BATCHES: 'batch:list',
+  GET_BATCH_DETAIL: 'batch:get-detail',
 } as const
 
 export interface OrganizationSummary {
@@ -84,6 +86,67 @@ export interface CreatedBatchSummary {
   totalPendencies: number
 }
 
+export interface BatchListItem extends CreatedBatchSummary {
+  companyId?: string
+  companyName?: string
+  originalName?: string
+  receivedAt: string
+}
+
+export interface BatchOccurrenceSummary {
+  id: string
+  originalName: string
+  relativePath: string
+  kind: string
+  origin: string
+  contentHash: string
+  sizeBytes: number
+  accessKey?: string
+  ingestionStatus: string
+  repetition: string
+  contentConflict: string
+  eligibleForTotals: boolean
+}
+
+export interface BatchDiagnosticSummary {
+  id: string
+  source: string
+  code: string
+  message: string
+}
+
+export interface FiscalItemSummary {
+  itemNumber: string
+  supplierProductCode?: string
+  description?: string
+  ncm?: string
+  cfop?: string
+  productAmount?: string
+  declaredIcmsAmount?: string
+}
+
+export interface FiscalDocumentSummary {
+  id: string
+  accessKey: string
+  model: string
+  number: string
+  series: string
+  issuedAt?: string
+  environmentCode?: string
+  issuerName?: string
+  issuerTaxId?: string
+  recipientName?: string
+  recipientTaxId?: string
+  items: readonly FiscalItemSummary[]
+}
+
+export interface BatchDetail {
+  batch: BatchListItem
+  occurrences: readonly BatchOccurrenceSummary[]
+  diagnostics: readonly BatchDiagnosticSummary[]
+  documents: readonly FiscalDocumentSummary[]
+}
+
 export interface DesktopApi {
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
@@ -93,4 +156,6 @@ export interface DesktopApi {
   selectSources(): Promise<SelectedSource[]>
   inspectSources(sources: readonly SelectedSource[]): Promise<BatchPreparation>
   createBatch(input: CreateBatchInput): Promise<CreatedBatchSummary>
+  listBatches(): Promise<readonly BatchListItem[]>
+  getBatchDetail(batchId: string): Promise<BatchDetail>
 }

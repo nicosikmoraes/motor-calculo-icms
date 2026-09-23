@@ -208,6 +208,7 @@ describe('migrations e repositórios centrais', () => {
       firstOccurrenceId,
       secondOccurrenceId,
     ])
+    expect(batches.listByOrganization(organizationId).map(({ id }) => id)).toEqual([batchId])
   })
 
   it('persiste diagnósticos e atualiza os totais do lote atomicamente', () => {

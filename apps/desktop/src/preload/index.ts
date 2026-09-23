@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
   type BatchPreparation,
+  type BatchDetail,
+  type BatchListItem,
   type CompanySummary,
   type CreatedBatchSummary,
   type DesktopApi,
@@ -26,6 +28,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.INSPECT_SOURCES, sources) as Promise<BatchPreparation>,
   createBatch: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_BATCH, input) as Promise<CreatedBatchSummary>,
+  listBatches: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_BATCHES) as Promise<readonly BatchListItem[]>,
+  getBatchDetail: (batchId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_BATCH_DETAIL, batchId) as Promise<BatchDetail>,
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

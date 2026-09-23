@@ -44,6 +44,7 @@ onMounted(async () => {
       <nav aria-label="Navegação principal">
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
+        <RouterLink to="/lotes">Histórico</RouterLink>
         <RouterLink to="/lotes/novo">Novo lote</RouterLink>
       </nav>
 

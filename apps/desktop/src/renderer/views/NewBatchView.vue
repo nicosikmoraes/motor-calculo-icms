@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { BatchCompanyCandidate, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
 
 const sources = ref<SelectedSource[]>([])
@@ -184,6 +185,7 @@ onMounted(() => void loadWorkspace().catch((cause) => {
         <p class="eyebrow">Lote criado</p>
         <strong>{{ createdBatch.id }}</strong>
         <span>{{ createdBatch.totalFiles }} arquivo(s) · {{ createdBatch.totalDocuments }} nota(s) · {{ createdBatch.totalPendencies }} pendência(s)</span>
+        <RouterLink class="button secondary" :to="`/lotes/${createdBatch.id}`">Abrir detalhes do lote</RouterLink>
       </div>
 
       <details v-if="preparation.issues.length" class="issues-panel">

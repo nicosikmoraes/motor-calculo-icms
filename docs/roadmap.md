@@ -324,7 +324,9 @@ Após a decisão:
   com escolha explícita e cadastro assistido quando necessário;
 - [ ] separar produção e homologação;
 - [x] continuar o inventário após erro isolado;
-- [ ] apresentar progresso durante processamento e histórico detalhado do lote.
+- [ ] apresentar progresso durante processamento;
+- [x] apresentar histórico detalhado do lote, documentos, itens, ocorrências e
+  diagnósticos.
 
 **SAÍDA:** um lote real é importado de forma segura, idempotente e auditável, mas
 ainda sem promessa de cálculo fiscal completo.

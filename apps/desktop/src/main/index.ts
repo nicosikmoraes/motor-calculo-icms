@@ -7,6 +7,8 @@ import {
   IPC_CHANNELS,
   type BatchCompanyCandidate,
   type BatchPreparation,
+  type BatchDetail,
+  type BatchListItem,
   type CreatedBatchSummary,
   type CreateBatchInput,
   type CompanySummary,
@@ -460,6 +462,100 @@ function registerIpcHandlers(): void {
       return {
         id: stored.id, status: stored.status, totalFiles: stored.totalFiles,
         totalDocuments: stored.totalDocuments, totalPendencies: stored.totalPendencies,
+      }
+    },
+  )
+  ipcMain.handle(IPC_CHANNELS.LIST_BATCHES, (): readonly BatchListItem[] => {
+    const connection = activeDatabase()
+    const organization = new SqliteOrganizationRepository(connection).findSingle()
+    if (!organization) return []
+    const companies = new Map(
+      new SqliteCompanyRepository(connection)
+        .listByOrganization(organization.id)
+        .map((company) => [company.id, company]),
+    )
+    return new SqliteBatchRepository(connection).listByOrganization(organization.id).map((batch) => ({
+      id: batch.id,
+      status: batch.status,
+      ...(batch.companyId ? { companyId: batch.companyId } : {}),
+      ...(batch.companyId && companies.get(batch.companyId)
+        ? { companyName: companies.get(batch.companyId)!.legalName }
+        : {}),
+      ...(batch.originalName ? { originalName: batch.originalName } : {}),
+      receivedAt: batch.receivedAt,
+      totalFiles: batch.totalFiles,
+      totalDocuments: batch.totalDocuments,
+      totalPendencies: batch.totalPendencies,
+    }))
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.GET_BATCH_DETAIL,
+    (_event, rawBatchId: unknown): BatchDetail => {
+      const batchId = requiredInputText(rawBatchId, 'Lote')
+      const connection = activeDatabase()
+      const organization = new SqliteOrganizationRepository(connection).findSingle()
+      const batches = new SqliteBatchRepository(connection)
+      const batch = batches.findById(batchId)
+      if (!organization || !batch || batch.organizationId !== organization.id) {
+        throw new Error('Lote não encontrado nesta instalação.')
+      }
+      const company = batch.companyId
+        ? new SqliteCompanyRepository(connection).findById(batch.companyId)
+        : undefined
+      return {
+        batch: {
+          id: batch.id,
+          status: batch.status,
+          ...(batch.companyId ? { companyId: batch.companyId } : {}),
+          ...(company ? { companyName: company.legalName } : {}),
+          ...(batch.originalName ? { originalName: batch.originalName } : {}),
+          receivedAt: batch.receivedAt,
+          totalFiles: batch.totalFiles,
+          totalDocuments: batch.totalDocuments,
+          totalPendencies: batch.totalPendencies,
+        },
+        occurrences: batches.listOccurrences(batchId).map((occurrence) => ({
+          id: occurrence.id,
+          originalName: occurrence.originalName,
+          relativePath: occurrence.relativePath,
+          kind: occurrence.detectedKind,
+          origin: occurrence.origin,
+          contentHash: occurrence.contentHash,
+          sizeBytes: occurrence.sizeBytes,
+          ...(occurrence.accessKey ? { accessKey: occurrence.accessKey } : {}),
+          ingestionStatus: occurrence.ingestionStatus,
+          repetition: occurrence.repetition,
+          contentConflict: occurrence.contentConflict,
+          eligibleForTotals: occurrence.eligibleForTotalsByOccurrencePolicy,
+        })),
+        diagnostics: batches.listDiagnostics(batchId).map((diagnostic) => ({
+          id: diagnostic.id,
+          source: diagnostic.source,
+          code: diagnostic.code,
+          message: diagnostic.message,
+        })),
+        documents: batches.listNormalizedDocuments(batchId).map(({ id, normalized }) => ({
+          id,
+          accessKey: normalized.accessKey,
+          model: normalized.model,
+          number: normalized.number,
+          series: normalized.series,
+          ...(normalized.issuedAt ? { issuedAt: normalized.issuedAt } : {}),
+          ...(normalized.environmentCode ? { environmentCode: normalized.environmentCode } : {}),
+          ...(normalized.issuer.name ? { issuerName: normalized.issuer.name } : {}),
+          ...(normalized.issuer.taxId ? { issuerTaxId: normalized.issuer.taxId } : {}),
+          ...(normalized.recipient?.name ? { recipientName: normalized.recipient.name } : {}),
+          ...(normalized.recipient?.taxId ? { recipientTaxId: normalized.recipient.taxId } : {}),
+          items: normalized.items.map((item) => ({
+            itemNumber: item.itemNumber,
+            ...(item.supplierProductCode ? { supplierProductCode: item.supplierProductCode } : {}),
+            ...(item.description ? { description: item.description } : {}),
+            ...(item.ncm ? { ncm: item.ncm } : {}),
+            ...(item.cfop ? { cfop: item.cfop } : {}),
+            ...(item.productAmount ? { productAmount: item.productAmount } : {}),
+            ...(item.declaredIcms?.amount ? { declaredIcmsAmount: item.declaredIcms.amount } : {}),
+          })),
+        })),
       }
     },
   )

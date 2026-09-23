@@ -11,6 +11,13 @@ No MVP não existe distinção de permissões: todos os usuários da instalaçã
 - consulta resultados e pendências;
 - baixa o XLSX.
 
+### Consultar um lote importado
+
+Abra **Histórico** para consultar os lotes persistidos. A tela de detalhes mostra
+empresa, totais, documentos normalizados, itens, ambiente, hashes, repetições,
+conflitos e diagnósticos. Esses dados permanecem disponíveis depois de reiniciar o
+aplicativo; ainda não representam um cálculo fiscal concluído.
+
 ### Atividades contábeis
 
 - configura empresas e parâmetros;

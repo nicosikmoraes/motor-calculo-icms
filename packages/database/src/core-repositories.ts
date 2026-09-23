@@ -429,6 +429,17 @@ export class SqliteBatchRepository {
     return row ? mapBatch(row) : undefined
   }
 
+  listByOrganization(organizationId: string): readonly FiscalBatchRecord[] {
+    return this.database.all<BatchRow>(
+      `SELECT id, organizacao_id, empresa_id, nome_original, recebido_em, status,
+              ultimo_cancelamento_em, total_arquivos, total_notas,
+              total_pendencias, criado_em, atualizado_em
+       FROM lotes WHERE organizacao_id = ?
+       ORDER BY recebido_em DESC, id DESC`,
+      requiredText(organizationId, 'organizationId'),
+    ).map(mapBatch)
+  }
+
   cancel(id: string, canceledAt: string): void {
     const timestamp = assertCanonicalUtcTimestamp(canceledAt, 'canceledAt')
     this.database.run(
