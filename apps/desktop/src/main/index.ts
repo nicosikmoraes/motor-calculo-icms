@@ -27,7 +27,14 @@ import {
   SqliteOrganizationRepository,
   runSqlMigrationsWithBackup,
 } from '@motor/database'
-import { classifyDocumentOccurrences, normalizeBrazilianState, normalizeCnpj, type NormalizedNfe } from '@motor/domain'
+import {
+  classifyDocumentIngestion,
+  classifyDocumentOccurrences,
+  normalizeBrazilianState,
+  normalizeCnpj,
+  type FiscalEnvironmentCode,
+  type NormalizedNfe,
+} from '@motor/domain'
 import {
   PRODUCTION_XML_SECURITY_POLICY,
   PRODUCTION_ZIP_SECURITY_POLICY,
@@ -253,12 +260,16 @@ function registerIpcHandlers(): void {
         documents: Set<string>
       }>()
       const issues: BatchPreparation['issues'][number][] = []
+      const environmentCodes = new Set<FiscalEnvironmentCode>()
       let inspectedXmlCount = 0
 
       const inspectXml = (contents: Buffer, source: string): void => {
         try {
           const normalized = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8')))
           inspectedXmlCount += 1
+          if (normalized.environmentCode === '1' || normalized.environmentCode === '2') {
+            environmentCodes.add(normalized.environmentCode)
+          }
           for (const [party, role] of [
             [normalized.issuer, 'ISSUER'],
             [normalized.recipient, 'RECIPIENT'],
@@ -336,7 +347,12 @@ function registerIpcHandlers(): void {
         })
         .sort((left, right) => left.cnpj.localeCompare(right.cnpj))
 
-      return { candidates: resultCandidates, issues, inspectedXmlCount }
+      return {
+        candidates: resultCandidates,
+        issues,
+        inspectedXmlCount,
+        environmentCodes: [...environmentCodes].sort(),
+      }
     },
   )
   ipcMain.handle(
@@ -345,6 +361,10 @@ function registerIpcHandlers(): void {
       const input = inputRecord(rawInput) as unknown as CreateBatchInput
       const sources = validatedSources(input.sources)
       if (sources.length === 0) throw new Error('Selecione ao menos um arquivo.')
+      if (input.environmentCode !== '1' && input.environmentCode !== '2') {
+        throw new Error('Confirme se o lote é de produção ou homologação.')
+      }
+      const environmentCode = input.environmentCode
       const connection = activeDatabase()
       const organizations = new SqliteOrganizationRepository(connection)
       const organization = organizations.findSingle()
@@ -365,7 +385,7 @@ function registerIpcHandlers(): void {
         issue?: { code: string; message: string }
       }
       const pending: Pending[] = []
-      const issues: { source: string; code: string; message: string }[] = []
+      const issues: { source: string; code: string; message: string; occurrenceId?: string }[] = []
 
       const addXml = (contents: Buffer, relativePath: string, origin: Pending['origin'], containerName?: string): void => {
         let accessKey: string | undefined
@@ -436,7 +456,7 @@ function registerIpcHandlers(): void {
           detectedKind: item.kind, origin: item.origin, ...(item.containerName ? { containerName: item.containerName } : {}),
           contentHash: item.hash, sizeBytes: item.size, order,
           ...(item.accessKey ? { accessKey: item.accessKey } : {}),
-          ingestionStatus: item.issue ? 'PENDENTE' as const : 'INVENTARIADA' as const,
+          ingestionStatus: item.issue ? 'PENDENTE' as const : 'PROCESSADA' as const,
           repetition: classified?.repetition ?? 'NAO_CLASSIFICAVEL' as const,
           contentConflict: classified?.contentConflict ?? 'NAO_CLASSIFICAVEL' as const,
           ...(classified?.originalOccurrenceId ? { originalOccurrenceId: classified.originalOccurrenceId } : {}),
@@ -444,19 +464,60 @@ function registerIpcHandlers(): void {
           receivedAt,
         }
       })
+      const reasonMessages = {
+        EMPRESA_DIVERGENTE: 'O CNPJ da empresa analisada não consta como emitente nem destinatário.',
+        AMBIENTE_NAO_INFORMADO: 'O XML não informa um ambiente fiscal reconhecível.',
+        AMBIENTE_DIVERGENTE: 'O ambiente do XML diverge do ambiente confirmado para o lote.',
+        OCORRENCIA_INELEGIVEL: 'A ocorrência é repetida ou possui conflito de conteúdo.',
+      } as const
+      const documents = baseOccurrences.flatMap(({ item, id }) => {
+        if (!item.normalized) return []
+        const occurrence = classificationById.get(id)
+        const classification = classifyDocumentIngestion(
+          item.normalized,
+          company.cnpj,
+          environmentCode,
+          occurrence?.eligibleForTotalsByOccurrencePolicy ?? false,
+        )
+        for (const reason of classification.pendingReasons) {
+          issues.push({
+            source: item.relativePath,
+            code: reason,
+            message: reasonMessages[reason],
+            occurrenceId: id,
+          })
+        }
+        return [{
+          id: randomUUID(), batchId, occurrenceId: id, contentHash: item.hash,
+          normalized: item.normalized,
+          eligibleForProcessing: classification.eligibleForProcessing,
+          ...(classification.pendingReasons.length > 0
+            ? { pendingReason: classification.pendingReasons.join(',') }
+            : {}),
+          createdAt: receivedAt,
+        }]
+      })
+      if (documents.length === 0) {
+        issues.push({
+          source: 'lote',
+          code: 'LOTE_SEM_DOCUMENTOS',
+          message: 'Nenhum XML de NF-e/NFC-e pôde ser normalizado neste lote.',
+        })
+      }
       const diagnostics = issues.map((issue) => ({
         id: randomUUID(), batchId, source: issue.source, code: issue.code,
-        message: issue.message, createdAt: receivedAt,
+        message: issue.message, ...(issue.occurrenceId ? { occurrenceId: issue.occurrenceId } : {}),
+        createdAt: receivedAt,
       }))
-      const documents = baseOccurrences.flatMap(({ item, id }) => item.normalized ? [{
-        id: randomUUID(), batchId, occurrenceId: id, contentHash: item.hash,
-        normalized: item.normalized, createdAt: receivedAt,
-      }] : [])
       const batches = new SqliteBatchRepository(connection)
       batches.createWithOccurrences({
         id: batchId, organizationId: organization.id, companyId: company.id,
         originalName: sources.length === 1 ? basename(sources[0]!.path) : `Lote com ${sources.length} fontes`,
-        receivedAt, status: 'RECEBIDO', createdAt: receivedAt, updatedAt: receivedAt,
+        receivedAt,
+        status: diagnostics.length > 0 ? 'CONCLUIDO_COM_PENDENCIAS' : 'CONCLUIDO',
+        environmentCode,
+        createdAt: receivedAt,
+        updatedAt: receivedAt,
       }, occurrences, diagnostics, documents)
       const stored = batches.findById(batchId)!
       return {
@@ -483,6 +544,7 @@ function registerIpcHandlers(): void {
         : {}),
       ...(batch.originalName ? { originalName: batch.originalName } : {}),
       receivedAt: batch.receivedAt,
+      ...(batch.environmentCode ? { environmentCode: batch.environmentCode } : {}),
       totalFiles: batch.totalFiles,
       totalDocuments: batch.totalDocuments,
       totalPendencies: batch.totalPendencies,
@@ -510,6 +572,7 @@ function registerIpcHandlers(): void {
           ...(company ? { companyName: company.legalName } : {}),
           ...(batch.originalName ? { originalName: batch.originalName } : {}),
           receivedAt: batch.receivedAt,
+          ...(batch.environmentCode ? { environmentCode: batch.environmentCode } : {}),
           totalFiles: batch.totalFiles,
           totalDocuments: batch.totalDocuments,
           totalPendencies: batch.totalPendencies,
@@ -534,7 +597,9 @@ function registerIpcHandlers(): void {
           code: diagnostic.code,
           message: diagnostic.message,
         })),
-        documents: batches.listNormalizedDocuments(batchId).map(({ id, normalized }) => ({
+        documents: batches.listNormalizedDocuments(batchId).map(({
+          id, normalized, eligibleForProcessing, pendingReason,
+        }) => ({
           id,
           accessKey: normalized.accessKey,
           model: normalized.model,
@@ -542,6 +607,8 @@ function registerIpcHandlers(): void {
           series: normalized.series,
           ...(normalized.issuedAt ? { issuedAt: normalized.issuedAt } : {}),
           ...(normalized.environmentCode ? { environmentCode: normalized.environmentCode } : {}),
+          eligibleForProcessing,
+          ...(pendingReason ? { pendingReason } : {}),
           ...(normalized.issuer.name ? { issuerName: normalized.issuer.name } : {}),
           ...(normalized.issuer.taxId ? { issuerTaxId: normalized.issuer.taxId } : {}),
           ...(normalized.recipient?.name ? { recipientName: normalized.recipient.name } : {}),

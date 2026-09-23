@@ -30,7 +30,7 @@ onMounted(async () => {
         <div>
           <p class="eyebrow">Lote {{ detail.batch.status }}</p>
           <h2>{{ detail.batch.originalName || 'Lote fiscal' }}</h2>
-          <p class="lead">{{ detail.batch.companyName }} · {{ detail.batch.id }}</p>
+          <p class="lead">{{ detail.batch.companyName }} · {{ environment(detail.batch.environmentCode) }} · {{ detail.batch.id }}</p>
         </div>
       </header>
 
@@ -45,13 +45,18 @@ onMounted(async () => {
         <article v-for="document in detail.documents" :key="document.id" class="card document-card">
           <div class="document-heading">
             <div><strong>NF-e {{ document.number }}</strong><span>Série {{ document.series }} · Modelo {{ document.model }}</span></div>
-            <span class="status-pill">{{ environment(document.environmentCode) }}</span>
+            <span class="status-pill">
+              {{ document.eligibleForProcessing ? 'Apta para cálculo' : 'Pendente' }} · {{ environment(document.environmentCode) }}
+            </span>
           </div>
           <dl class="document-data">
             <div><dt>Chave</dt><dd>{{ document.accessKey }}</dd></div>
             <div><dt>Emitente</dt><dd>{{ document.issuerName || document.issuerTaxId || '—' }}</dd></div>
             <div><dt>Destinatário</dt><dd>{{ document.recipientName || document.recipientTaxId || '—' }}</dd></div>
           </dl>
+          <p v-if="document.pendingReason" class="form-error notice">
+            {{ document.pendingReason }}
+          </p>
           <details>
             <summary>{{ document.items.length }} item(ns)</summary>
             <div class="table-wrap"><table><thead><tr><th>#</th><th>Produto</th><th>NCM</th><th>CFOP</th><th>Valor</th><th>ICMS declarado</th></tr></thead>

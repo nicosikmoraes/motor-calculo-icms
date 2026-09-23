@@ -1,4 +1,5 @@
 export * from './document-occurrence-classifier'
+export * from './document-ingestion-classifier'
 export * from './normalized-nfe'
 export * from './registrations'
 

@@ -29,3 +29,6 @@ vínculo opcional à ocorrência quando ela possui conteúdo inventariável.
 `0004_documentos_itens_normalizados.sql` persiste o snapshot normalizado de cada
 NF-e/NFC-e e de seus itens, mantendo campos de busca em colunas e o contrato
 completo em JSON validado pelo SQLite.
+
+`0005_elegibilidade_ingestao.sql` registra o ambiente confirmado do lote e separa
+documentos apenas preservados daqueles aptos a seguir para o cálculo.

@@ -9,6 +9,7 @@ const inspecting = ref(false)
 const hasSources = computed(() => sources.value.length > 0)
 const workspace = ref<WorkspaceState>({ companies: [] })
 const selectedCompanyId = ref('')
+const selectedEnvironmentCode = ref<'1' | '2' | ''>('')
 const preparation = ref<BatchPreparation | null>(null)
 const error = ref('')
 const registrationCandidate = ref<BatchCompanyCandidate | null>(null)
@@ -18,6 +19,13 @@ const registrationState = ref('')
 const registering = ref(false)
 const creatingBatch = ref(false)
 const createdBatch = ref<CreatedBatchSummary | null>(null)
+
+function setPreparation(value: BatchPreparation): void {
+  preparation.value = value
+  selectedEnvironmentCode.value = value.environmentCodes.length === 1
+    ? value.environmentCodes[0]!
+    : ''
+}
 
 async function loadWorkspace(): Promise<void> {
   workspace.value = await window.desktopApi.getWorkspace()
@@ -29,10 +37,11 @@ async function selectSources(): Promise<void> {
   try {
     sources.value = await window.desktopApi.selectSources()
     preparation.value = null
+    selectedEnvironmentCode.value = ''
     createdBatch.value = null
     if (sources.value.length > 0) {
       inspecting.value = true
-      preparation.value = await window.desktopApi.inspectSources(sources.value)
+      setPreparation(await window.desktopApi.inspectSources(sources.value))
     }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível inspecionar os arquivos.'
@@ -43,12 +52,13 @@ async function selectSources(): Promise<void> {
 }
 
 async function createBatch(): Promise<void> {
-  if (!selectedCompanyId.value) return
+  if (!selectedCompanyId.value || !selectedEnvironmentCode.value) return
   error.value = ''
   creatingBatch.value = true
   try {
     createdBatch.value = await window.desktopApi.createBatch({
       companyId: selectedCompanyId.value,
+      environmentCode: selectedEnvironmentCode.value,
       sources: sources.value,
     })
   } catch (cause) {
@@ -83,7 +93,7 @@ async function registerCandidate(): Promise<void> {
     })
     await loadWorkspace()
     selectedCompanyId.value = company.id
-    preparation.value = await window.desktopApi.inspectSources(sources.value)
+    setPreparation(await window.desktopApi.inspectSources(sources.value))
     registrationCandidate.value = null
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível cadastrar a empresa.'
@@ -146,6 +156,21 @@ onMounted(() => void loadWorkspace().catch((cause) => {
       <p class="eyebrow">Inspeção concluída</p>
       <h3>{{ preparation.inspectedXmlCount }} XML(s) reconhecido(s)</h3>
 
+      <label class="standalone-field environment-field">
+        <span>Ambiente confirmado para este lote</span>
+        <select v-model="selectedEnvironmentCode">
+          <option value="">Selecione o ambiente</option>
+          <option value="1">Produção</option>
+          <option value="2">Homologação</option>
+        </select>
+        <small v-if="preparation.environmentCodes.length > 1">
+          Os arquivos contêm ambientes diferentes; os divergentes serão preservados como pendência.
+        </small>
+        <small v-else-if="preparation.environmentCodes.length === 0">
+          O ambiente não pôde ser identificado automaticamente.
+        </small>
+      </label>
+
       <div v-if="!selectedCompanyId" class="candidate-list">
         <p>Confirme qual CNPJ representa a empresa analisada neste lote.</p>
         <div v-for="candidate in preparation.candidates" :key="candidate.cnpj" class="candidate-row">
@@ -168,17 +193,17 @@ onMounted(() => void loadWorkspace().catch((cause) => {
       </div>
 
       <p v-else class="form-success">
-        Empresa definida. Confirme para inventariar e persistir o lote.
+        Empresa definida. Confirme o ambiente para concluir a ingestão do lote.
       </p>
 
       <button
         v-if="selectedCompanyId && !createdBatch"
         class="button primary confirm-batch"
         type="button"
-        :disabled="creatingBatch"
+        :disabled="creatingBatch || !selectedEnvironmentCode"
         @click="createBatch"
       >
-        {{ creatingBatch ? 'Criando lote…' : 'Confirmar e criar lote' }}
+        {{ creatingBatch ? 'Processando lote…' : 'Confirmar e processar lote' }}
       </button>
 
       <div v-if="createdBatch" class="batch-result">

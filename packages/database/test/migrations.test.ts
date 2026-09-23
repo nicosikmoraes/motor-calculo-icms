@@ -298,7 +298,7 @@ describe('SQLite e migrations', () => {
         batchId,
       )
 
-      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4])
+      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4, 5])
       expect(database.get<{ status: string }>('SELECT status FROM lotes WHERE id = ?', batchId))
         .toEqual({ status: 'CANCELADO' })
       expect(

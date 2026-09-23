@@ -63,6 +63,7 @@ function batch(
     originalName: 'lote-setembro',
     receivedAt: timestamp,
     status: 'RECEBIDO',
+    environmentCode: '1',
     createdAt: timestamp,
     updatedAt: timestamp,
     ...values,
@@ -200,6 +201,7 @@ describe('migrations e repositórios centrais', () => {
     expect(batches.findById(batchId)).toMatchObject({
       id: batchId,
       companyId,
+      environmentCode: '1',
       totalFiles: 2,
       totalDocuments: 0,
       totalPendencies: 0,
@@ -270,12 +272,13 @@ describe('migrations e repositórios centrais', () => {
         occurrenceId: firstOccurrenceId,
         contentHash: '1'.repeat(64),
         normalized,
+        eligibleForProcessing: true,
         createdAt: timestamp,
       }],
     )
 
     expect(batches.listNormalizedDocuments(batchId)).toEqual([
-      expect.objectContaining({ id: documentId, normalized }),
+      expect.objectContaining({ id: documentId, normalized, eligibleForProcessing: true }),
     ])
     expect(database.get<{ total: number }>(
       'SELECT count(*) AS total FROM itens_documento WHERE documento_id = ?',

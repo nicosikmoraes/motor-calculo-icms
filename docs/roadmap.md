@@ -322,7 +322,8 @@ Após a decisão:
 - [x] classificar repetições e conflitos por chave independentemente da ordem;
 - [x] identificar candidatos a empresa pelos CNPJ de XMLs diretos e de ZIPs,
   com escolha explícita e cadastro assistido quando necessário;
-- [ ] separar produção e homologação;
+- [x] separar produção e homologação, exigindo confirmação do ambiente do lote e
+  preservando documentos divergentes como pendência inelegível para cálculo;
 - [x] continuar o inventário após erro isolado;
 - [ ] apresentar progresso durante processamento;
 - [x] apresentar histórico detalhado do lote, documentos, itens, ocorrências e

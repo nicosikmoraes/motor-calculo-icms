@@ -71,10 +71,12 @@ export interface BatchPreparation {
   candidates: readonly BatchCompanyCandidate[]
   issues: readonly BatchSourceIssue[]
   inspectedXmlCount: number
+  environmentCodes: readonly ('1' | '2')[]
 }
 
 export interface CreateBatchInput {
   companyId: string
+  environmentCode: '1' | '2'
   sources: readonly SelectedSource[]
 }
 
@@ -91,6 +93,7 @@ export interface BatchListItem extends CreatedBatchSummary {
   companyName?: string
   originalName?: string
   receivedAt: string
+  environmentCode?: '1' | '2'
 }
 
 export interface BatchOccurrenceSummary {
@@ -133,6 +136,8 @@ export interface FiscalDocumentSummary {
   series: string
   issuedAt?: string
   environmentCode?: string
+  eligibleForProcessing: boolean
+  pendingReason?: string
   issuerName?: string
   issuerTaxId?: string
   recipientName?: string

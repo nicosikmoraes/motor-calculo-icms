@@ -11,6 +11,10 @@ function dateTime(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 }
 
+function environment(code?: string): string {
+  return code === '1' ? 'Produção' : code === '2' ? 'Homologação' : 'Ambiente não informado'
+}
+
 onMounted(async () => {
   try {
     batches.value = await window.desktopApi.listBatches()
@@ -43,7 +47,7 @@ onMounted(async () => {
         <div>
           <span class="status-pill">{{ batch.status }}</span>
           <strong>{{ batch.originalName || 'Lote sem nome' }}</strong>
-          <small>{{ batch.companyName || 'Empresa não informada' }} · {{ dateTime(batch.receivedAt) }}</small>
+          <small>{{ batch.companyName || 'Empresa não informada' }} · {{ environment(batch.environmentCode) }} · {{ dateTime(batch.receivedAt) }}</small>
         </div>
         <div class="batch-counts">
           <span><b>{{ batch.totalDocuments }}</b> notas</span>

@@ -5,6 +5,7 @@ import {
   normalizeCnpj,
   type BatchStatus,
   type Company,
+  type FiscalEnvironmentCode,
   type Organization,
   type NormalizedNfe,
 } from '@motor/domain'
@@ -32,6 +33,7 @@ export interface FiscalBatchRecord {
   originalName?: string
   receivedAt: string
   status: BatchStatus
+  environmentCode?: FiscalEnvironmentCode
   lastCanceledAt?: string
   totalFiles: number
   totalDocuments: number
@@ -76,6 +78,8 @@ export interface NormalizedFiscalDocumentRecord {
   occurrenceId: string
   contentHash: string
   normalized: NormalizedNfe
+  eligibleForProcessing: boolean
+  pendingReason?: string
   createdAt: string
 }
 
@@ -107,6 +111,7 @@ interface BatchRow extends Record<string, unknown> {
   nome_original: string | null
   recebido_em: string
   status: BatchStatus
+  ambiente: FiscalEnvironmentCode | null
   ultimo_cancelamento_em: string | null
   total_arquivos: number
   total_notas: number
@@ -187,6 +192,7 @@ function mapBatch(row: BatchRow): FiscalBatchRecord {
     ...(row.nome_original ? { originalName: row.nome_original } : {}),
     receivedAt: row.recebido_em,
     status: row.status,
+    ...(row.ambiente ? { environmentCode: row.ambiente } : {}),
     ...(row.ultimo_cancelamento_em ? { lastCanceledAt: row.ultimo_cancelamento_em } : {}),
     totalFiles: row.total_arquivos,
     totalDocuments: row.total_notas,
@@ -380,15 +386,16 @@ export class SqliteBatchRepository {
       this.database.run(
         `INSERT INTO lotes (
            id, organizacao_id, empresa_id, nome_original, recebido_em, status,
-           ultimo_cancelamento_em, total_arquivos, total_notas, total_pendencias,
-           criado_em, atualizado_em
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ambiente, ultimo_cancelamento_em, total_arquivos, total_notas,
+           total_pendencias, criado_em, atualizado_em
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         requiredText(batch.id, 'batch.id'),
         requiredText(batch.organizationId, 'batch.organizationId'),
         optionalText(batch.companyId) ?? null,
         optionalText(batch.originalName) ?? null,
         assertCanonicalUtcTimestamp(batch.receivedAt, 'batch.receivedAt'),
         batch.status,
+        batch.environmentCode ?? null,
         batch.lastCanceledAt
           ? assertCanonicalUtcTimestamp(batch.lastCanceledAt, 'batch.lastCanceledAt')
           : null,
@@ -421,7 +428,7 @@ export class SqliteBatchRepository {
   findById(id: string): FiscalBatchRecord | undefined {
     const row = this.database.get<BatchRow>(
       `SELECT id, organizacao_id, empresa_id, nome_original, recebido_em, status,
-              ultimo_cancelamento_em,
+              ambiente, ultimo_cancelamento_em,
               total_arquivos, total_notas, total_pendencias, criado_em, atualizado_em
        FROM lotes WHERE id = ?`,
       id,
@@ -432,7 +439,7 @@ export class SqliteBatchRepository {
   listByOrganization(organizationId: string): readonly FiscalBatchRecord[] {
     return this.database.all<BatchRow>(
       `SELECT id, organizacao_id, empresa_id, nome_original, recebido_em, status,
-              ultimo_cancelamento_em, total_arquivos, total_notas,
+              ambiente, ultimo_cancelamento_em, total_arquivos, total_notas,
               total_pendencias, criado_em, atualizado_em
        FROM lotes WHERE organizacao_id = ?
        ORDER BY recebido_em DESC, id DESC`,
@@ -508,9 +515,11 @@ export class SqliteBatchRepository {
   listNormalizedDocuments(batchId: string): readonly NormalizedFiscalDocumentRecord[] {
     return this.database.all<{
       id: string; lote_id: string; ocorrencia_arquivo_id: string; hash_xml: string;
-      dados_normalizados_json: string; criado_em: string
+      dados_normalizados_json: string; elegivel_processamento: number;
+      motivo_exclusao_pendencia: string | null; criado_em: string
     }>(
-      `SELECT id, lote_id, ocorrencia_arquivo_id, hash_xml, dados_normalizados_json, criado_em
+      `SELECT id, lote_id, ocorrencia_arquivo_id, hash_xml, dados_normalizados_json,
+              elegivel_processamento, motivo_exclusao_pendencia, criado_em
        FROM documentos_fiscais WHERE lote_id = ? ORDER BY chave_acesso, id`,
       batchId,
     ).map((row) => ({
@@ -519,6 +528,10 @@ export class SqliteBatchRepository {
       occurrenceId: row.ocorrencia_arquivo_id,
       contentHash: row.hash_xml,
       normalized: JSON.parse(row.dados_normalizados_json) as NormalizedNfe,
+      eligibleForProcessing: row.elegivel_processamento === 1,
+      ...(row.motivo_exclusao_pendencia
+        ? { pendingReason: row.motivo_exclusao_pendencia }
+        : {}),
       createdAt: row.criado_em,
     }))
   }
@@ -530,8 +543,8 @@ export class SqliteBatchRepository {
          id, lote_id, ocorrencia_arquivo_id, chave_acesso, modelo, numero, serie,
          emissao_original, emitente_cnpj, destinatario_cnpj_cpf, uf_origem, uf_destino,
          ambiente, finalidade, hash_xml, dados_normalizados_json,
-         motivo_exclusao_pendencia, criado_em
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         elegivel_processamento, motivo_exclusao_pendencia, criado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       requiredText(document.id, 'document.id'),
       requiredText(document.batchId, 'document.batchId'),
       requiredText(document.occurrenceId, 'document.occurrenceId'),
@@ -548,7 +561,8 @@ export class SqliteBatchRepository {
       normalized.purposeCode ?? null,
       normalizedHash(document.contentHash),
       JSON.stringify(normalized),
-      'AGUARDANDO_CALCULO',
+      document.eligibleForProcessing ? 1 : 0,
+      document.pendingReason ?? (document.eligibleForProcessing ? null : 'AGUARDANDO_CALCULO'),
       assertCanonicalUtcTimestamp(document.createdAt, 'document.createdAt'),
     )
     for (const item of normalized.items) {

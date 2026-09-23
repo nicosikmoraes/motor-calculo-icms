@@ -58,9 +58,10 @@ lote e ocorrência de arquivo. O SQL é importado como recurso bruto e incorpora
 ao bundle do processo principal.
 
 As migrations seguintes acrescentam cancelamento retomável, diagnósticos de
-ingestão e snapshots normalizados de NF-e/NFC-e e itens. Campos usados em busca
-ficam em colunas; o contrato normalizado completo também é preservado como JSON
-validado pelo SQLite.
+ingestão, snapshots normalizados de NF-e/NFC-e e itens, ambiente confirmado do
+lote e elegibilidade de cada documento. Campos usados em busca ficam em colunas;
+o contrato normalizado completo também é preservado como JSON validado pelo
+SQLite.
 
 As portas ainda sem implementação são intencionais. Elas impedem que escolhas
 pendentes — como biblioteca decimal e contrato XLSX — sejam incorporadas
