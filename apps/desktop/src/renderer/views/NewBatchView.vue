@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { BatchCompanyCandidate, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
+import { serializableSources } from '../serializable-sources'
 
 const sources = ref<SelectedSource[]>([])
 const selecting = ref(false)
@@ -41,7 +42,7 @@ async function selectSources(): Promise<void> {
     createdBatch.value = null
     if (sources.value.length > 0) {
       inspecting.value = true
-      setPreparation(await window.desktopApi.inspectSources(sources.value))
+      setPreparation(await window.desktopApi.inspectSources(serializableSources(sources.value)))
     }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível inspecionar os arquivos.'
@@ -59,7 +60,7 @@ async function createBatch(): Promise<void> {
     createdBatch.value = await window.desktopApi.createBatch({
       companyId: selectedCompanyId.value,
       environmentCode: selectedEnvironmentCode.value,
-      sources: sources.value,
+      sources: serializableSources(sources.value),
     })
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível criar o lote.'
@@ -93,7 +94,7 @@ async function registerCandidate(): Promise<void> {
     })
     await loadWorkspace()
     selectedCompanyId.value = company.id
-    setPreparation(await window.desktopApi.inspectSources(sources.value))
+    setPreparation(await window.desktopApi.inspectSources(serializableSources(sources.value)))
     registrationCandidate.value = null
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível cadastrar a empresa.'
