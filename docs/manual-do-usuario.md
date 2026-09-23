@@ -30,6 +30,12 @@ Esses agrupamentos descrevem atividades, não perfis de acesso. Qualquer usuári
 
 ## 2. Preparação inicial pelo contador
 
+### 2.0 Configurar o espaço local
+
+No primeiro acesso, informe o nome do escritório ou do responsável pela
+instalação. O MVP mantém uma única organização local; o nome pode ser alterado
+posteriormente na tela **Empresas**.
+
 ### 2.1 Cadastrar a empresa
 
 No cadastro inicial, informe CNPJ, razão social e UF; o nome fantasia é opcional.

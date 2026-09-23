@@ -148,6 +148,44 @@ describe('migrations e repositórios centrais', () => {
     })
   })
 
+  it('mantém uma organização local e permite renomeá-la', () => {
+    const organizations = new SqliteOrganizationRepository(database)
+    organizations.createSingle(organization())
+
+    expect(organizations.findSingle()).toEqual(organization())
+    expect(() =>
+      organizations.createSingle({
+        ...organization(),
+        id: '00000000-0000-4000-8000-000000000010',
+      }),
+    ).toThrow(/já foi configurada/)
+
+    const updatedAt = '2026-09-22T21:00:00.000Z'
+    organizations.rename(organizationId, 'Novo nome do escritório', updatedAt)
+    expect(organizations.findSingle()).toMatchObject({
+      name: 'Novo nome do escritório',
+      updatedAt,
+    })
+  })
+
+  it('lista empresas da organização em ordem alfabética', () => {
+    const organizations = new SqliteOrganizationRepository(database)
+    const companies = new SqliteCompanyRepository(database)
+    organizations.createSingle(organization())
+    companies.create({ ...company(), legalName: 'Zeta Ltda.' })
+    companies.create({
+      ...company(),
+      id: '00000000-0000-4000-8000-000000000011',
+      legalName: 'Alfa Ltda.',
+      cnpj: '45.723.174/0001-10',
+    })
+
+    expect(companies.listByOrganization(organizationId).map(({ legalName }) => legalName)).toEqual([
+      'Alfa Ltda.',
+      'Zeta Ltda.',
+    ])
+  })
+
   it('cria lote e ocorrências na ordem canônica', () => {
     seedRegistrations()
     const batches = new SqliteBatchRepository(database)

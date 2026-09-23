@@ -492,6 +492,19 @@ perspectivas por CNPJ. Essa automação exigirá fluxo explícito de confirmaç�
 altera a regra do MVP de que cada consolidação e relatório pertencem a uma única
 empresa.
 
+## DT-031 — Organização única por instalação no MVP
+
+**Status:** aprovado e implementado.
+
+No primeiro acesso, o usuário informa somente o nome do escritório ou responsável
+e o aplicativo cria uma organização local. O nome pode ser alterado depois. Não
+se exige CNPJ do escritório nesse onboarding e não se oferecem múltiplas
+organizações na mesma instalação durante o MVP.
+
+Toda empresa cadastrada pertence a essa organização. O processo principal do
+Electron aplica a unicidade no caso de uso e expõe ao renderer somente contratos
+IPC validados; o renderer não acessa o SQLite diretamente.
+
 ## Fila de decisões
 
 A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md).

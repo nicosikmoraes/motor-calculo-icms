@@ -278,11 +278,12 @@ ingestão prontos para receber a implementação.
 
 **PODE AVANÇAR:**
 
-- [ ] desenhar repositórios a partir do modelo conceitual aprovado;
-- [ ] implementar telas de empresa, perfil fiscal e produto de fornecedor com
-  estado temporário em memória;
+- [x] desenhar os repositórios de organização e empresa a partir do modelo aprovado;
+- [x] implementar onboarding de organização única e tela persistente de empresa;
+- [ ] implementar telas de perfil fiscal e produto de fornecedor;
 - [ ] definir casos de uso sem detalhes de SQLite;
-- [ ] validar CNPJ, UF, vigência e identificadores normalizados no domínio.
+- [x] validar CNPJ, UF e identificadores normalizados no domínio;
+- [ ] validar vigência ao implementar os perfis fiscais.
 
 **DECISÃO NECESSÁRIA:** aprovar o schema físico restante da MD-03 antes de criar
 a primeira migration de domínio e os repositórios concretos.
@@ -299,6 +300,7 @@ Após a decisão:
 - [x] criar a migration `0001` com organização, empresa, lote e ocorrência de
   arquivo, incluindo índices, checks e foreign keys restritivas;
 - [x] persistir e consultar organização, empresa, lote e ocorrência de arquivo;
+- [x] expor organização e empresa ao renderer por contratos IPC restritos;
 - [ ] persistir perfil fiscal e produto de fornecedor;
 - [ ] implementar transações e trilha básica de auditoria;
 - [x] testar criação, consulta, inativação, rollback e reinicialização para as

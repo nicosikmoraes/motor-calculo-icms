@@ -222,6 +222,42 @@ export class SqliteOrganizationRepository {
     )
     return row ? mapOrganization(row) : undefined
   }
+
+  findSingle(): Organization | undefined {
+    const rows = this.database.all<OrganizationRow>(
+      `SELECT id, nome, ativo, criado_em, atualizado_em
+       FROM organizacoes
+       ORDER BY criado_em, id
+       LIMIT 2`,
+    )
+    if (rows.length > 1) {
+      throw new Error('A instalação local possui mais de uma organização.')
+    }
+    return rows[0] ? mapOrganization(rows[0]) : undefined
+  }
+
+  createSingle(organization: Organization): void {
+    this.database.transaction(() => {
+      const existing = this.database.get<{ total: number | bigint }>(
+        'SELECT count(*) AS total FROM organizacoes',
+      )
+      if (Number(existing?.total ?? 0) !== 0) {
+        throw new Error('A organização desta instalação já foi configurada.')
+      }
+      this.create(organization)
+    })
+  }
+
+  rename(id: string, name: string, updatedAt: string): void {
+    this.database.run(
+      `UPDATE organizacoes SET nome = ?, atualizado_em = ? WHERE id = ?`,
+      requiredText(name, 'organization.name'),
+      assertCanonicalUtcTimestamp(updatedAt, 'organization.updatedAt'),
+      requiredText(id, 'organization.id'),
+    )
+    const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
+    if (Number(changes?.changes ?? 0) !== 1) throw new Error('Organização não encontrada.')
+  }
 }
 
 export class SqliteCompanyRepository {
@@ -267,6 +303,19 @@ export class SqliteCompanyRepository {
       normalizeCnpj(cnpj),
     )
     return row ? mapCompany(row) : undefined
+  }
+
+  listByOrganization(organizationId: string): readonly Company[] {
+    return this.database
+      .all<CompanyRow>(
+        `SELECT id, organizacao_id, razao_social, nome_fantasia, cnpj, uf,
+                ativo, inativada_em, criado_em, atualizado_em
+         FROM empresas
+         WHERE organizacao_id = ?
+         ORDER BY razao_social COLLATE NOCASE, id`,
+        requiredText(organizationId, 'organizationId'),
+      )
+      .map(mapCompany)
   }
 
   inactivate(id: string, inactivatedAt: string): void {
