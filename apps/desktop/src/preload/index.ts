@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
+  type BatchPreparation,
   type CompanySummary,
   type DesktopApi,
   type OrganizationSummary,
@@ -20,6 +21,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_COMPANY, input) as Promise<CompanySummary>,
   selectSources: () =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_SOURCES) as Promise<SelectedSource[]>,
+  inspectSources: (sources) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSPECT_SOURCES, sources) as Promise<BatchPreparation>,
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

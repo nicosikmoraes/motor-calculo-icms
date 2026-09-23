@@ -15,6 +15,7 @@
     "@motor/contracts": "workspace:*",
     "@motor/database": "workspace:*",
     "@motor/domain": "workspace:*",
+    "@motor/nfe-parser": "workspace:*",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",
     "vue-router": "^4.5.0"

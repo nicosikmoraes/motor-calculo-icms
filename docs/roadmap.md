@@ -319,7 +319,8 @@ Após a decisão:
 - [ ] normalizar NF-e/NFC-e, itens, protocolos e eventos;
 - [ ] calcular e persistir hashes;
 - [ ] relacionar artefatos por chave, independentemente da ordem;
-- [ ] identificar empresa pelos CNPJ do XML;
+- [x] identificar candidatos a empresa pelos CNPJ de XMLs diretos e de ZIPs,
+  com escolha explícita e cadastro assistido quando necessário;
 - [ ] separar produção e homologação;
 - [ ] continuar o lote após erro isolado;
 - [ ] apresentar progresso, erros e pendências na interface.

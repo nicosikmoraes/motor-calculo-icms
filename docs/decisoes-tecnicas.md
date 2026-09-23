@@ -466,6 +466,12 @@ de emitente e destinatário dos XMLs com os cadastros e propõe uma empresa para
 confirmação. O processamento fiscal só começa depois que `empresaId` estiver
 definida.
 
+Quando uma empresa é selecionada antes dos arquivos, CNPJs desconhecidos das
+outras partes não provocam cadastro. Sem seleção prévia, uma única correspondência
+cadastrada é proposta, múltiplas correspondências exigem escolha e nenhuma
+correspondência exige que o usuário indique qual CNPJ representa a empresa
+analisada antes de abrir seu cadastro assistido.
+
 Quando houver mais de uma empresa candidata, a escolha não é automática. O
 usuário deve indicar a perspectiva do lote. Documento que não envolva a empresa
 confirmada recebe `EMPRESA_DIVERGENTE`, permanece visível para auditoria e não

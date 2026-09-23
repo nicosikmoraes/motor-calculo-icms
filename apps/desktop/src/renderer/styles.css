@@ -39,6 +39,18 @@ button, a, input, select { font: inherit; }
 .button.secondary { color: #173d32; border: 1px solid #b9c8c0; background: #edf3ef; }
 .button:disabled { opacity: .55; cursor: wait; }
 .upload-card { max-width: 820px; padding: 42px; text-align: center; }
+.batch-company-card, .preparation-card { max-width: 820px; margin-bottom: 20px; padding: 28px; }
+.batch-company-card h3, .preparation-card h3 { margin: 8px 0 20px; font: 700 24px Georgia, serif; }
+.standalone-field { display: grid; gap: 8px; color: #46524b; font-size: 14px; font-weight: 700; }
+.candidate-list { display: grid; gap: 10px; }
+.candidate-list > p { color: #606b64; }
+.candidate-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; border-radius: 9px; background: #f4f1e8; }
+.candidate-row > div { display: grid; gap: 4px; }
+.candidate-row span { color: #69736d; font-size: 13px; }
+.registration-card { max-width: 820px; margin-top: 20px; }
+.issues-panel { margin-top: 18px; color: #56615a; }
+.issues-panel summary { cursor: pointer; font-weight: 700; }
+.issues-panel ul { display: grid; gap: 8px; padding-left: 22px; font-size: 13px; }
 .upload-mark { display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 18px; color: #173d32; background: #dce9df; font-weight: 900; font-size: 13px; letter-spacing: .08em; }
 .source-list { display: grid; gap: 8px; margin: 28px 0 0; padding: 0; list-style: none; text-align: left; }
 .source-list li { display: flex; align-items: center; gap: 10px; overflow: hidden; padding: 10px 12px; border-radius: 7px; background: #f4f1e8; color: #4d5851; font-size: 13px; }

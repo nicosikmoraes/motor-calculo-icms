@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import {
   IPC_CHANNELS,
+  type BatchCompanyCandidate,
+  type BatchPreparation,
   type CompanySummary,
   type CreateCompanyInput,
   type CreateOrganizationInput,
@@ -20,9 +22,17 @@ import {
   runSqlMigrationsWithBackup,
 } from '@motor/database'
 import { normalizeBrazilianState, normalizeCnpj } from '@motor/domain'
+import {
+  PRODUCTION_XML_SECURITY_POLICY,
+  PRODUCTION_ZIP_SECURITY_POLICY,
+  normalizeNfeStructure,
+  readNfeXmlStructure,
+  visitSafeZipFileEntries,
+} from '@motor/nfe-parser'
 
 const allowedExtensions = new Set(['.xml', '.zip'])
 let database: SqliteDatabase | undefined
+const approvedSourcePaths = new Set<string>()
 
 function activeDatabase(): SqliteDatabase {
   if (!database) throw new Error('Banco de dados ainda não está disponível.')
@@ -192,10 +202,127 @@ function registerIpcHandlers(): void {
 
     if (result.canceled) return []
 
-    return result.filePaths
+    const selected = result.filePaths
       .filter((path) => allowedExtensions.has(path.slice(path.lastIndexOf('.')).toLowerCase()))
-      .map((path) => ({ path, kind: path.toLowerCase().endsWith('.zip') ? 'ZIP' : 'XML' }))
+      .map<SelectedSource>((path) => ({
+        path,
+        kind: path.toLowerCase().endsWith('.zip') ? 'ZIP' : 'XML',
+      }))
+    approvedSourcePaths.clear()
+    for (const source of selected) approvedSourcePaths.add(source.path)
+    return selected
   })
+  ipcMain.handle(
+    IPC_CHANNELS.INSPECT_SOURCES,
+    async (_event, rawSources: unknown): Promise<BatchPreparation> => {
+      if (!Array.isArray(rawSources)) throw new Error('Lista de arquivos inválida.')
+      const sources = rawSources.map((value): SelectedSource => {
+        const source = inputRecord(value)
+        const path = requiredInputText(source.path, 'Caminho do arquivo')
+        const kind = source.kind
+        if (kind !== 'XML' && kind !== 'ZIP') throw new Error('Tipo de arquivo inválido.')
+        if (!approvedSourcePaths.has(path)) throw new Error('Arquivo não autorizado pelo seletor.')
+        return { path, kind }
+      })
+
+      const connection = activeDatabase()
+      const organization = new SqliteOrganizationRepository(connection).findSingle()
+      if (!organization) throw new Error('Configure o escritório antes de importar arquivos.')
+      const companies = new SqliteCompanyRepository(connection).listByOrganization(organization.id)
+      const candidates = new Map<string, {
+        cnpj: string
+        legalName?: string
+        state?: string
+        roles: Set<'ISSUER' | 'RECIPIENT'>
+        documents: Set<string>
+      }>()
+      const issues: BatchPreparation['issues'][number][] = []
+      let inspectedXmlCount = 0
+
+      const inspectXml = (contents: Buffer, source: string): void => {
+        try {
+          const normalized = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8')))
+          inspectedXmlCount += 1
+          for (const [party, role] of [
+            [normalized.issuer, 'ISSUER'],
+            [normalized.recipient, 'RECIPIENT'],
+          ] as const) {
+            if (party?.taxIdType !== 'CNPJ' || !party.taxId) continue
+            const cnpj = normalizeCnpj(party.taxId)
+            const current = candidates.get(cnpj) ?? {
+              cnpj,
+              ...(party.name ? { legalName: party.name } : {}),
+              ...(party.state ? { state: party.state } : {}),
+              roles: new Set<'ISSUER' | 'RECIPIENT'>(),
+              documents: new Set<string>(),
+            }
+            current.roles.add(role)
+            current.documents.add(normalized.accessKey)
+            candidates.set(cnpj, current)
+          }
+        } catch (cause) {
+          issues.push({
+            source,
+            code: 'XML_NAO_IDENTIFICADO',
+            message: cause instanceof Error ? cause.message : 'XML não reconhecido.',
+          })
+        }
+      }
+
+      for (const source of sources) {
+        if (source.kind === 'XML') {
+          const metadata = await stat(source.path)
+          if (metadata.size > PRODUCTION_XML_SECURITY_POLICY.maxBytes) {
+            issues.push({ source: source.path, code: 'XML_TOO_LARGE', message: 'XML excede 10 MB.' })
+            continue
+          }
+          inspectXml(await readFile(source.path), source.path)
+          continue
+        }
+
+        try {
+          const inspection = await visitSafeZipFileEntries(
+            source.path,
+            PRODUCTION_ZIP_SECURITY_POLICY,
+            ({ relativePath, contents }) => {
+              if (relativePath.toLowerCase().endsWith('.xml')) {
+                inspectXml(contents, `${source.path}#${relativePath}`)
+              }
+            },
+          )
+          for (const rejected of inspection.rejectedEntries) {
+            issues.push({
+              source: `${source.path}#${rejected.entryName}`,
+              code: rejected.code,
+              message: rejected.message,
+            })
+          }
+        } catch (cause) {
+          issues.push({
+            source: source.path,
+            code: 'ZIP_REJEITADO',
+            message: cause instanceof Error ? cause.message : 'ZIP rejeitado.',
+          })
+        }
+      }
+
+      const resultCandidates: BatchCompanyCandidate[] = [...candidates.values()]
+        .map((candidate) => {
+          const matched = companies.find((company) => company.cnpj === candidate.cnpj)
+          return {
+            cnpj: candidate.cnpj,
+            ...(candidate.legalName ? { legalName: candidate.legalName } : {}),
+            ...(candidate.state ? { state: candidate.state } : {}),
+            roles: [...candidate.roles].sort(),
+            documentCount: candidate.documents.size,
+            ...(matched ? { matchedCompanyId: matched.id } : {}),
+          }
+        })
+        .sort((left, right) => left.cnpj.localeCompare(right.cnpj))
+
+      return { candidates: resultCandidates, issues, inspectedXmlCount }
+    },
+  )
 }
 
 app.whenReady().then(async () => {

@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
   SELECT_SOURCES: 'batch:select-sources',
+  INSPECT_SOURCES: 'batch:inspect-sources',
 } as const
 
 export interface OrganizationSummary {
@@ -48,6 +49,27 @@ export interface SelectedSource {
   kind: SourceKind
 }
 
+export interface BatchCompanyCandidate {
+  cnpj: string
+  legalName?: string
+  state?: string
+  roles: readonly ('ISSUER' | 'RECIPIENT')[]
+  documentCount: number
+  matchedCompanyId?: string
+}
+
+export interface BatchSourceIssue {
+  source: string
+  code: string
+  message: string
+}
+
+export interface BatchPreparation {
+  candidates: readonly BatchCompanyCandidate[]
+  issues: readonly BatchSourceIssue[]
+  inspectedXmlCount: number
+}
+
 export interface DesktopApi {
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
@@ -55,4 +77,5 @@ export interface DesktopApi {
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
   selectSources(): Promise<SelectedSource[]>
+  inspectSources(sources: readonly SelectedSource[]): Promise<BatchPreparation>
 }

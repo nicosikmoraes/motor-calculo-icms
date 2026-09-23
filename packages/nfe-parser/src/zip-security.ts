@@ -77,6 +77,13 @@ export interface ZipInspectionResult {
   rejectedEntries: readonly RejectedZipEntry[]
 }
 
+export interface SafeZipEntry {
+  relativePath: string
+  contents: Buffer
+}
+
+export type SafeZipEntryVisitor = (entry: SafeZipEntry) => void | Promise<void>
+
 function assertPositivePolicy(policy: ZipSecurityPolicy): void {
   const integerLimits = {
     maxArchiveBytes: policy.maxArchiveBytes,
@@ -186,16 +193,19 @@ async function verifyEntryContents(
   entry: Entry,
   policy: ZipSecurityPolicy,
   currentTotal: number,
-): Promise<number> {
+  captureContents: boolean,
+): Promise<{ bytes: number; contents?: Buffer }> {
   const fileName = entryFileName(entry)
   const stream = await openEntry(zipFile, entry)
   let actualEntryBytes = 0
   let actualCrc32 = 0
+  const chunks: Buffer[] = []
 
   for await (const data of stream) {
     const chunk = typeof data === 'string' ? Buffer.from(data) : Buffer.from(data)
     const bytes = chunk.byteLength
     actualEntryBytes += bytes
+    if (captureContents) chunks.push(chunk)
     actualCrc32 = crc32(chunk, actualCrc32)
     if (actualEntryBytes > policy.maxEntryUncompressedBytes) {
       stream.destroy()
@@ -223,7 +233,10 @@ async function verifyEntryContents(
     )
   }
 
-  return actualEntryBytes
+  return {
+    bytes: actualEntryBytes,
+    ...(captureContents ? { contents: Buffer.concat(chunks) } : {}),
+  }
 }
 
 async function inspectOpenedZip(
@@ -231,6 +244,7 @@ async function inspectOpenedZip(
   archiveName: string,
   archiveBytes: number,
   policy: ZipSecurityPolicy,
+  visitor?: SafeZipEntryVisitor,
 ): Promise<ZipInspectionResult> {
   const entries: InspectedZipEntry[] = []
   const rejectedEntries: RejectedZipEntry[] = []
@@ -323,11 +337,17 @@ async function inspectOpenedZip(
         continue
       }
 
-      let actualBytes: number
+      let verified: { bytes: number; contents?: Buffer }
       try {
-        actualBytes = directory
-          ? 0
-          : await verifyEntryContents(zipFile, entry, policy, acceptedUncompressedBytes)
+        verified = directory
+          ? { bytes: 0 }
+          : await verifyEntryContents(
+              zipFile,
+              entry,
+              policy,
+              acceptedUncompressedBytes,
+              visitor !== undefined,
+            )
       } catch (error) {
         if (
           error instanceof ZipSecurityError &&
@@ -338,6 +358,7 @@ async function inspectOpenedZip(
         }
         throw error
       }
+      const actualBytes = verified.bytes
       acceptedUncompressedBytes += actualBytes
       entries.push({
         relativePath,
@@ -346,6 +367,9 @@ async function inspectOpenedZip(
         uncompressedBytes: actualBytes,
         compressionRatio: ratio,
       })
+      if (!directory && visitor && verified.contents) {
+        await visitor({ relativePath, contents: verified.contents })
+      }
     }
 
     return {
@@ -393,6 +417,30 @@ export async function inspectZipBuffer(
   }
 }
 
+export async function visitSafeZipBufferEntries(
+  buffer: Buffer,
+  archiveName: string,
+  policy: ZipSecurityPolicy,
+  visitor: SafeZipEntryVisitor,
+): Promise<ZipInspectionResult> {
+  assertPositivePolicy(policy)
+  if (buffer.byteLength > policy.maxArchiveBytes) {
+    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+  }
+
+  try {
+    return await inspectOpenedZip(
+      await openBuffer(buffer),
+      archiveName,
+      buffer.byteLength,
+      policy,
+      visitor,
+    )
+  } catch (error) {
+    wrapInvalidZip(error)
+  }
+}
+
 export async function inspectZipFile(
   path: string,
   policy: ZipSecurityPolicy,
@@ -406,6 +454,25 @@ export async function inspectZipFile(
 
   try {
     return await inspectOpenedZip(await openFile(path), path, metadata.size, policy)
+  } catch (error) {
+    wrapInvalidZip(error)
+  }
+}
+
+export async function visitSafeZipFileEntries(
+  path: string,
+  policy: ZipSecurityPolicy,
+  visitor: SafeZipEntryVisitor,
+): Promise<ZipInspectionResult> {
+  assertPositivePolicy(policy)
+  const metadata = await stat(path)
+  if (!metadata.isFile()) throw new ZipSecurityError('ZIP_INVALID', 'A origem não é um arquivo.')
+  if (metadata.size > policy.maxArchiveBytes) {
+    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+  }
+
+  try {
+    return await inspectOpenedZip(await openFile(path), path, metadata.size, policy, visitor)
   } catch (error) {
     wrapInvalidZip(error)
   }

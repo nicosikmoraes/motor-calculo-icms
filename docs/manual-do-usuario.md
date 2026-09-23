@@ -81,6 +81,9 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 3. O sistema tenta localizar a empresa pelo CNPJ do XML.
 4. Se o CNPJ escolhido não estiver cadastrado, crie e confirme a empresa; o
    sistema pode pré-preencher o CNPJ, mas nunca cria o cadastro automaticamente.
+5. Se uma empresa foi selecionada antes dos arquivos, CNPJs desconhecidos de
+   fornecedores e clientes não abrem cadastros. Sem seleção, confirme uma empresa
+   encontrada ou escolha qual CNPJ desconhecido representa a empresa analisada.
 5. Confirme o envio.
 6. Acompanhe os estados `Recebido`, `Validando` e `Processando`.
 7. Ao concluir, veja a quantidade de notas aderentes, divergentes, provisórias, excluídas e inválidas.

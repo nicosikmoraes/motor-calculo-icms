@@ -8,6 +8,7 @@ import {
   ZipSecurityError,
   assertSafeXml,
   inspectZipBuffer,
+  visitSafeZipBufferEntries,
   type ZipSecurityPolicy,
 } from '../src'
 
@@ -111,6 +112,21 @@ describe('segurança de XML e ZIP', () => {
         { relativePath: 'empresa/nota-2.xml', directory: false, uncompressedBytes: 6 },
       ],
     })
+  })
+
+  it('visita uma entrada segura por vez sem reter o ZIP inteiro', async () => {
+    const buffer = await zip([
+      { name: 'nota-1.xml', contents: Buffer.from('<NFe id="1"/>') },
+      { name: 'nota-2.xml', contents: Buffer.from('<NFe id="2"/>') },
+    ])
+    const visited: string[] = []
+
+    const result = await visitSafeZipBufferEntries(buffer, 'lote.zip', policy, (entry) => {
+      visited.push(`${entry.relativePath}:${entry.contents.toString('utf8')}`)
+    })
+
+    expect(visited).toEqual(['nota-1.xml:<NFe id="1"/>', 'nota-2.xml:<NFe id="2"/>'])
+    expect(result.entries).toHaveLength(2)
   })
 
   it('isola Zip Slip e preserva as entradas seguras', async () => {
