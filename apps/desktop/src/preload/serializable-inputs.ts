@@ -8,7 +8,9 @@ export function copySelectedSources(
 
 export function copyCreateBatchInput(input: CreateBatchInput): CreateBatchInput {
   return {
-    companyId: input.companyId,
+    operationId: input.operationId,
+    totalEntries: input.totalEntries,
+    assignments: input.assignments.map(({ source, companyId }) => ({ source, companyId })),
     environmentCode: input.environmentCode,
     sources: copySelectedSources(input.sources),
   }

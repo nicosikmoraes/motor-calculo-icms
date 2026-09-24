@@ -125,6 +125,8 @@ describe('migrations e repositórios centrais', () => {
       'lotes',
       'ocorrencias_arquivo',
       'organizacoes',
+      'perfis_fiscais',
+      'produtos_fornecedor',
       'schema_migrations',
     ])
     expect(indexes).toContain('idx_ocorrencias_lote_chave')
@@ -236,6 +238,92 @@ describe('migrations e repositórios centrais', () => {
     })
     expect(batches.listDiagnostics(batchId)).toEqual([
       expect.objectContaining({ code: 'ASSINATURA_NAO_VERIFICADA', source: 'nota.xml' }),
+    ])
+  })
+
+  it('preserva empresas diferentes dentro do mesmo lote', () => {
+    seedRegistrations()
+    const secondCompanyId = '00000000-0000-4000-8000-000000000020'
+    new SqliteCompanyRepository(database).create({
+      ...company(),
+      id: secondCompanyId,
+      cnpj: '11444777000161',
+      legalName: 'Segunda empresa Ltda.',
+    })
+    const documentBase = {
+      kind: 'NFE' as const,
+      layoutVersion: '4.00' as const,
+      model: '55' as const,
+      series: '1',
+      environmentCode: '1',
+      items: [],
+      declaredTotals: {},
+      source: { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe.infNFe' },
+    }
+    const batches = new SqliteBatchRepository(database)
+    batches.createWithOccurrences(
+      batch(),
+      [
+        occurrence({ id: firstOccurrenceId, order: 1, accessKey: '1'.repeat(44) }),
+        occurrence({ id: secondOccurrenceId, order: 2, accessKey: '2'.repeat(44) }),
+      ],
+      [],
+      [
+        {
+          id: '00000000-0000-4000-8000-000000000021',
+          batchId,
+          occurrenceId: firstOccurrenceId,
+          companyId,
+          contentHash: '1'.repeat(64),
+          normalized: { ...documentBase, accessKey: '1'.repeat(44), number: '1',
+            issuer: { taxId: '11222333000181', taxIdType: 'CNPJ' as const, state: 'PR' } },
+          eligibleForProcessing: true,
+          createdAt: timestamp,
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000022',
+          batchId,
+          occurrenceId: secondOccurrenceId,
+          companyId: secondCompanyId,
+          contentHash: '2'.repeat(64),
+          normalized: { ...documentBase, accessKey: '2'.repeat(44), number: '2',
+            issuer: { taxId: '11444777000161', taxIdType: 'CNPJ' as const, state: 'PR' } },
+          eligibleForProcessing: true,
+          createdAt: timestamp,
+        },
+      ],
+    )
+    expect(batches.listNormalizedDocuments(batchId).map((document) => document.companyId).sort())
+      .toEqual([companyId, secondCompanyId])
+    expect(batches.countCompaniesByBatch(batchId)).toBe(2)
+    expect(batches.findById(batchId)?.totalDocuments).toBe(2)
+  })
+
+  it('preserva ocorrências e diagnóstico quando a importação é cancelada', () => {
+    seedRegistrations()
+    const batches = new SqliteBatchRepository(database)
+    batches.createWithOccurrences(
+      batch({ status: 'CANCELADO', lastCanceledAt: timestamp }),
+      [occurrence({ id: firstOccurrenceId, order: 1 })],
+      [{
+        id: '00000000-0000-4000-8000-000000000023',
+        batchId,
+        source: 'lote',
+        code: 'IMPORTACAO_CANCELADA',
+        message: 'Importação interrompida pelo usuário.',
+        createdAt: timestamp,
+      }],
+    )
+
+    expect(batches.findById(batchId)).toMatchObject({
+      status: 'CANCELADO',
+      lastCanceledAt: timestamp,
+      totalFiles: 1,
+      totalPendencies: 1,
+    })
+    expect(batches.listOccurrences(batchId)).toHaveLength(1)
+    expect(batches.listDiagnostics(batchId)).toEqual([
+      expect.objectContaining({ code: 'IMPORTACAO_CANCELADA' }),
     ])
   })
 

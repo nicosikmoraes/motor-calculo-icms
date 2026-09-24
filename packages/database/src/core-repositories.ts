@@ -75,6 +75,7 @@ export interface IngestionDiagnosticRecord {
 export interface NormalizedFiscalDocumentRecord {
   id: string
   batchId: string
+  companyId?: string
   occurrenceId: string
   contentHash: string
   normalized: NormalizedNfe
@@ -512,20 +513,28 @@ export class SqliteBatchRepository {
     }))
   }
 
+  countCompaniesByBatch(batchId: string): number {
+    return this.database.get<{ total: number }>(
+      'SELECT COUNT(DISTINCT empresa_id) AS total FROM documentos_fiscais WHERE lote_id = ?',
+      batchId,
+    )?.total ?? 0
+  }
+
   listNormalizedDocuments(batchId: string): readonly NormalizedFiscalDocumentRecord[] {
     return this.database.all<{
       id: string; lote_id: string; ocorrencia_arquivo_id: string; hash_xml: string;
       dados_normalizados_json: string; elegivel_processamento: number;
-      motivo_exclusao_pendencia: string | null; criado_em: string
+      motivo_exclusao_pendencia: string | null; criado_em: string; empresa_id: string | null
     }>(
       `SELECT id, lote_id, ocorrencia_arquivo_id, hash_xml, dados_normalizados_json,
-              elegivel_processamento, motivo_exclusao_pendencia, criado_em
+              elegivel_processamento, motivo_exclusao_pendencia, criado_em, empresa_id
        FROM documentos_fiscais WHERE lote_id = ? ORDER BY chave_acesso, id`,
       batchId,
     ).map((row) => ({
       id: row.id,
       batchId: row.lote_id,
       occurrenceId: row.ocorrencia_arquivo_id,
+      ...(row.empresa_id ? { companyId: row.empresa_id } : {}),
       contentHash: row.hash_xml,
       normalized: JSON.parse(row.dados_normalizados_json) as NormalizedNfe,
       eligibleForProcessing: row.elegivel_processamento === 1,
@@ -543,8 +552,8 @@ export class SqliteBatchRepository {
          id, lote_id, ocorrencia_arquivo_id, chave_acesso, modelo, numero, serie,
          emissao_original, emitente_cnpj, destinatario_cnpj_cpf, uf_origem, uf_destino,
          ambiente, finalidade, hash_xml, dados_normalizados_json,
-         elegivel_processamento, motivo_exclusao_pendencia, criado_em
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         elegivel_processamento, motivo_exclusao_pendencia, criado_em, empresa_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       requiredText(document.id, 'document.id'),
       requiredText(document.batchId, 'document.batchId'),
       requiredText(document.occurrenceId, 'document.occurrenceId'),
@@ -564,6 +573,7 @@ export class SqliteBatchRepository {
       document.eligibleForProcessing ? 1 : 0,
       document.pendingReason ?? (document.eligibleForProcessing ? null : 'AGUARDANDO_CALCULO'),
       assertCanonicalUtcTimestamp(document.createdAt, 'document.createdAt'),
+      document.companyId ?? null,
     )
     for (const item of normalized.items) {
       this.database.run(

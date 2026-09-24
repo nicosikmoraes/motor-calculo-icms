@@ -36,19 +36,26 @@ onMounted(async () => {
   <OnboardingView v-else-if="!workspace.organization" @created="loadWorkspace" />
   <div v-else class="app-shell">
     <aside class="sidebar">
-      <div>
-        <p class="eyebrow">Auditoria fiscal local</p>
-        <h1>ContabiliNico</h1>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <div>
+          <h1>ContabiliNico</h1>
+          <p>Auditoria fiscal local</p>
+        </div>
       </div>
 
       <nav aria-label="Navegação principal">
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
+        <RouterLink to="/perfis">Perfis fiscais</RouterLink>
         <RouterLink to="/lotes">Histórico</RouterLink>
         <RouterLink to="/lotes/novo">Novo lote</RouterLink>
       </nav>
 
-      <p class="version">Versão {{ version || '…' }}</p>
+      <div class="sidebar-footer">
+        <span class="local-indicator">Dados neste dispositivo</span>
+        <p class="version">Versão {{ version || '…' }}</p>
+      </div>
     </aside>
 
     <main class="content">

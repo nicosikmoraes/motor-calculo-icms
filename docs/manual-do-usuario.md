@@ -55,11 +55,19 @@ inicial da empresa.
 
 ### 2.2 Criar perfis fiscais
 
-Agrupe produtos que compartilham tratamento. Informe NCM, CEST quando aplicável, origem, categoria e finalidade padrão. Evite copiar alíquotas para cada produto.
+Na tela **Perfis fiscais**, escolha a empresa, informe um nome e a vigência do perfil.
+Nesta primeira entrega, o perfil é apenas cadastral: NCM, CEST, finalidade,
+condições de regra e alíquotas ainda não são definidos nele. Para notas antigas,
+escolha um início de vigência que cubra a data de emissão.
 
 ### 2.3 Vincular produtos de fornecedores
 
-Quando necessário, associe `CNPJ do fornecedor + código do produto` ao perfil fiscal validado. O sistema também pode sugerir vínculos a partir dos XMLs; sugestões precisam seguir a política de aprovação.
+Associe `CNPJ do fornecedor + código do produto` ao perfil da empresa. Isso pode
+ser feito manualmente em **Perfis fiscais** ou pelo botão **Vincular** no item do
+detalhe de um lote. O detalhe mostrará **Classificado**, **Pendente** ou **Fora
+da vigência**. Alterar um vínculo atualiza a classificação exibida em lotes
+anteriores; não altera o XML nem calcula tributos. Sugestões automáticas e
+histórico versionado dos vínculos ficam para entregas posteriores.
 
 ### 2.4 Cadastrar regras
 
@@ -83,18 +91,19 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 
 ## 3. Processar um lote
 
-1. Acesse **Novo lote**.
-2. Envie uma pasta, XMLs individuais ou um ZIP.
-3. O sistema tenta localizar a empresa pelo CNPJ do XML.
-4. Se o CNPJ escolhido não estiver cadastrado, crie e confirme a empresa; o
-   sistema pode pré-preencher o CNPJ, mas nunca cria o cadastro automaticamente.
-5. Se uma empresa foi selecionada antes dos arquivos, CNPJs desconhecidos de
-   fornecedores e clientes não abrem cadastros. Sem seleção, confirme uma empresa
-   encontrada ou escolha qual CNPJ desconhecido representa a empresa analisada.
-5. Confirme o envio.
-6. Acompanhe os estados `Recebido`, `Validando` e `Processando`.
-7. Ao concluir, veja a quantidade de notas aderentes, divergentes, provisórias, excluídas e inválidas.
-8. Baixe o XLSX ou abra os detalhes.
+1. Acesse **Novo lote** e selecione XMLs individuais ou um ZIP.
+2. Revise a empresa analisada de cada nota. O sistema sugere automaticamente
+   o emitente quando ele já está cadastrado.
+3. Para cada nota ainda sem empresa, cadastre o CNPJ necessário e confirme a
+   associação. O cadastro nunca é criado automaticamente. Se a empresa analisada
+   for a destinatária, escolha-a explicitamente na nota.
+4. Confirme o ambiente e processe o lote. Um mesmo ZIP pode conter empresas
+   diferentes, mas nenhuma nota reconhecida é processada sem associação.
+5. Acompanhe o contador de entradas durante a inspeção e o processamento. Use
+   **Cancelar** para parar após a entrada atual. Na inspeção não há lote salvo;
+   durante o processamento, os arquivos e diagnósticos já lidos ficam em um
+   lote `CANCELADO`. Para processar os restantes, inicie nova importação.
+6. Abra os detalhes do lote para conferir documentos e pendências.
 
 O usuário não informa alíquota, finalidade ou tratamento durante o envio. O sistema usa os cadastros previamente aprovados.
 

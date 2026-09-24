@@ -71,9 +71,10 @@ status, totalArquivos, totalNotas, totalPendencias, instalacaoOrigemId
 ```
 
 Cada envio confirmado recebe UUID próprio; `recebidoEm` não é usado sozinho como
-identidade técnica. `empresaId` pode permanecer ausente durante a identificação
-inicial, mas é obrigatório antes de iniciar o processamento fiscal. Um lote
-confirmado representa somente uma empresa analisada.
+identidade técnica. O campo `empresaId` do lote permanece como empresa
+representativa por compatibilidade com a migration `0001`. Desde a migration
+`0006`, cada documento fiscal guarda seu próprio `empresaId`; um lote pode
+conter notas de várias empresas analisadas.
 
 Na migration `0001`, estados a partir de `PROCESSANDO` exigem `empresaId`. A
 foreign key composta também garante que a empresa pertença à mesma organização do
@@ -204,8 +205,8 @@ totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
   execuções confirmadas.
 - Cadastros utilizados são inativados, não excluídos; regras publicadas, lotes e
   execuções históricas não admitem exclusão operacional.
-- Todo lote em processamento possui exatamente uma empresa analisada; documento
-  alheio a ela permanece registrado com `EMPRESA_DIVERGENTE` e fora dos totais.
+- Cada documento normalizado deve apontar para uma empresa analisada cadastrada,
+  emitente ou destinatária no XML. A associação é validada antes de confirmar o lote.
 - Chaves estrangeiras históricas usam comportamento restritivo e não podem
   apagar evidências por cascata.
 - Valores monetários, bases, alíquotas, quantidades e valores unitários usam texto
