@@ -11,9 +11,9 @@ divergências com rastreabilidade.
 ## Estado do projeto
 
 O projeto está em desenvolvimento. A fundação do monorepo, o aplicativo desktop,
-o parser de NF-e/NFC-e 4.00, a validação XSD offline, a normalização inicial e as
-proteções de entrada já estão implementados. Persistência, fórmulas fiscais
-homologadas e geração do XLSX ainda fazem parte do roadmap.
+o parser de NF-e/NFC-e 4.00, a validação XSD offline, a normalização inicial,
+a importação de XML/ZIP e a persistência local em SQLite já estão implementados.
+Fórmulas fiscais homologadas e geração do XLSX ainda fazem parte do roadmap.
 
 ## Stack
 
@@ -22,7 +22,7 @@ homologadas e geração do XLSX ainda fazem parte do roadmap.
 - Vitest para testes automatizados;
 - `fast-xml-parser` para leitura dos XMLs;
 - `xmllint-wasm` e schemas oficiais para validação XSD offline;
-- armazenamento local planejado em SQLite.
+- armazenamento local em SQLite.
 
 ## Em produção
 

@@ -280,10 +280,10 @@ ingestão prontos para receber a implementação.
 
 - [x] desenhar os repositórios de organização e empresa a partir do modelo aprovado;
 - [x] implementar onboarding de organização única e tela persistente de empresa;
-- [ ] implementar telas de perfil fiscal e produto de fornecedor;
+- [x] implementar cadastro inicial de perfil fiscal e produto de fornecedor;
 - [ ] definir casos de uso sem detalhes de SQLite;
 - [x] validar CNPJ, UF e identificadores normalizados no domínio;
-- [ ] validar vigência ao implementar os perfis fiscais.
+- [x] validar as datas e a vigência inicial dos perfis fiscais.
 
 **DECISÃO NECESSÁRIA:** aprovar o schema físico restante da MD-03 antes de criar
 a primeira migration de domínio e os repositórios concretos.
@@ -301,7 +301,7 @@ Após a decisão:
   arquivo, incluindo índices, checks e foreign keys restritivas;
 - [x] persistir e consultar organização, empresa, lote e ocorrência de arquivo;
 - [x] expor organização e empresa ao renderer por contratos IPC restritos;
-- [ ] persistir perfil fiscal e produto de fornecedor;
+- [x] persistir perfil fiscal e produto de fornecedor;
 - [ ] implementar transações e trilha básica de auditoria;
 - [x] testar criação, consulta, inativação, rollback e reinicialização para as
   entidades da migration `0001`;
@@ -315,7 +315,7 @@ Após a decisão:
 
 - [x] inventariar e persistir arquivos antes de relacioná-los;
 - [x] ler XML/ZIP sequencialmente com limites de segurança;
-- [ ] validar formato, versão, ambiente e schema;
+- [x] validar formato, versão, ambiente e schema de NF-e/NFC-e 4.00;
 - [x] normalizar e persistir NF-e/NFC-e e seus itens;
 - [ ] normalizar protocolos e eventos quando suas versões forem aprovadas;
 - [x] calcular e persistir hashes SHA-256;
@@ -325,7 +325,8 @@ Após a decisão:
 - [x] separar produção e homologação, exigindo confirmação do ambiente do lote e
   preservando documentos divergentes como pendência inelegível para cálculo;
 - [x] continuar o inventário após erro isolado;
-- [ ] apresentar progresso durante processamento;
+- [x] apresentar progresso por entrada na inspeção e no processamento, com
+  cancelamento cooperativo e preservação do trabalho parcial;
 - [x] apresentar histórico detalhado do lote, documentos, itens, ocorrências e
   diagnósticos.
 
@@ -340,7 +341,7 @@ ainda sem promessa de cálculo fiscal completo.
 - [ ] implementar rascunho, aprovação, nova versão e revogação;
 - [ ] exigir fundamento legal e vigência para aprovação;
 - [ ] detectar sobreposição potencial;
-- [ ] vincular produto de fornecedor a perfil fiscal;
+- [x] vincular produto de fornecedor a perfil fiscal, por empresa e CNPJ do emitente;
 - [ ] registrar candidatas consideradas e explicação da seleção;
 - [ ] gerar pendências `REGRA_NAO_ENCONTRADA`, `REGRA_AMBIGUA`,
   `PRODUTO_NAO_CLASSIFICADO` e `DIVERGENCIA_CADASTRAL`;

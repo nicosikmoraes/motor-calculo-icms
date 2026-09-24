@@ -21,7 +21,9 @@ describe('fronteira serializável do IPC', () => {
 
   it('copia todo o comando de criação do lote para um objeto clonável', () => {
     const input = reactiveProxy<CreateBatchInput>({
-      companyId: 'empresa-1',
+      operationId: 'job-1',
+      totalEntries: 1,
+      assignments: reactiveProxy([reactiveProxy({ source: '/tmp/documentos.zip#nota.xml', companyId: 'empresa-1' })]),
       environmentCode: '2',
       sources: reactiveProxy([
         reactiveProxy<SelectedSource>({ path: '/tmp/documentos.zip', kind: 'ZIP' }),
@@ -31,7 +33,9 @@ describe('fronteira serializável do IPC', () => {
     const copied = copyCreateBatchInput(input)
 
     expect(copied).toEqual({
-      companyId: 'empresa-1',
+      operationId: 'job-1',
+      totalEntries: 1,
+      assignments: [{ source: '/tmp/documentos.zip#nota.xml', companyId: 'empresa-1' }],
       environmentCode: '2',
       sources: [{ path: '/tmp/documentos.zip', kind: 'ZIP' }],
     })

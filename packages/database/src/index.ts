@@ -1,4 +1,5 @@
 export * from './core-migrations'
+export * from './fiscal-catalog-repository'
 export * from './core-repositories'
 export * from './migrations'
 export * from './sqlite-database'

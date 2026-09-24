@@ -84,6 +84,19 @@ export interface SafeZipEntry {
 
 export type SafeZipEntryVisitor = (entry: SafeZipEntry) => void | Promise<void>
 
+export interface ZipVisitOptions {
+  signal?: AbortSignal
+  onProgress?: (completed: number, total: number, entryName?: string) => void
+  onRejected?: (entry: RejectedZipEntry) => void
+}
+
+export class ZipVisitCancelledError extends Error {
+  constructor() {
+    super('Leitura do ZIP cancelada.')
+    this.name = 'ZipVisitCancelledError'
+  }
+}
+
 function assertPositivePolicy(policy: ZipSecurityPolicy): void {
   const integerLimits = {
     maxArchiveBytes: policy.maxArchiveBytes,
@@ -245,6 +258,7 @@ async function inspectOpenedZip(
   archiveBytes: number,
   policy: ZipSecurityPolicy,
   visitor?: SafeZipEntryVisitor,
+  options?: ZipVisitOptions,
 ): Promise<ZipInspectionResult> {
   const entries: InspectedZipEntry[] = []
   const rejectedEntries: RejectedZipEntry[] = []
@@ -257,118 +271,126 @@ async function inspectOpenedZip(
     code: RejectedZipEntryCode,
     message: string,
   ): void => {
-    rejectedEntries.push({ entryName, code, message })
+    const rejected = { entryName, code, message }
+    rejectedEntries.push(rejected)
+    options?.onRejected?.(rejected)
   }
 
   try {
+    options?.onProgress?.(0, zipFile.entryCount)
     while (true) {
+      if (options?.signal?.aborted) throw new ZipVisitCancelledError()
       const entry = await nextEntry(zipFile)
       if (!entry) break
+      if (options?.signal?.aborted) throw new ZipVisitCancelledError()
       totalEntries += 1
-
-      if (totalEntries > policy.maxEntries) {
-        throw new ZipSecurityError(
-          'ZIP_TOO_MANY_ENTRIES',
-          `ZIP excede o limite de ${policy.maxEntries} entradas.`,
-        )
-      }
-      const fileName = entryFileName(entry)
-      totalUncompressedBytes += entry.uncompressedSize
-      if (totalUncompressedBytes > policy.maxTotalUncompressedBytes) {
-        throw new ZipSecurityError(
-          'ZIP_EXPANDED_CONTENT_TOO_LARGE',
-          'Conteúdo total descomprimido excede o limite do lote.',
-          fileName,
-        )
-      }
-      if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
-        rejectEntry(
-          fileName,
-          'ZIP_ENCRYPTED',
-          `Entrada ZIP criptografada não é aceita: ${fileName}.`,
-        )
-        continue
-      }
-      if (isSymbolicLink(entry)) {
-        rejectEntry(
-          fileName,
-          'ZIP_SYMBOLIC_LINK',
-          `Link simbólico não é aceito no ZIP: ${fileName}.`,
-        )
-        continue
-      }
-
-      let relativePath: string
       try {
-        relativePath = normalizeInventoryPath(fileName)
-      } catch {
-        rejectEntry(
-          fileName,
-          'ZIP_PATH_UNSAFE',
-          `Caminho inseguro no ZIP: ${fileName}.`,
-        )
-        continue
-      }
-      if (relativePath.split('/').length > policy.maxPathDepth) {
-        rejectEntry(
-          fileName,
-          'ZIP_PATH_UNSAFE',
-          `Caminho excede a profundidade permitida no ZIP: ${fileName}.`,
-        )
-        continue
-      }
-
-      const directory = fileName.endsWith('/')
-      const ratio = compressionRatio(entry)
-      if (entry.uncompressedSize > policy.maxEntryUncompressedBytes) {
-        rejectEntry(
-          fileName,
-          'ZIP_ENTRY_TOO_LARGE',
-          `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
-        )
-        continue
-      }
-      if (ratio > policy.maxCompressionRatio) {
-        rejectEntry(
-          fileName,
-          'ZIP_COMPRESSION_RATIO_EXCEEDED',
-          `Taxa de compressão excessiva na entrada: ${fileName}.`,
-        )
-        continue
-      }
-
-      let verified: { bytes: number; contents?: Buffer }
-      try {
-        verified = directory
-          ? { bytes: 0 }
-          : await verifyEntryContents(
-              zipFile,
-              entry,
-              policy,
-              acceptedUncompressedBytes,
-              visitor !== undefined,
-            )
-      } catch (error) {
-        if (
-          error instanceof ZipSecurityError &&
-          (error.code === 'ZIP_CRC_MISMATCH' || error.code === 'ZIP_ENTRY_TOO_LARGE')
-        ) {
-          rejectEntry(fileName, error.code, error.message)
+        if (totalEntries > policy.maxEntries) {
+          throw new ZipSecurityError(
+            'ZIP_TOO_MANY_ENTRIES',
+            `ZIP excede o limite de ${policy.maxEntries} entradas.`,
+          )
+        }
+        const fileName = entryFileName(entry)
+        totalUncompressedBytes += entry.uncompressedSize
+        if (totalUncompressedBytes > policy.maxTotalUncompressedBytes) {
+          throw new ZipSecurityError(
+            'ZIP_EXPANDED_CONTENT_TOO_LARGE',
+            'Conteúdo total descomprimido excede o limite do lote.',
+            fileName,
+          )
+        }
+        if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
+          rejectEntry(
+            fileName,
+            'ZIP_ENCRYPTED',
+            `Entrada ZIP criptografada não é aceita: ${fileName}.`,
+          )
           continue
         }
-        throw error
-      }
-      const actualBytes = verified.bytes
-      acceptedUncompressedBytes += actualBytes
-      entries.push({
-        relativePath,
-        directory,
-        compressedBytes: entry.compressedSize,
-        uncompressedBytes: actualBytes,
-        compressionRatio: ratio,
-      })
-      if (!directory && visitor && verified.contents) {
-        await visitor({ relativePath, contents: verified.contents })
+        if (isSymbolicLink(entry)) {
+          rejectEntry(
+            fileName,
+            'ZIP_SYMBOLIC_LINK',
+            `Link simbólico não é aceito no ZIP: ${fileName}.`,
+          )
+          continue
+        }
+
+        let relativePath: string
+        try {
+          relativePath = normalizeInventoryPath(fileName)
+        } catch {
+          rejectEntry(
+            fileName,
+            'ZIP_PATH_UNSAFE',
+            `Caminho inseguro no ZIP: ${fileName}.`,
+          )
+          continue
+        }
+        if (relativePath.split('/').length > policy.maxPathDepth) {
+          rejectEntry(
+            fileName,
+            'ZIP_PATH_UNSAFE',
+            `Caminho excede a profundidade permitida no ZIP: ${fileName}.`,
+          )
+          continue
+        }
+
+        const directory = fileName.endsWith('/')
+        const ratio = compressionRatio(entry)
+        if (entry.uncompressedSize > policy.maxEntryUncompressedBytes) {
+          rejectEntry(
+            fileName,
+            'ZIP_ENTRY_TOO_LARGE',
+            `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
+          )
+          continue
+        }
+        if (ratio > policy.maxCompressionRatio) {
+          rejectEntry(
+            fileName,
+            'ZIP_COMPRESSION_RATIO_EXCEEDED',
+            `Taxa de compressão excessiva na entrada: ${fileName}.`,
+          )
+          continue
+        }
+
+        let verified: { bytes: number; contents?: Buffer }
+        try {
+          verified = directory
+            ? { bytes: 0 }
+            : await verifyEntryContents(
+                zipFile,
+                entry,
+                policy,
+                acceptedUncompressedBytes,
+                visitor !== undefined,
+              )
+        } catch (error) {
+          if (
+            error instanceof ZipSecurityError &&
+            (error.code === 'ZIP_CRC_MISMATCH' || error.code === 'ZIP_ENTRY_TOO_LARGE')
+          ) {
+            rejectEntry(fileName, error.code, error.message)
+            continue
+          }
+          throw error
+        }
+        const actualBytes = verified.bytes
+        acceptedUncompressedBytes += actualBytes
+        entries.push({
+          relativePath,
+          directory,
+          compressedBytes: entry.compressedSize,
+          uncompressedBytes: actualBytes,
+          compressionRatio: ratio,
+        })
+        if (!directory && visitor && verified.contents) {
+          await visitor({ relativePath, contents: verified.contents })
+        }
+      } finally {
+        options?.onProgress?.(totalEntries, zipFile.entryCount, entryFileName(entry))
       }
     }
 
@@ -387,7 +409,7 @@ async function inspectOpenedZip(
 }
 
 function wrapInvalidZip(error: unknown): never {
-  if (error instanceof ZipSecurityError) throw error
+  if (error instanceof ZipSecurityError || error instanceof ZipVisitCancelledError) throw error
   const message = error instanceof Error ? error.message : String(error)
   if (/invalid relative path|absolute path|invalid characters in fileName/i.test(message)) {
     throw new ZipSecurityError('ZIP_PATH_UNSAFE', `Caminho inseguro no ZIP: ${message}`)
@@ -422,6 +444,7 @@ export async function visitSafeZipBufferEntries(
   archiveName: string,
   policy: ZipSecurityPolicy,
   visitor: SafeZipEntryVisitor,
+  options?: ZipVisitOptions,
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   if (buffer.byteLength > policy.maxArchiveBytes) {
@@ -435,6 +458,7 @@ export async function visitSafeZipBufferEntries(
       buffer.byteLength,
       policy,
       visitor,
+      options,
     )
   } catch (error) {
     wrapInvalidZip(error)
@@ -463,6 +487,7 @@ export async function visitSafeZipFileEntries(
   path: string,
   policy: ZipSecurityPolicy,
   visitor: SafeZipEntryVisitor,
+  options?: ZipVisitOptions,
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   const metadata = await stat(path)
@@ -472,7 +497,7 @@ export async function visitSafeZipFileEntries(
   }
 
   try {
-    return await inspectOpenedZip(await openFile(path), path, metadata.size, policy, visitor)
+    return await inspectOpenedZip(await openFile(path), path, metadata.size, policy, visitor, options)
   } catch (error) {
     wrapInvalidZip(error)
   }

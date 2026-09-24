@@ -6,6 +6,7 @@ import {
   PRODUCTION_ZIP_SECURITY_POLICY,
   XmlSecurityError,
   ZipSecurityError,
+  ZipVisitCancelledError,
   assertSafeXml,
   inspectZipBuffer,
   visitSafeZipBufferEntries,
@@ -127,6 +128,52 @@ describe('segurança de XML e ZIP', () => {
 
     expect(visited).toEqual(['nota-1.xml:<NFe id="1"/>', 'nota-2.xml:<NFe id="2"/>'])
     expect(result.entries).toHaveLength(2)
+  })
+
+  it('informa progresso e cancela após a entrada atual', async () => {
+    const buffer = await zip([
+      { name: 'a.xml', contents: Buffer.from('<NFe/>') },
+      { name: 'b.xml', contents: Buffer.from('<NFe/>') },
+    ])
+    const controller = new AbortController()
+    const visited: string[] = []
+    const progress: string[] = []
+
+    await expect(visitSafeZipBufferEntries(buffer, 'lote.zip', policy, ({ relativePath }) => {
+      visited.push(relativePath)
+      controller.abort()
+    }, {
+      signal: controller.signal,
+      onProgress: (completed, total) => progress.push(`${completed}/${total}`),
+    })).rejects.toBeInstanceOf(ZipVisitCancelledError)
+
+    expect(visited).toEqual(['a.xml'])
+    expect(progress).toEqual(['0/2', '1/2'])
+  })
+
+  it('entrega rejeições já encontradas antes do cancelamento', async () => {
+    const safe = await zip([
+      { name: 'a.xml', contents: Buffer.from('<NFe/>') },
+      { name: 'safe/evil.xml', contents: Buffer.from('<NFe/>') },
+      { name: 'b.xml', contents: Buffer.from('<NFe/>') },
+    ])
+    const buffer = replaceAllBytes(safe, 'safe/evil.xml', '../x/evil.xml')
+    const controller = new AbortController()
+    const visited: string[] = []
+    const rejected: string[] = []
+
+    await expect(visitSafeZipBufferEntries(buffer, 'lote.zip', policy, ({ relativePath }) => {
+      visited.push(relativePath)
+    }, {
+      signal: controller.signal,
+      onRejected: (entry) => {
+        rejected.push(entry.code)
+        controller.abort()
+      },
+    })).rejects.toBeInstanceOf(ZipVisitCancelledError)
+
+    expect(visited).toEqual(['a.xml'])
+    expect(rejected).toEqual(['ZIP_PATH_UNSAFE'])
   })
 
   it('isola Zip Slip e preserva as entradas seguras', async () => {

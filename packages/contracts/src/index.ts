@@ -4,9 +4,15 @@ export const IPC_CHANNELS = {
   CREATE_ORGANIZATION: 'workspace:create-organization',
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
+  LIST_FISCAL_PROFILES: 'fiscal-profiles:list',
+  CREATE_FISCAL_PROFILE: 'fiscal-profiles:create',
+  LIST_SUPPLIER_PRODUCTS: 'supplier-products:list',
+  SAVE_SUPPLIER_PRODUCT: 'supplier-products:save',
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
   CREATE_BATCH: 'batch:create',
+  CANCEL_BATCH_OPERATION: 'batch:cancel-operation',
+  BATCH_PROGRESS: 'batch:progress',
   LIST_BATCHES: 'batch:list',
   GET_BATCH_DETAIL: 'batch:get-detail',
 } as const
@@ -45,6 +51,36 @@ export interface CreateCompanyInput {
   state: string
 }
 
+export interface FiscalProfileSummary {
+  id: string
+  companyId: string
+  name: string
+  validFrom: string
+  validUntil?: string
+}
+
+export interface CreateFiscalProfileInput {
+  companyId: string
+  name: string
+  validFrom: string
+  validUntil?: string
+}
+
+export interface SupplierProductSummary {
+  id: string
+  companyId: string
+  supplierCnpj: string
+  productCode: string
+  profileId: string
+}
+
+export interface SaveSupplierProductInput {
+  companyId: string
+  supplierCnpj: string
+  productCode: string
+  profileId: string
+}
+
 export type SourceKind = 'XML' | 'ZIP'
 
 export interface SelectedSource {
@@ -68,16 +104,36 @@ export interface BatchSourceIssue {
 }
 
 export interface BatchPreparation {
+  documents: readonly BatchPreparedDocument[]
   candidates: readonly BatchCompanyCandidate[]
   issues: readonly BatchSourceIssue[]
   inspectedXmlCount: number
+  totalEntries: number
   environmentCodes: readonly ('1' | '2')[]
 }
 
+export interface BatchPreparedDocument {
+  source: string
+  accessKey: string
+  number: string
+  issuerCnpj?: string
+  recipientCnpj?: string
+}
+
 export interface CreateBatchInput {
-  companyId: string
+  operationId: string
+  totalEntries: number
+  assignments: readonly { source: string; companyId: string }[]
   environmentCode: '1' | '2'
   sources: readonly SelectedSource[]
+}
+
+export interface BatchOperationProgress {
+  operationId: string
+  phase: 'INSPECTING' | 'PROCESSING' | 'SAVING' | 'CANCELLING'
+  completed: number
+  total: number
+  currentSource?: string
 }
 
 export interface CreatedBatchSummary {
@@ -120,6 +176,8 @@ export interface BatchDiagnosticSummary {
 
 export interface FiscalItemSummary {
   itemNumber: string
+  classification: 'CLASSIFICADO' | 'PENDENTE' | 'FORA_DA_VIGENCIA'
+  fiscalProfileName?: string
   supplierProductCode?: string
   description?: string
   ncm?: string
@@ -129,6 +187,8 @@ export interface FiscalItemSummary {
 }
 
 export interface FiscalDocumentSummary {
+  companyId?: string
+  companyName?: string
   id: string
   accessKey: string
   model: string
@@ -158,9 +218,15 @@ export interface DesktopApi {
   createOrganization(input: CreateOrganizationInput): Promise<OrganizationSummary>
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
+  listFiscalProfiles(companyId: string): Promise<readonly FiscalProfileSummary[]>
+  createFiscalProfile(input: CreateFiscalProfileInput): Promise<FiscalProfileSummary>
+  listSupplierProducts(companyId: string): Promise<readonly SupplierProductSummary[]>
+  saveSupplierProduct(input: SaveSupplierProductInput): Promise<SupplierProductSummary>
   selectSources(): Promise<SelectedSource[]>
-  inspectSources(sources: readonly SelectedSource[]): Promise<BatchPreparation>
+  inspectSources(sources: readonly SelectedSource[], operationId: string): Promise<BatchPreparation>
   createBatch(input: CreateBatchInput): Promise<CreatedBatchSummary>
+  cancelBatchOperation(operationId: string): Promise<boolean>
+  onBatchProgress(listener: (progress: BatchOperationProgress) => void): () => void
   listBatches(): Promise<readonly BatchListItem[]>
   getBatchDetail(batchId: string): Promise<BatchDetail>
 }
