@@ -511,6 +511,23 @@ Toda empresa cadastrada pertence a essa organização. O processo principal do
 Electron aplica a unicidade no caso de uso e expõe ao renderer somente contratos
 IPC validados; o renderer não acessa o SQLite diretamente.
 
+## DT-032 — Núcleo decimal e histórico das execuções
+
+**Status:** decisão técnica implementada; contrato fiscal MD-05 permanece pendente.
+
+`decimal.js` 10.6.0 foi escolhido como representação para aritmética decimal do motor.
+Os valores entram como texto, sem conversão por `number`. O adaptador limita entradas
+e resultados a 40 algarismos e usa 100 dígitos de precisão interna para as
+operações de adição, subtração e multiplicação. Divisão, rateio e arredondamento
+fiscal não foram habilitados: escala, modo, etapas e tolerância dependem de MD-05.
+
+A migration `0008` cria execuções e memórias por item, vinculadas a documento e
+lote. Solicitações repetidas com o mesmo identificador são idempotentes; um
+recálculo explícito cria nova execução vinculada à anterior. Triggers impedem
+alteração e exclusão dos resultados concluídos. O detalhe do lote exibe entradas
+e valores declarados como pendentes enquanto não houver regra fiscal aprovada;
+nenhum ICMS novo é calculado ou comparado nesta etapa.
+
 ## Fila de decisões
 
 A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md).

@@ -5,7 +5,7 @@ import type { SqliteDatabase } from './sqlite-database'
 
 const MIGRATION_FILE_PATTERN = /^(\d{4})_([a-z0-9][a-z0-9_-]*)\.sql$/i
 const CHECKSUM_PATTERN = /^[a-f0-9]{64}$/
-const TRANSACTION_CONTROL_PATTERN = /^\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/im
+const TRANSACTION_CONTROL_PATTERN = /^\s*(?:BEGIN(?:\s+(?:DEFERRED|IMMEDIATE|EXCLUSIVE|TRANSACTION))?|COMMIT|ROLLBACK|SAVEPOINT\s+\w+|RELEASE\s+\w+)\s*;/im
 
 export interface SqlMigration {
   version: number

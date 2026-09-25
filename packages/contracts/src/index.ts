@@ -240,6 +240,19 @@ export interface FiscalItemSummary {
   cfop?: string
   productAmount?: string
   declaredIcmsAmount?: string
+  calculation: ItemCalculationSummary
+}
+
+export interface ItemCalculationSummary {
+  status: 'PENDING_RULE' | 'PENDING_DATA' | 'UNSUPPORTED' | 'CALCULATED'
+  reason?: string
+  runId?: string
+  engineVersion?: string
+  rule?: { id: string; version: number; legalBasis: string }
+  inputs: readonly { name: string; value?: string; source: string; treatment: 'INCLUDED' | 'EXCLUDED' | 'UNDECIDED'; reason?: string }[]
+  steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
+  result?: { base: string; rate: string; amount: string }
+  declared?: { base?: string; rate?: string; amount?: string }
 }
 
 export interface FiscalDocumentSummary {

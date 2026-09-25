@@ -30,6 +30,7 @@ import {
   SqliteCompanyRepository,
   SqliteFiscalCatalogRepository,
   SqliteBatchRepository,
+  SqliteCalculationRepository,
   SqliteDatabase,
   SqliteOrganizationRepository,
   runSqlMigrationsWithBackup,
@@ -50,7 +51,7 @@ import {
   visitSafeZipFileEntries,
   ZipVisitCancelledError,
 } from '@motor/nfe-parser'
-import { BUILTIN_ICMS_OWN_PACK } from '@motor/tax-engine'
+import { BUILTIN_ICMS_OWN_PACK, pendingCalculation } from '@motor/tax-engine'
 
 import { BatchOperationCancelledError, BatchOperationRegistry, type BatchOperationSession } from './batch-operation'
 import { classifyFiscalItem } from './fiscal-item-classification'
@@ -798,6 +799,8 @@ function registerIpcHandlers(): void {
       const companies = new Map(new SqliteCompanyRepository(connection)
         .listByOrganization(organization.id).map((company) => [company.id, company]))
       const documents = batches.listNormalizedDocuments(batchId)
+      const calculations = new SqliteCalculationRepository(connection)
+      const latestCalculations = new Map(documents.map((document) => [document.id, calculations.latestByDocument(document.id)] as const))
       const catalog = new SqliteFiscalCatalogRepository(connection)
       const assignedCompanyIds = [...new Set(documents.map((document) => document.companyId).filter((id): id is string => Boolean(id)))]
       const profilesByCompany = new Map(assignedCompanyIds.map((id) => [id, catalog.listProfiles(id)] as const))
@@ -859,6 +862,29 @@ function registerIpcHandlers(): void {
           ...(normalized.recipient?.taxId ? { recipientTaxId: normalized.recipient.taxId } : {}),
           items: normalized.items.map((item) => ({
             itemNumber: item.itemNumber,
+            calculation: (() => {
+              const run = latestCalculations.get(id)
+              const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
+              if (saved) return { ...saved.memory, runId: run!.id, engineVersion: run!.engineVersion }
+              const memory = pendingCalculation(
+                'PENDING_RULE',
+                'A composição da base, as exceções e o arredondamento ainda aguardam homologação fiscal.',
+                [
+                  ...(item.productAmount ? [{ name: 'valorProduto', value: item.productAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ...(item.freightAmount ? [{ name: 'frete', value: item.freightAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ...(item.insuranceAmount ? [{ name: 'seguro', value: item.insuranceAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ...(item.discountAmount ? [{ name: 'desconto', value: item.discountAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ...(item.otherAmount ? [{ name: 'outrasDespesas', value: item.otherAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ...(item.ipiAmount ? [{ name: 'IPI', value: item.ipiAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                ],
+                {
+                  ...(item.declaredIcms?.baseAmount ? { base: item.declaredIcms.baseAmount } : {}),
+                  ...(item.declaredIcms?.rate ? { rate: item.declaredIcms.rate } : {}),
+                  ...(item.declaredIcms?.amount ? { amount: item.declaredIcms.amount } : {}),
+                },
+              )
+              return memory
+            })(),
             ruleAssessment: assessBuiltinRules(normalized, item),
             ...classifyFiscalItem(
               companyId, normalized.issuer.taxIdType === 'CNPJ' ? normalized.issuer.taxId : undefined,
