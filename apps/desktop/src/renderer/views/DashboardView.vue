@@ -59,3 +59,17 @@ onMounted(async () => {
     </article>
   </section>
 </template>
+
+<style scoped>
+.getting-started { max-width: 760px; margin-top: 28px; padding: 30px; }
+.getting-started h3 { margin: 9px 0; font: 700 25px Georgia, serif; }
+.getting-started p:last-child { color: #606b64; line-height: 1.65; }
+.getting-started { max-width: none; margin-top: 18px; padding: 30px; }
+.getting-started h3 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: -.025em; }
+.getting-started h3 { color: #1b2b46; font-size: 22px; }
+.getting-started p:last-child { max-width: 650px; font-size: 14px; }
+.dashboard-actions { display: flex; gap: 10px; margin-top: 24px; }
+@media (max-width: 650px) {
+  .dashboard-actions { flex-wrap: wrap; }
+}
+</style>

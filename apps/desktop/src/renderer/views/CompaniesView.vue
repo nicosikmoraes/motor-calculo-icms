@@ -154,3 +154,26 @@ onMounted(() => void load().catch((cause) => {
     </article>
   </section>
 </template>
+
+<style scoped>
+.company-list-card h3 { margin: 8px 0 22px; font: 700 24px Georgia, serif; }
+.company-list-card { margin-top: 22px; padding: 28px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; }
+.company-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.company-list li { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 4px; border-top: 1px solid #e4dfd4; }
+.company-list li:first-child { border-top: 0; }
+.company-list li > div:first-child { display: grid; gap: 4px; }
+.company-list strong { color: #26342d; }
+.company-list li > div:first-child span { color: #6d7771; font-size: 13px; }
+.company-meta { display: flex; align-items: center; gap: 12px; color: #56615a; font-variant-numeric: tabular-nums; }
+.company-list-card h3 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: -.025em; }
+.company-list li { border-bottom-color: #e8edf4; }
+.company-list li > div:first-child { min-width: 0; }
+.company-list strong, .company-list li > div:first-child span { overflow-wrap: anywhere; }
+.company-meta { flex-wrap: wrap; }
+.company-list li { align-items: flex-start; }
+.settings-grid + .company-list-card { margin-top: 24px; }
+@media (max-width: 650px) {
+  .company-list li { align-items: flex-start; flex-direction: column; }
+}
+</style>

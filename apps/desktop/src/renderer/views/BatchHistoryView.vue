@@ -58,3 +58,26 @@ onMounted(async () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.empty-list-card { padding: 32px; }
+.batch-list { display: grid; gap: 12px; }
+.batch-list-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px; color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+.batch-list-row:hover { border-color: #b45d30; transform: translateY(-1px); }
+.batch-list-row > div:first-child { display: grid; gap: 6px; }
+.batch-list-row strong { font: 700 20px Georgia, serif; }
+.batch-list-row small { color: #69736d; }
+.batch-counts { display: flex; gap: 18px; color: #69736d; font-size: 13px; }
+.batch-counts span { display: grid; gap: 2px; text-align: center; }
+.batch-counts b { color: #173d32; font-size: 20px; }
+@media (max-width: 850px) {
+  .batch-list-row { align-items: start; flex-direction: column; }
+}
+.batch-list-row strong { color: #1d2e4c; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.batch-list-row > div:first-child { min-width: 0; }
+.batch-list-row strong, .batch-list-row small { overflow-wrap: anywhere; }
+.batch-counts { flex-wrap: wrap; }
+@media (max-width: 650px) {
+  .batch-counts { width: 100%; justify-content: space-between; }
+}
+</style>

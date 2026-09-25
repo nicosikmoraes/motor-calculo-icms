@@ -350,3 +350,91 @@ onUnmounted(() => unsubscribeProgress?.())
     </article>
   </section>
 </template>
+
+<style scoped>
+.upload-card h3 { margin: 9px 0; font: 700 25px Georgia, serif; }
+.upload-card p { color: #606b64; line-height: 1.65; }
+.upload-card { max-width: 820px; padding: 42px; text-align: center; }
+.batch-company-card, .preparation-card { max-width: 820px; margin-bottom: 20px; padding: 28px; }
+.batch-company-card h3, .preparation-card h3 { margin: 8px 0 20px; font: 700 24px Georgia, serif; }
+.standalone-field { display: grid; gap: 8px; color: #46524b; font-size: 14px; font-weight: 700; }
+.candidate-list { display: grid; gap: 10px; }
+.candidate-list > p { color: #606b64; }
+.candidate-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; border-radius: 9px; background: #f4f1e8; }
+.candidate-row > div { display: grid; gap: 4px; }
+.candidate-row span { color: #69736d; font-size: 13px; }
+.registration-card { max-width: 820px; margin-top: 20px; }
+.issues-panel { margin-top: 18px; color: #56615a; }
+.issues-panel summary { cursor: pointer; font-weight: 700; }
+.issues-panel ul { display: grid; gap: 8px; padding-left: 22px; font-size: 13px; }
+.confirm-batch { margin-top: 18px; }
+.batch-result { display: grid; gap: 8px; margin-top: 18px; padding: 18px; border-radius: 9px; background: #e2f2e9; color: #1c6549; }
+.batch-result strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.batch-result .button { justify-self: start; margin-top: 4px; }
+.upload-mark { display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 18px; color: #173d32; background: #dce9df; font-weight: 900; font-size: 13px; letter-spacing: .08em; }
+.source-list { display: grid; gap: 8px; margin: 28px 0 0; padding: 0; list-style: none; text-align: left; }
+.source-list li { display: flex; align-items: center; gap: 10px; overflow: hidden; padding: 10px 12px; border-radius: 7px; background: #f4f1e8; color: #4d5851; font-size: 13px; }
+.source-list li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-progress { position: sticky; top: 12px; z-index: 5; max-width: 1080px; margin-bottom: 18px; padding: 20px 24px; border-color: #becaf7; box-shadow: 0 14px 35px #1f398024; }
+.import-progress-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+.import-progress-heading h3 { margin: 5px 0; color: #1c2d4d; font-size: 18px; letter-spacing: -.02em; }
+.import-progress-heading p:not(.eyebrow) { overflow: hidden; max-width: 600px; margin: 0; color: #748199; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.import-progress-heading strong { color: #3552c4; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.import-progress progress { width: 100%; height: 9px; margin: 15px 0 10px; overflow: hidden; border: 0; border-radius: 999px; accent-color: #4c65dd; }
+.import-progress progress::-webkit-progress-bar { border-radius: 999px; background: #e7ecf8; }
+.import-progress progress::-webkit-progress-value { border-radius: 999px; background: #4c65dd; }
+.import-progress-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.import-progress-footer span { color: #77859a; font-size: 11px; }
+.import-progress-footer .button { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.upload-card h3, .batch-company-card h3, .preparation-card h3 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: -.025em; }
+.workflow-steps { display: flex; gap: 10px; max-width: 1080px; margin: 0 0 18px; }
+.step { flex: 1; padding: 14px 16px; border: 1px solid #e0e6f0; border-radius: 10px; color: #95a1b3; background: #f9fafc; font-size: 11px; font-weight: 800; }
+.step b { margin-left: 8px; font-size: 12px; font-weight: 650; }
+.step.active { border-color: #bccaf9; color: #3f59c4; background: #eff3ff; }
+.upload-card, .preparation-card, .registration-card { max-width: 1080px; }
+.upload-card { padding: 32px; text-align: left; }
+.upload-mark { width: 46px; height: 46px; margin: 0 0 14px; border-radius: 11px; color: #405acb; background: #edf1ff; font-size: 11px; }
+.upload-card h3 { font-size: 21px; color: #1d2b43; }
+.upload-card p { max-width: 580px; margin: 8px 0 20px; font-size: 13px; line-height: 1.5; }
+.source-list { margin-top: 22px; }
+.source-list li, .candidate-row { background: #f7f9fc; border: 1px solid #edf0f5; }
+.preparation-card { margin-top: 18px; padding: 30px; }
+.preparation-card > h3 { font-size: 20px; }
+.environment-field { max-width: 340px; margin-bottom: 30px; }
+.review-heading { display: flex; align-items: start; justify-content: space-between; gap: 22px; padding-top: 24px; border-top: 1px solid #e9edf3; }
+.review-heading h3 { margin: 5px 0; font-size: 22px; }
+.review-heading p:not(.eyebrow) { max-width: 700px; margin: 0 0 18px; color: #68778b; font-size: 13px; line-height: 1.5; }
+.review-count { flex: none; padding: 8px 11px; border-radius: 999px; color: #147453; background: #e5f6ef; font-size: 12px; font-weight: 750; }
+.review-count.incomplete { color: #975d11; background: #fff2db; }
+.document-review-list { display: grid; gap: 8px; max-height: 430px; overflow: auto; padding-right: 3px; }
+.document-review-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, .8fr); gap: 20px; align-items: center; padding: 15px 18px; border: 1px solid #e8ecf3; border-radius: 10px; }
+.document-review-info { display: grid; min-width: 0; gap: 4px; }
+.document-review-info strong { color: #20314f; font-size: 14px; }
+.document-review-info span { overflow: hidden; color: #58677e; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.document-review-info small { color: #8a96a9; font-size: 11px; }
+.document-review-row .standalone-field { font-size: 11px; }
+.document-review-row select { min-height: 39px; }
+.company-candidates { margin-top: 18px; padding: 15px 18px; border: 1px solid #f2dbb6; border-radius: 10px; background: #fffbf3; }
+.company-candidates summary { color: #80520f; font-size: 13px; font-weight: 750; }
+.company-candidates .candidate-list { margin-top: 13px; }
+.confirm-batch { margin-top: 18px; }
+@media (max-width: 900px) {
+  .document-review-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 650px) {
+  .workflow-steps { flex-direction: column; }
+}
+@media (max-width: 650px) {
+  .review-heading { flex-direction: column; }
+}
+.workflow-steps { gap: 12px; margin-bottom: 20px; }
+.step { min-width: 0; overflow-wrap: anywhere; }
+.document-review-info strong { overflow-wrap: anywhere; }
+.candidate-row > div { min-width: 0; }
+.candidate-row span { overflow-wrap: anywhere; }
+.source-list li span:last-child { min-width: 0; }
+.standalone-field { min-width: 0; }
+@media (max-width: 650px) {
+  .candidate-row { align-items: flex-start; flex-direction: column; }
+}
+</style>
