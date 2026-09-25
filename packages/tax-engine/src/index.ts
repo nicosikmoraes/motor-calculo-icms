@@ -1,26 +1,12 @@
 export * from './rule-selector'
 export * from './builtin-rule-pack'
-
-export interface TaxComponentResult {
-  base: string
-  rate: string
-  amount: string
-}
-
-export interface CalculationMemoryEntry {
-  step: string
-  formula: string
-  inputs: Readonly<Record<string, string>>
-  result: string
-}
+export * from './decimal'
+export * from './calculation-memory'
 
 /**
- * Porta do cálculo numérico. A implementação será criada depois da aprovação das
- * fórmulas, precisão e arredondamento descritos em `decisoes-pendentes.md`.
+ * Porta do cálculo fiscal. A implementação depende da aprovação de fórmulas,
+ * exceções, precisão e arredondamento descritos em `decisoes-pendentes.md`.
  */
 export interface TaxCalculator {
-  calculate(input: unknown): Promise<{
-    components: Readonly<Record<string, TaxComponentResult>>
-    memory: readonly CalculationMemoryEntry[]
-  }>
+  calculate(input: unknown): Promise<import('./calculation-memory').CalculationMemory>
 }
