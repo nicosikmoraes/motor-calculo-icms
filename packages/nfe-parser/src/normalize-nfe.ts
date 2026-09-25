@@ -110,6 +110,7 @@ function item(det: XmlObject, index: number): NormalizedNfeItem {
       insuranceAmount: asString(product?.vSeg),
       discountAmount: asString(product?.vDesc),
       otherAmount: asString(product?.vOutro),
+      ipiAmount: asString(asObject(asObject(tax?.IPI)?.IPITrib)?.vIPI),
       includedInDocumentTotal:
         asString(product?.indTot) === undefined ? undefined : asString(product?.indTot) === '1',
       declaredIcms: declaredIcms(tax),

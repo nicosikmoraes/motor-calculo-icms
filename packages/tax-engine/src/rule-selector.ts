@@ -21,6 +21,7 @@ export interface RuleContext {
   cfop?: string
   operationType?: string
   issuerRegime?: string
+  cst?: string
   recipientTaxpayer?: string
   finalConsumer?: string
   purpose?: string
@@ -49,20 +50,54 @@ export interface RankedRule {
   levelRank: number
 }
 
-export type RuleSelection =
-  | { kind: 'NOT_FOUND'; considered: readonly RankedRule[] }
-  | { kind: 'SELECTED'; selected: RankedRule; considered: readonly RankedRule[] }
-  | { kind: 'AMBIGUOUS'; tied: readonly RankedRule[]; considered: readonly RankedRule[] }
+export type RuleExclusionReason =
+  | 'NOT_APPROVED'
+  | 'NOT_YET_VALID'
+  | 'EXPIRED'
+  | 'CONDITION_MISMATCH'
 
-function isInForce(rule: FiscalRule, emissionDate: string): boolean {
-  return rule.validFrom <= emissionDate && (!rule.validUntil || emissionDate <= rule.validUntil)
+export interface RuleEvaluation {
+  rule: FiscalRule
+  eligible: boolean
+  exclusionReasons: readonly RuleExclusionReason[]
+  mismatchedConditions: readonly ConditionKey[]
 }
 
-function matchesContext(conditions: RuleConditions, context: RuleContext): boolean {
-  return Object.entries(conditions).every(([key, expected]) => {
-    if (expected === undefined || expected === '') return true
-    return context[key as ConditionKey] === expected
-  })
+export type RuleSelection =
+  | { kind: 'NOT_FOUND'; considered: readonly RankedRule[]; evaluated: readonly RuleEvaluation[] }
+  | {
+      kind: 'SELECTED'
+      selected: RankedRule
+      considered: readonly RankedRule[]
+      evaluated: readonly RuleEvaluation[]
+    }
+  | {
+      kind: 'AMBIGUOUS'
+      tied: readonly RankedRule[]
+      considered: readonly RankedRule[]
+      evaluated: readonly RuleEvaluation[]
+    }
+
+function evaluate(rule: FiscalRule, context: RuleContext): RuleEvaluation {
+  const exclusionReasons: RuleExclusionReason[] = []
+  if (rule.status !== 'APPROVED') exclusionReasons.push('NOT_APPROVED')
+  if (rule.validFrom > context.emissionDate) exclusionReasons.push('NOT_YET_VALID')
+  if (rule.validUntil && rule.validUntil < context.emissionDate) exclusionReasons.push('EXPIRED')
+
+  const mismatchedConditions = (Object.keys(rule.conditions) as ConditionKey[])
+    .filter((key) => {
+      const expected = rule.conditions[key]
+      return expected !== undefined && expected !== '' && context[key] !== expected
+    })
+    .sort()
+  if (mismatchedConditions.length > 0) exclusionReasons.push('CONDITION_MISMATCH')
+
+  return {
+    rule,
+    eligible: exclusionReasons.length === 0,
+    exclusionReasons,
+    mismatchedConditions,
+  }
 }
 
 function rank(rule: FiscalRule): RankedRule {
@@ -89,15 +124,14 @@ export function selectFiscalRule(
   rules: readonly FiscalRule[],
   context: RuleContext,
 ): RuleSelection {
-  const considered = rules
-    .filter((rule) => rule.status === 'APPROVED')
-    .filter((rule) => isInForce(rule, context.emissionDate))
-    .filter((rule) => matchesContext(rule.conditions, context))
-    .map(rank)
+  const evaluated = rules.map((rule) => evaluate(rule, context))
+  const considered = evaluated
+    .filter((candidate) => candidate.eligible)
+    .map((candidate) => rank(candidate.rule))
     .sort(compare)
 
   const first = considered[0]
-  if (!first) return { kind: 'NOT_FOUND', considered }
+  if (!first) return { kind: 'NOT_FOUND', considered, evaluated }
 
   const tied = considered.filter(
     (candidate) =>
@@ -106,7 +140,7 @@ export function selectFiscalRule(
       candidate.rule.priority === first.rule.priority,
   )
 
-  if (tied.length > 1) return { kind: 'AMBIGUOUS', tied, considered }
+  if (tied.length > 1) return { kind: 'AMBIGUOUS', tied, considered, evaluated }
 
-  return { kind: 'SELECTED', selected: first, considered }
+  return { kind: 'SELECTED', selected: first, considered, evaluated }
 }

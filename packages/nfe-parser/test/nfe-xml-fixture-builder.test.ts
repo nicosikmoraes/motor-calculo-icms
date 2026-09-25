@@ -55,6 +55,36 @@ describe('NfeXmlFixtureBuilder', () => {
     })
   })
 
+  it('preserva o IPI tributado por item sem confundir ausência com zero', async () => {
+    const icms = {
+      originCode: '0',
+      cst: '00',
+      baseMode: '3',
+      baseAmount: '100.00',
+      rate: '18.0000',
+      amount: '18.00',
+    }
+    const xml = syntheticNfeXml()
+      .withItem({
+        icms,
+        ipi: { group: 'IPITrib', cst: '50', baseAmount: '100.00', rate: '5.0000', amount: '5.00' },
+      })
+      .addItem({ supplierProductCode: '0002', icms, ipi: { group: 'IPINT', cst: '52' } })
+      .addItem({
+        supplierProductCode: '0003',
+        icms,
+        ipi: { group: 'IPITrib', cst: '50', baseAmount: '100.00', rate: '0.0000', amount: '0.00' },
+      })
+      .addItem({ supplierProductCode: '0004' })
+      .build()
+    const validation = await validateNfeSchema(xml, { fileName: 'builder-ipi.xml' })
+    const result = normalizeNfeXml(xml)
+
+    expect(validation.valid, validation.errors.map((error) => error.rawMessage).join('\n')).toBe(true)
+    expect(result.items.map((item) => item.ipiAmount)).toEqual(['5.00', undefined, '0.00', undefined])
+    expect(result.declaredTotals).toMatchObject({ ipiAmount: '5.00', documentAmount: '405.00' })
+  })
+
   it('produz variações controladas para pendência e segurança', async () => {
     const missingNcm = await analyzeNfeXml(syntheticNfeXml().omit('NCM').build())
     const unsafe = await analyzeNfeXml(syntheticNfeXml().withDoctype().build())

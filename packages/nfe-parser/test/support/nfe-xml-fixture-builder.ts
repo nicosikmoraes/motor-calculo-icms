@@ -9,6 +9,14 @@ export interface SyntheticIcms {
   fcpAmount?: string
 }
 
+export interface SyntheticIpi {
+  group: 'IPITrib' | 'IPINT'
+  cst: string
+  baseAmount?: string
+  rate?: string
+  amount?: string
+}
+
 export interface SyntheticNfeItem {
   supplierProductCode: string
   description: string
@@ -19,6 +27,7 @@ export interface SyntheticNfeItem {
   commercialUnitAmount: string
   productAmount: string
   icms?: SyntheticIcms
+  ipi?: SyntheticIpi
 }
 
 export type OmissibleNfeField =
@@ -71,9 +80,15 @@ function sumDecimalTexts(values: readonly string[]): string {
   return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`
 }
 
-function renderIcms(icms: SyntheticIcms | undefined): string {
-  if (!icms) return '<imposto/>'
-  return `<imposto><ICMS><ICMS00>${element('orig', icms.originCode)}${element('CST', icms.cst)}${element('modBC', icms.baseMode)}${element('vBC', icms.baseAmount)}${element('pICMS', icms.rate)}${element('vICMS', icms.amount)}${element('pFCP', icms.fcpRate)}${element('vFCP', icms.fcpAmount)}</ICMS00></ICMS></imposto>`
+function renderTax(icms: SyntheticIcms | undefined, ipi: SyntheticIpi | undefined): string {
+  if (!icms && !ipi) return '<imposto/>'
+  const icmsXml = icms
+    ? `<ICMS><ICMS00>${element('orig', icms.originCode)}${element('CST', icms.cst)}${element('modBC', icms.baseMode)}${element('vBC', icms.baseAmount)}${element('pICMS', icms.rate)}${element('vICMS', icms.amount)}${element('pFCP', icms.fcpRate)}${element('vFCP', icms.fcpAmount)}</ICMS00></ICMS>`
+    : ''
+  const ipiXml = ipi
+    ? `<IPI><cEnq>999</cEnq><${ipi.group}>${element('CST', ipi.cst)}${ipi.group === 'IPITrib' ? `${element('vBC', ipi.baseAmount)}${element('pIPI', ipi.rate)}${element('vIPI', ipi.amount)}` : ''}</${ipi.group}></IPI>`
+    : ''
+  return `<imposto>${icmsXml}${ipiXml}</imposto>`
 }
 
 function renderItem(
@@ -81,7 +96,7 @@ function renderItem(
   index: number,
   omitted: ReadonlySet<OmissibleNfeField>,
 ): string {
-  return `<det nItem="${index + 1}"><prod>${element('cProd', item.supplierProductCode)}<cEAN>SEM GTIN</cEAN>${element('xProd', item.description)}${omitted.has('NCM') ? '' : element('NCM', item.ncm)}${omitted.has('CFOP') ? '' : element('CFOP', item.cfop)}${element('uCom', item.commercialUnit)}${element('qCom', item.commercialQuantity)}${element('vUnCom', item.commercialUnitAmount)}${element('vProd', item.productAmount)}<cEANTrib>SEM GTIN</cEANTrib>${element('uTrib', item.commercialUnit)}${element('qTrib', item.commercialQuantity)}${element('vUnTrib', item.commercialUnitAmount)}<indTot>1</indTot></prod>${omitted.has('ITEM_TAX') ? '' : renderIcms(item.icms)}</det>`
+  return `<det nItem="${index + 1}"><prod>${element('cProd', item.supplierProductCode)}<cEAN>SEM GTIN</cEAN>${element('xProd', item.description)}${omitted.has('NCM') ? '' : element('NCM', item.ncm)}${omitted.has('CFOP') ? '' : element('CFOP', item.cfop)}${element('uCom', item.commercialUnit)}${element('qCom', item.commercialQuantity)}${element('vUnCom', item.commercialUnitAmount)}${element('vProd', item.productAmount)}<cEANTrib>SEM GTIN</cEANTrib>${element('uTrib', item.commercialUnit)}${element('qTrib', item.commercialQuantity)}${element('vUnTrib', item.commercialUnitAmount)}<indTot>1</indTot></prod>${omitted.has('ITEM_TAX') ? '' : renderTax(item.icms, item.ipi)}</det>`
 }
 
 function withModelInAccessKey(accessKey: string, model: '55' | '65'): string {
@@ -159,16 +174,18 @@ export class NfeXmlFixtureBuilder {
     const state = this.state
     const accessKey = withModelInAccessKey(state.accessKey, state.model)
     const productAmount = sumDecimalTexts(state.items.map((item) => item.productAmount))
+    const ipiAmount = sumDecimalTexts(state.items.map((item) => item.ipi?.amount ?? '0.00'))
+    const documentAmount = sumDecimalTexts([productAmount, ipiAmount])
     const items = state.items.map((item, index) => renderItem(item, index, state.omitted)).join('')
     const totals = state.omitted.has('TOTALS')
       ? ''
-      : `<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${productAmount}</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${productAmount}</vNF></ICMSTot></total>`
+      : `<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${productAmount}</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vII>0.00</vII><vIPI>${ipiAmount}</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${documentAmount}</vNF></ICMSTot></total>`
     const recipient = state.omitted.has('RECIPIENT')
       ? ''
       : `<dest>${element('CNPJ', state.recipientTaxId)}<xNome>DESTINATARIO SINTETICO</xNome><enderDest><xLgr>AVENIDA DE TESTE</xLgr><nro>200</nro><xBairro>CENTRO</xBairro><cMun>3550308</cMun><xMun>SAO PAULO</xMun><UF>SP</UF><CEP>01002000</CEP><cPais>1058</cPais><xPais>BRASIL</xPais></enderDest><indIEDest>9</indIEDest></dest>`
     const doctype = state.includeDoctype ? '<!DOCTYPE nfeProc>' : ''
 
-    return `<?xml version="1.0" encoding="UTF-8"?>${doctype}<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe${accessKey}" versao="4.00"><ide><cUF>35</cUF><cNF>00000001</cNF><natOp>VENDA DE MERCADORIA</natOp><mod>${state.model}</mod><serie>${escapeXml(state.series)}</serie><nNF>${escapeXml(state.number)}</nNF><dhEmi>${escapeXml(state.issuedAt)}</dhEmi><tpNF>1</tpNF><idDest>1</idDest><cMunFG>3550308</cMunFG><tpImp>${state.model === '65' ? '4' : '1'}</tpImp><tpEmis>1</tpEmis><cDV>0</cDV><tpAmb>2</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>FIXTURE-BUILDER</verProc></ide><emit>${state.omitted.has('ISSUER_TAX_ID') ? '' : element('CNPJ', state.issuerTaxId)}<xNome>EMPRESA EMITENTE SINTETICA</xNome><enderEmit><xLgr>RUA DE TESTE</xLgr><nro>100</nro><xBairro>CENTRO</xBairro><cMun>3550308</cMun><xMun>SAO PAULO</xMun><UF>SP</UF><CEP>01001000</CEP><cPais>1058</cPais><xPais>BRASIL</xPais></enderEmit><IE>110042490114</IE><CRT>3</CRT></emit>${recipient}${items}${totals}<transp><modFrete>9</modFrete></transp><pag><detPag><tPag>01</tPag><vPag>${productAmount}</vPag></detPag></pag></infNFe><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#NFe${accessKey}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>AA==</DigestValue></Reference></SignedInfo><SignatureValue>AA==</SignatureValue><KeyInfo><X509Data><X509Certificate>AA==</X509Certificate></X509Data></KeyInfo></Signature></NFe><protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><verAplic>TESTE</verAplic><chNFe>${accessKey}</chNFe><dhRecbto>2026-09-15T12:01:00-03:00</dhRecbto><nProt>135260000000001</nProt><digVal>AA==</digVal><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe></nfeProc>`
+    return `<?xml version="1.0" encoding="UTF-8"?>${doctype}<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><NFe><infNFe Id="NFe${accessKey}" versao="4.00"><ide><cUF>35</cUF><cNF>00000001</cNF><natOp>VENDA DE MERCADORIA</natOp><mod>${state.model}</mod><serie>${escapeXml(state.series)}</serie><nNF>${escapeXml(state.number)}</nNF><dhEmi>${escapeXml(state.issuedAt)}</dhEmi><tpNF>1</tpNF><idDest>1</idDest><cMunFG>3550308</cMunFG><tpImp>${state.model === '65' ? '4' : '1'}</tpImp><tpEmis>1</tpEmis><cDV>0</cDV><tpAmb>2</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>FIXTURE-BUILDER</verProc></ide><emit>${state.omitted.has('ISSUER_TAX_ID') ? '' : element('CNPJ', state.issuerTaxId)}<xNome>EMPRESA EMITENTE SINTETICA</xNome><enderEmit><xLgr>RUA DE TESTE</xLgr><nro>100</nro><xBairro>CENTRO</xBairro><cMun>3550308</cMun><xMun>SAO PAULO</xMun><UF>SP</UF><CEP>01001000</CEP><cPais>1058</cPais><xPais>BRASIL</xPais></enderEmit><IE>110042490114</IE><CRT>3</CRT></emit>${recipient}${items}${totals}<transp><modFrete>9</modFrete></transp><pag><detPag><tPag>01</tPag><vPag>${documentAmount}</vPag></detPag></pag></infNFe><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#NFe${accessKey}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>AA==</DigestValue></Reference></SignedInfo><SignatureValue>AA==</SignatureValue><KeyInfo><X509Data><X509Certificate>AA==</X509Certificate></X509Data></KeyInfo></Signature></NFe><protNFe versao="4.00"><infProt><tpAmb>2</tpAmb><verAplic>TESTE</verAplic><chNFe>${accessKey}</chNFe><dhRecbto>2026-09-15T12:01:00-03:00</dhRecbto><nProt>135260000000001</nProt><digVal>AA==</digVal><cStat>100</cStat><xMotivo>Autorizado o uso da NF-e</xMotivo></infProt></protNFe></nfeProc>`
   }
 }
 

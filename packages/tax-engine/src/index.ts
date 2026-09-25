@@ -1,4 +1,5 @@
 export * from './rule-selector'
+export * from './builtin-rule-pack'
 
 export interface TaxComponentResult {
   base: string

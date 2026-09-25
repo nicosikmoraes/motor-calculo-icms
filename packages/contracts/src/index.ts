@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
   LIST_FISCAL_PROFILES: 'fiscal-profiles:list',
+  GET_BUILTIN_RULE_PACK: 'fiscal-rules:built-in-pack',
   CREATE_FISCAL_PROFILE: 'fiscal-profiles:create',
   LIST_SUPPLIER_PRODUCTS: 'supplier-products:list',
   SAVE_SUPPLIER_PRODUCT: 'supplier-products:save',
@@ -174,9 +175,64 @@ export interface BatchDiagnosticSummary {
   message: string
 }
 
+export type ItemClassificationReason =
+  | 'COMPANY_MISSING'
+  | 'ISSUER_CNPJ_MISSING'
+  | 'PRODUCT_CODE_MISSING'
+  | 'PRODUCT_NOT_LINKED'
+  | 'PROFILE_NOT_FOUND'
+  | 'ISSUE_DATE_MISSING'
+  | 'PROFILE_NOT_YET_VALID'
+  | 'PROFILE_EXPIRED'
+  | 'PROFILE_ACTIVE'
+
+export interface BuiltinRuleSummary {
+  id: string
+  version: number
+  name: string
+  status: 'DRAFT' | 'APPROVED' | 'REVOKED'
+  validFrom: string
+  validUntil?: string
+  legalBasis: string
+  sourceUrl: string
+  proposedRate: string
+  reviewNote: string
+  reviewStage: 'CONDITIONS_AND_RATE_APPROVED'
+  reviewedOn: string
+  conditions: Readonly<Record<string, string>>
+}
+
+export interface BuiltinRulePackSummary {
+  id: string
+  version: number
+  rules: readonly BuiltinRuleSummary[]
+}
+
+export interface RuleEvaluationSummary {
+  ruleId: string
+  ruleName: string
+  status: BuiltinRuleSummary['status']
+  proposedRate: string
+  reviewStage: BuiltinRuleSummary['reviewStage']
+  exclusionReasons: readonly string[]
+  mismatchedConditions: readonly string[]
+}
+
+export interface ItemRuleAssessment {
+  packId: string
+  packVersion: number
+  kind: 'SELECTED' | 'AMBIGUOUS' | 'DRAFT_MATCH' | 'NO_MATCH'
+  selectedRuleId?: string
+  evaluated: readonly RuleEvaluationSummary[]
+}
+
 export interface FiscalItemSummary {
   itemNumber: string
   classification: 'CLASSIFICADO' | 'PENDENTE' | 'FORA_DA_VIGENCIA'
+  classificationReason: ItemClassificationReason
+  ruleAssessment: ItemRuleAssessment
+  profileValidFrom?: string
+  profileValidUntil?: string
   fiscalProfileName?: string
   supplierProductCode?: string
   description?: string
@@ -219,6 +275,7 @@ export interface DesktopApi {
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
   listFiscalProfiles(companyId: string): Promise<readonly FiscalProfileSummary[]>
+  getBuiltinRulePack(): Promise<BuiltinRulePackSummary>
   createFiscalProfile(input: CreateFiscalProfileInput): Promise<FiscalProfileSummary>
   listSupplierProducts(companyId: string): Promise<readonly SupplierProductSummary[]>
   saveSupplierProduct(input: SaveSupplierProductInput): Promise<SupplierProductSummary>

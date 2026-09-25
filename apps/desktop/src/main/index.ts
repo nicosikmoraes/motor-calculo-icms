@@ -9,6 +9,7 @@ import {
   type BatchCompanyCandidate,
   type BatchPreparation,
   type BatchDetail,
+  type BuiltinRulePackSummary,
   type BatchListItem,
   type CreatedBatchSummary,
   type CreateBatchInput,
@@ -49,9 +50,11 @@ import {
   visitSafeZipFileEntries,
   ZipVisitCancelledError,
 } from '@motor/nfe-parser'
+import { BUILTIN_ICMS_OWN_PACK } from '@motor/tax-engine'
 
 import { BatchOperationCancelledError, BatchOperationRegistry, type BatchOperationSession } from './batch-operation'
 import { classifyFiscalItem } from './fiscal-item-classification'
+import { assessBuiltinRules } from './rule-pack-assessment'
 
 const allowedExtensions = new Set(['.xml', '.zip'])
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
@@ -776,6 +779,11 @@ function registerIpcHandlers(): void {
       }
     })
   })
+  ipcMain.handle(IPC_CHANNELS.GET_BUILTIN_RULE_PACK, (): BuiltinRulePackSummary => ({
+    id: BUILTIN_ICMS_OWN_PACK.id,
+    version: BUILTIN_ICMS_OWN_PACK.version,
+    rules: BUILTIN_ICMS_OWN_PACK.rules.map((rule) => ({ ...rule })),
+  }))
   ipcMain.handle(
     IPC_CHANNELS.GET_BATCH_DETAIL,
     (_event, rawBatchId: unknown): BatchDetail => {
@@ -851,6 +859,7 @@ function registerIpcHandlers(): void {
           ...(normalized.recipient?.taxId ? { recipientTaxId: normalized.recipient.taxId } : {}),
           items: normalized.items.map((item) => ({
             itemNumber: item.itemNumber,
+            ruleAssessment: assessBuiltinRules(normalized, item),
             ...classifyFiscalItem(
               companyId, normalized.issuer.taxIdType === 'CNPJ' ? normalized.issuer.taxId : undefined,
               item.supplierProductCode, normalized.issuedAt,

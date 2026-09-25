@@ -32,6 +32,9 @@ importers:
       '@motor/nfe-parser':
         specifier: workspace:*
         version: link:../../packages/nfe-parser
+      '@motor/tax-engine':
+        specifier: workspace:*
+        version: link:../../packages/tax-engine
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.42(typescript@5.9.3))

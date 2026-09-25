@@ -43,3 +43,12 @@ async function createOrganization(): Promise<void> {
     </section>
   </main>
 </template>
+
+<style scoped>
+.onboarding-card h1 { margin: 10px 0 16px; font: 700 42px/1.08 Georgia, serif; }
+.onboarding-shell { display: grid; min-height: 100vh; place-items: center; padding: 32px; background: #173d32; }
+.onboarding-card { width: min(620px, 100%); padding: 48px; }
+.onboarding-card .form-stack { margin-top: 30px; }
+.onboarding-shell { background: #111c2e; }
+.onboarding-card h1 { font-family: Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: -.04em; }
+</style>
