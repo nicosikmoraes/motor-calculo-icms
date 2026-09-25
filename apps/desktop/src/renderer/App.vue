@@ -48,6 +48,7 @@ onMounted(async () => {
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
         <RouterLink to="/perfis">Perfis fiscais</RouterLink>
+        <RouterLink to="/regras">Regras propostas</RouterLink>
         <RouterLink to="/lotes">Histórico</RouterLink>
         <RouterLink to="/lotes/novo">Novo lote</RouterLink>
       </nav>

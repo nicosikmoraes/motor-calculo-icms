@@ -63,6 +63,8 @@ export interface NormalizedNfeItem {
   insuranceAmount?: DecimalText
   discountAmount?: DecimalText
   otherAmount?: DecimalText
+  /** Valor do IPI destacado neste item (IPITrib/vIPI); ausente quando não informado. */
+  ipiAmount?: DecimalText
   includedInDocumentTotal?: boolean
   declaredIcms?: NormalizedDeclaredIcms
   source: NormalizedSource

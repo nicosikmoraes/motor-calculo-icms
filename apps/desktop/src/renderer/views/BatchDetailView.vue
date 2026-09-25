@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocumentSummary } from '@motor/contracts'
+import ItemClassificationDetails from '../components/ItemClassificationDetails.vue'
+import RuleAssessmentDetails from '../components/RuleAssessmentDetails.vue'
 
 const route = useRoute()
 const detail = ref<BatchDetail | null>(null)
@@ -10,6 +12,11 @@ const notice = ref('')
 const saving = ref(false)
 const profilesByCompany = ref<Record<string, readonly FiscalProfileSummary[]>>({})
 const selectedProfiles = ref<Record<string, string>>({})
+const pendingItems = computed(() => detail.value?.documents.flatMap((document) =>
+  document.items
+    .filter((item) => item.classification !== 'CLASSIFICADO')
+    .map((item) => ({ document, item })),
+) ?? [])
 
 function itemKey(document: FiscalDocumentSummary, item: FiscalItemSummary): string {
   return `${document.id}:${item.itemNumber}`
@@ -99,7 +106,7 @@ onMounted(async () => {
           </p>
           <details>
             <summary>{{ document.items.length }} item(ns)</summary>
-            <p>Classificação cadastral, sem cálculo de imposto. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p>
+            <p>Classificação cadastral, sem cálculo de imposto. O pacote de regras propostas é avaliado separadamente, sem cálculo de imposto. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p>
             <div class="table-wrap"><table>
               <thead><tr><th>#</th><th>Produto</th><th>NCM</th><th>CFOP</th><th>Valor</th><th>ICMS declarado</th><th>Classificação</th></tr></thead>
               <tbody>
@@ -111,8 +118,8 @@ onMounted(async () => {
                   <td>{{ item.productAmount || '—' }}</td>
                   <td>{{ item.declaredIcmsAmount || '—' }}</td>
                   <td>
-                    <strong>{{ item.classification === 'CLASSIFICADO' ? item.fiscalProfileName : item.classification === 'FORA_DA_VIGENCIA' ? 'Fora da vigência' : 'Pendente' }}</strong>
-                    <p v-if="item.classification === 'FORA_DA_VIGENCIA'">{{ item.fiscalProfileName }}</p>
+                    <ItemClassificationDetails :item="item" />
+                    <RuleAssessmentDetails :assessment="item.ruleAssessment" />
                     <div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action">
                       <select v-model="selectedProfiles[itemKey(document, item)]" aria-label="Perfil fiscal do produto">
                         <option value="">Escolher perfil</option>
@@ -137,15 +144,31 @@ onMounted(async () => {
       </section>
 
       <section class="detail-section">
-        <h3>Diagnósticos</h3>
+        <h3>Pendências cadastrais <small>{{ pendingItems.length }}</small></h3>
+        <p v-if="!pendingItems.length" class="empty-state">Nenhum item com classificação cadastral pendente.</p>
+        <div v-else class="item-pendency-grid">
+          <article v-for="{ document, item } in pendingItems" :key="itemKey(document, item)" class="card item-pendency-card">
+            <p class="item-pendency-context">NF-e {{ document.number }} · Item {{ item.itemNumber }} · {{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</p>
+            <ItemClassificationDetails :item="item" expanded />
+            <RuleAssessmentDetails :assessment="item.ruleAssessment" />
+          </article>
+        </div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Diagnósticos de ingestão</h3>
         <ul v-if="detail.diagnostics.length" class="card diagnostic-list"><li v-for="diagnostic in detail.diagnostics" :key="diagnostic.id"><strong>{{ diagnostic.code }}</strong><span>{{ diagnostic.source }}</span><p>{{ diagnostic.message }}</p></li></ul>
-        <p v-else class="empty-state">Nenhuma pendência registrada.</p>
+        <p v-else class="empty-state">Nenhum diagnóstico de ingestão registrado.</p>
       </section>
     </template>
   </section>
 </template>
 
 <style scoped>
+.item-pendency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.item-pendency-card { min-width: 0; padding: 18px 20px; }
+.item-pendency-context { margin: 0 0 12px; color: #56647a; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.detail-section h3 small { margin-left: 6px; color: #69788d; font-size: 13px; }
 .back-link { display: inline-block; margin-bottom: 24px; color: #8b4b2b; font-weight: 700; text-decoration: none; }
 .detail-header { margin-bottom: 28px; }
 .detail-header .lead { font-size: 14px; word-break: break-all; }

@@ -18,25 +18,54 @@ describe('classificação cadastral de item', () => {
     expect(classifyFiscalItem(
       'company-1', '11222333000181', 'ABC-1', '2026-09-01T10:00:00-03:00',
       [profile], [product],
-    )).toEqual({ classification: 'CLASSIFICADO', fiscalProfileName: 'Revenda' })
+    )).toEqual({
+      classification: 'CLASSIFICADO', classificationReason: 'PROFILE_ACTIVE',
+      fiscalProfileName: 'Revenda', profileValidFrom: '2026-01-01', profileValidUntil: '2026-12-31',
+    })
     expect(classifyFiscalItem(
       'company-2', '11222333000181', 'ABC-1', '2026-09-01',
       [profile], [product],
-    ).classification).toBe('PENDENTE')
+    ).classificationReason).toBe('PRODUCT_NOT_LINKED')
     expect(classifyFiscalItem(
       'company-1', '11222333000181', 'OUTRO', '2026-09-01',
       [profile], [product],
-    ).classification).toBe('PENDENTE')
+    ).classificationReason).toBe('PRODUCT_NOT_LINKED')
+  })
+
+  it('distingue dados ausentes e perfil ainda não vigente', () => {
+    expect(classifyFiscalItem(
+      undefined, product.supplierCnpj, product.productCode, '2026-09-01',
+      [profile], [product],
+    ).classificationReason).toBe('COMPANY_MISSING')
+    expect(classifyFiscalItem(
+      product.companyId, undefined, product.productCode, '2026-09-01',
+      [profile], [product],
+    ).classificationReason).toBe('ISSUER_CNPJ_MISSING')
+    expect(classifyFiscalItem(
+      product.companyId, product.supplierCnpj, undefined, '2026-09-01',
+      [profile], [product],
+    ).classificationReason).toBe('PRODUCT_CODE_MISSING')
+    expect(classifyFiscalItem(
+      product.companyId, product.supplierCnpj, product.productCode, '2025-12-31',
+      [profile], [product],
+    ).classificationReason).toBe('PROFILE_NOT_YET_VALID')
+    expect(classifyFiscalItem(
+      product.companyId, product.supplierCnpj, product.productCode, '2026-09-01',
+      [], [product],
+    ).classificationReason).toBe('PROFILE_NOT_FOUND')
   })
 
   it('avisa quando a data da nota está fora da vigência ou ausente', () => {
     expect(classifyFiscalItem(
       'company-1', '11222333000181', 'ABC-1', '2027-01-01',
       [profile], [product],
-    )).toEqual({ classification: 'FORA_DA_VIGENCIA', fiscalProfileName: 'Revenda' })
+    )).toEqual({
+      classification: 'FORA_DA_VIGENCIA', classificationReason: 'PROFILE_EXPIRED',
+      fiscalProfileName: 'Revenda', profileValidFrom: '2026-01-01', profileValidUntil: '2026-12-31',
+    })
     expect(classifyFiscalItem(
       'company-1', '11222333000181', 'ABC-1', undefined,
       [profile], [product],
-    ).classification).toBe('FORA_DA_VIGENCIA')
+    ).classificationReason).toBe('ISSUE_DATE_MISSING')
   })
 })
