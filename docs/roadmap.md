@@ -9,6 +9,10 @@ em [Decisões técnicas](decisoes-tecnicas.md) e nos documentos definitivos.
 Não há datas fixadas neste momento. Cada fase somente recebe prazo depois que seu
 marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 
+**Revisão de andamento:** 28/09/2026, considerando a `main` até o PR #4 e o
+questionário de homologação enviado ao contador. Os campos de resposta do
+questionário ainda estavam vazios nesta revisão.
+
 ## Legenda
 
 - `[x]` concluído;
@@ -23,16 +27,45 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 | Fase | Resultado principal | Dependência para começar | Estado |
 |---|---|---|---|
 | 0 | Fundação do monorepo e shell desktop | Decisões técnicas já aprovadas | Concluída |
-| 1 | Contratos de ingestão e massa de testes | MD-01 e MD-02 | Próxima |
-| 2 | Persistência local e cadastros básicos | MD-03 | Aguardando decisão |
-| 3 | Ingestão completa de XML/ZIP | Fases 1 e 2; MD-04 | Aguardando |
-| 4 | Gestão e seleção de regras fiscais | Fase 2 | Parcialmente iniciada |
-| 5 | Motor de ICMS próprio | Fase 4; MD-05 | Aguardando decisão fiscal |
-| 6 | ST, DIFAL, FCP e tratamentos especiais | Fase 5; MD-06 | Aguardando decisão fiscal |
-| 7 | Ciclo documental, eventos e consolidação | Fases 3, 5 e 6; MD-07 | Aguardando |
-| 8 | Relatório XLSX auditável | Fase 7; MD-08 | Aguardando decisão |
-| 9 | Pacotes de configuração, retenção e backup | Fase 2; MD-09 e MD-10 | Aguardando decisão |
-| 10 | Escala, homologação e distribuição Windows | Todas as anteriores; MD-11 a MD-13 | Aguardando |
+| 1 | Contratos de ingestão e massa de testes | MD-01 e MD-02 | Núcleo NF-e/NFC-e entregue; protocolos e eventos posteriores |
+| 2 | Persistência local e cadastros básicos | MD-03 | Em andamento; faltam casos de uso, auditoria e fechamento do schema |
+| 3 | Ingestão completa de XML/ZIP | Fases 1 e 2; MD-04 | Núcleo NF-e/NFC-e entregue; protocolos e eventos posteriores |
+| 4 | Gestão e seleção de regras fiscais | Fase 2; MD-05/MD-06 para campos fiscais | Em andamento; ciclo de publicação e explicação pendentes |
+| 5 | Motor de ICMS próprio | Fase 4; MD-05 e casos MD-12 | Base decimal e memória preparadas; cálculo fiscal aguardando contador |
+| 6 | ST, DIFAL, FCP e tratamentos especiais | Fase 5; MD-06 e casos MD-12 | Aguardando contratos fiscais e prioridade do contador |
+| 7 | Ciclo documental, eventos e consolidação | Fases 3, 5 e 6; MD-07 | Histórico técnico parcial; regras documentais aguardando decisão |
+| 8 | Relatório XLSX auditável | Fase 7; MD-08 | Aguardando contrato do relatório e resultados consolidados |
+| 9 | Pacotes de configuração, retenção e backup | Fase 2; MD-09 e MD-10 | Aguardando decisões operacionais |
+| 10 | Escala, homologação e distribuição Windows | Todas as anteriores; MD-11 a MD-13 | Aguardando fases anteriores e homologação |
+| P | Doações básicas com Stripe (US09) | Checkout, retorno seguro e webhook; validação acadêmica do fluxo | Planejada, independente das decisões fiscais do contador |
+
+## Dependências do questionário enviado ao contador
+
+O questionário **ContabiliNico | Perguntas para homologação do cálculo de ICMS**
+continua sem respostas na revisão de 28/09/2026. As perguntas abaixo indicam o
+que falta aprovar; nenhuma alíquota de exemplo, fórmula ou caso sintético deve
+ser tratado como regra fiscal homologada antes da devolutiva com fundamento,
+vigência e responsável pela revisão.
+
+| Perguntas | Decisão esperada | Marco e trabalho que dependem da resposta |
+|---|---|---|
+| 1–4 | Recorte inicial, alíquotas aplicáveis, dados obrigatórios e exceções/precedência legal | MD-05; campos fiscais e publicação de regras concretas na fase 4; seleção fiscal da fase 5 |
+| 5–9 | Fórmula da base por item, cálculo por dentro, frete, seguro, despesas, desconto, IPI, redução e benefícios | MD-05; composição da base e primeiro cálculo de ICMS próprio na fase 5 |
+| 10–13 | Rateio e centavo residual, escalas e arredondamento, tolerância por componente, zero/negativos/dados ausentes | MD-05; resultado definitivo, comparação e reconciliação da fase 5. A biblioteca `decimal.js` já foi escolhida; a política fiscal continua aberta |
+| 14–15 | Efeito de protocolo não verificado, conflitos e eventos posteriores no caráter do resultado e nos totais | MD-07; fase 7 e consolidação definitiva usada pelo relatório |
+| 16 e seção 6 | Casos fora da primeira versão e ordem dos módulos complementares | MD-06; divisão da US04 e sequência de ST, DIFAL, FCP e tratamentos especiais na fase 6 |
+| 17–18 | Evidência necessária na memória de cálculo e autoridade para aprovar, publicar e revogar regras | MD-05/MD-12; auditoria das fases 4 e 5. A estrutura técnica da memória já existe, mas ainda depende da validação fiscal |
+| Casos A–E | XMLs anonimizados, resultados independentes do declarado, fundamento, vigência e identificação do revisor | MD-12; testes de regressão e liberação fiscal da fase 5 e da fase 10 |
+
+**Pode avançar enquanto o contador responde:** terminar os itens técnicos das
+fases 2 e 4 que não fixam fórmula, alíquota ou tratamento fiscal; preparar
+infraestrutura decimal, testes sintéticos e estrutura de memória sem declarar
+resultado fiscal definitivo; desenvolver a trilha independente de doações.
+
+**Bloqueado pela devolutiva:** aprovar MD-05, publicar regras tributárias reais,
+concluir o motor de ICMS próprio, homologar seus resultados e avançar os módulos
+de MD-06. O contrato MD-07 recebe subsídios das respostas 14–15, mas também
+exige decisões próprias sobre eventos e precedência documental.
 
 ## Marcos de decisão
 
@@ -50,7 +83,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] revisão inicial, uso e origem dos schemas XSD 4.00: `PL_010f_v1.04`;
 - [x] catálogo objetivo de aviso, pendência e erro impeditivo, conforme DT-021;
 - [x] proteção contra DTD e entidades externas;
-- [ ] limites técnicos de profundidade e tamanho.
+- [x] limites técnicos de profundidade e tamanho de NF-e/NFC-e e ZIP, conforme MD-04;
+- [ ] versões e limites específicos de protocolos e eventos no incremento posterior.
 
 **Desbloqueia:** normalização real de XML, protocolos e eventos.
 
@@ -79,7 +113,8 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] resultados históricos imutáveis; recálculo cria nova execução com snapshot
   das entradas, regras, versão do motor e memória de cálculo, conforme DT-023;
 - [x] `node:sqlite` encapsulado no pacote `database`, sem ORM, conforme DT-027;
-- [ ] schema físico inicial, índices e restrições;
+- [x] schema físico inicial de organização, empresa, lote e ocorrência na migration `0001`;
+- [ ] completar schema, índices e restrições para regras versionadas e trilha de auditoria;
 - [x] inativação de cadastros utilizados, imutabilidade de regras publicadas e
   proibição de cascatas destrutivas sobre o histórico, conforme DT-028;
 - [x] decimais como texto canônico, UUIDs textuais e datas fiscais preservadas
@@ -125,7 +160,7 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - composição da base com frete, seguro, desconto, despesas e IPI;
 - redução de base e cálculo por dentro;
 - rateio de valores da nota entre itens;
-- biblioteca decimal, escalas e limites de precisão;
+- `decimal.js` escolhida na DT-032; aprovar escalas, limites de precisão e divisão/rateio;
 - arredondamento por etapa e por componente;
 - tolerância usada na comparação com o XML;
 - tratamento de zero e valores negativos.
@@ -268,8 +303,9 @@ marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 - [x] preparar testes de segurança para XXE, Zip Slip, ZIP corrompido e ZIP
   expansivo;
 
-**DECISÃO NECESSÁRIA:** aprovar MD-01 e MD-02 antes de implementar o parser e a
-deduplicação definitivos.
+**DECISÃO NECESSÁRIA:** MD-01 e MD-02 já sustentam o núcleo NF-e/NFC-e
+implementado. Versões e identidade de protocolos/eventos continuam abertas
+somente para o incremento correspondente.
 
 **SAÍDA:** contratos revisados, fixtures versionadas e testes de aceitação da
 ingestão prontos para receber a implementação.
@@ -285,8 +321,9 @@ ingestão prontos para receber a implementação.
 - [x] validar CNPJ, UF e identificadores normalizados no domínio;
 - [x] validar as datas e a vigência inicial dos perfis fiscais.
 
-**DECISÃO NECESSÁRIA:** aprovar o schema físico restante da MD-03 antes de criar
-a primeira migration de domínio e os repositórios concretos.
+**DECISÃO NECESSÁRIA:** a migration `0001` e os repositórios básicos já
+existem. Fechar o restante da MD-03 antes de persistir regras versionadas e
+auditoria de domínio.
 
 Após a decisão:
 
@@ -302,7 +339,7 @@ Após a decisão:
 - [x] persistir e consultar organização, empresa, lote e ocorrência de arquivo;
 - [x] expor organização e empresa ao renderer por contratos IPC restritos;
 - [x] persistir perfil fiscal e produto de fornecedor;
-- [ ] implementar transações e trilha básica de auditoria;
+- [ ] concluir transações dos casos de uso e trilha básica de auditoria;
 - [x] testar criação, consulta, inativação, rollback e reinicialização para as
   entidades da migration `0001`;
 - [ ] testar atualização versionada após implementar perfis, produtos e regras.
@@ -335,7 +372,9 @@ ainda sem promessa de cálculo fiscal completo.
 
 ### Fase 4 — Gestão e localização de regras
 
-**Já iniciado:** seleção por nível, especificidade, prioridade e ambiguidade.
+**Já iniciado:** seleção por nível, especificidade, prioridade e ambiguidade;
+perfis fiscais e vínculos com produtos de fornecedor já estão persistidos.
+O próximo incremento é o ciclo de vida das regras e sua explicação por item.
 
 - [ ] implementar cadastro estruturado de condições e resultados;
 - [ ] implementar rascunho, aprovação, nova versão e revogação;
@@ -354,9 +393,12 @@ cálculo podem ser cadastrados somente depois de MD-05 e MD-06.
 
 ### Fase 5 — Motor de ICMS próprio
 
-**Dependências:** fase 4 e MD-05 aprovado.
+**Para concluir e liberar resultado fiscal definitivo:** fase 4, MD-05 e
+casos iniciais de MD-12 aprovados pelo contador. A preparação técnica já começou.
 
-- [ ] implementar decimal exato e política de arredondamento;
+- [x] preparar operações decimais com `decimal.js` e contrato tipado de memória;
+- [x] persistir execuções imutáveis e preservar a memória técnica disponível;
+- [ ] aprovar e aplicar escalas, divisões e política fiscal de arredondamento;
 - [ ] implementar composição e redução da base;
 - [ ] implementar cálculo por dentro;
 - [ ] implementar rateio rastreável;
@@ -475,20 +517,39 @@ sem confundir intercâmbio com backup.
 
 **SAÍDA:** versão candidata do MVP com evidência fiscal, técnica e operacional.
 
+### Trilha P — Doações básicas com Stripe
+
+**Escopo aprovado pelo responsável do produto:** US09. A doação não altera o
+cálculo de ICMS nem envia documentos fiscais ao Stripe.
+
+- [ ] definir o componente online que criará sessões Checkout e receberá o
+  webhook verificado para a aplicação desktop local;
+- [ ] criar pedido de doação com valor em BRL, identificador e estado pendente;
+- [ ] integrar Stripe Checkout em ambiente de testes;
+- [ ] confirmar pagamento pelo webhook de forma idempotente, sem confiar apenas
+  na página de retorno;
+- [ ] testar pagamento aprovado, cancelado, falho e entrega repetida do webhook;
+- [ ] validar com o professor se pedido de doação e confirmação do pagamento
+  atendem ao requisito acadêmico de pagamento.
+
+**SAÍDA:** doação testável de ponta a ponta, sem armazenar dados de cartão e sem
+marcar pedido como pago antes da confirmação verificada.
+
 ## Ordem recomendada para as próximas reuniões de decisão
 
-1. **MD-01 e MD-02:** fecham o comportamento básico da ingestão.
-2. **MD-03:** permite persistir cadastros e lotes enquanto o contrato fiscal evolui.
-3. **MD-04:** completa os limites de segurança da importação.
-4. **MD-05:** libera o primeiro cálculo fiscal de ponta a ponta.
-5. **MD-12, parte de ICMS próprio:** define desde cedo como esse cálculo será
-   homologado.
-6. **MD-06:** liberar um módulo por vez, começando pelo de maior valor operacional.
-7. **MD-07:** consolidar documentos e eventos depois que parser e cálculo estiverem
-   observáveis.
-8. **MD-08:** congelar o XLSX quando os dados reais de saída estiverem estabilizados.
-9. **MD-09 a MD-11 e MD-13:** fechar operação, escala e distribuição antes da
-   versão candidata.
+1. **MD-03 e itens técnicos remanescentes de MD-01/MD-04:** concluir schema,
+   auditoria, fila e verificações de segurança sem depender do contador.
+2. **MD-05 e primeira parte de MD-12:** analisar as respostas 1–13 e os casos
+   A–E do contador para aprovar o primeiro cálculo homologável.
+3. **MD-06:** usar a resposta 16 e a seção 6 para priorizar e contratar um
+   módulo fiscal complementar por vez.
+4. **MD-07:** usar as respostas 14–15 e decisões documentais adicionais antes de
+   consolidar totais definitivos.
+5. **MD-08:** congelar o XLSX quando cálculo e estados consolidados estiverem estáveis.
+6. **MD-09 a MD-11 e MD-13:** fechar proteção, continuidade, escala e distribuição
+   antes da versão candidata.
+7. **Trilha P:** validar o enquadramento acadêmico da doação com o professor e
+   definir a integração online do Stripe; independe da revisão fiscal do contador.
 
 ## Critério geral para avançar entre fases
 
