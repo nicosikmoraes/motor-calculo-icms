@@ -528,6 +528,35 @@ alteração e exclusão dos resultados concluídos. O detalhe do lote exibe entr
 e valores declarados como pendentes enquanto não houver regra fiscal aprovada;
 nenhum ICMS novo é calculado ou comparado nesta etapa.
 
+## DT-033 — Casos de uso e auditoria local de cadastros
+
+**Status:** decisões de produto aprovadas em 28/09/2026; implementação pendente.
+
+Os casos de uso de organização, empresa, perfil fiscal e produto de fornecedor
+serão concluídos antes do schema de regras versionadas. Criar, editar, inativar
+e reativar com sucesso gera evento imutável de auditoria na mesma transação da
+mudança. Falhas geram diagnóstico técnico, sem evento de alteração. Cada evento
+inclui entidade, identificador, operação, horário UTC, campos efetivamente
+alterados com valores anterior e novo, usuário do Windows e nome real do
+computador. A interface exibe a origem como **Seu computador**; essa informação
+não autentica a pessoa. CNPJ e dados de produtos podem constar na auditoria;
+XMLs, arquivos e segredos não constam.
+
+Qualquer pessoa com acesso à instalação pode operar os cadastros e consultar a
+auditoria até que haja perfis. Edição baseada em revisão desatualizada é rejeitada.
+O CNPJ da empresa não é editável. Cadastros usados podem ser inativados e
+reativados imediatamente, preservadas as validações de integridade existentes.
+Não há exclusão física pelos casos de uso. Mudanças não reescrevem resultados
+históricos; recálculo explícito cria nova execução.
+
+A consulta permite filtrar por cadastro, período e operação. Cada evento é
+retido por seis meses desde sua criação. A limpeza automática roda na abertura,
+diariamente durante o uso e após restauração bem-sucedida, antes da consulta;
+registra horário e quantidade removida. Falha de limpeza produz diagnóstico e
+nova tentativa sem impedir uso. O schema de regras versionadas virá em migration
+separada depois dos casos de uso. Ver [plano da Fase 2](plano-fase-2-casos-de-uso.md)
+para sequência e critérios de conclusão. A política geral de proteção e backup
+continua em MD-09/MD-10.
 ## Fila de decisões
 
 A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md).
