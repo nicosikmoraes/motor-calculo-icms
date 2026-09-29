@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { BatchListItem, WorkspaceState } from '@motor/contracts'
@@ -21,7 +22,7 @@ onMounted(async () => {
     batches.value = savedBatches
     workspace.value = savedWorkspace
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar os indicadores.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.DASHBOARD_LOAD
   }
 })
 </script>

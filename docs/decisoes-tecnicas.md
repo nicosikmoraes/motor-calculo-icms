@@ -18,6 +18,13 @@ Pinia para estado de interface
 Vue Router para navegação
 ```
 
+Diretriz para novas funcionalidades da interface:
+
+- usar **Vue Router** para navegação entre telas e rotas; não controlar a tela ativa por condições manuais em `App.vue`;
+- usar **Pinia** para estado de interface compartilhado entre telas ou componentes e que precisa permanecer ao navegar;
+- manter estado exclusivo de um componente no próprio componente; não criar uma store para cada campo local;
+- manter regras fiscais, cálculos e persistência fora das stores e dos componentes Vue, acessando-os pelos contratos IPC.
+
 O motor fiscal não reside em componentes Vue. Renderer, preload, processo principal e workers possuem responsabilidades separadas.
 
 ## DT-003 — Persistência do MVP

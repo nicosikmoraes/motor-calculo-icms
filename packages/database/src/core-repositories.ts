@@ -1,6 +1,9 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { randomUUID } from 'node:crypto'
+import type { ItemRuleAssessment, RuleAssessmentRunSummary } from '@motor/contracts'
 import {
   assertCanonicalUtcTimestamp,
+  BatchStatusCode,
   normalizeBrazilianState,
   normalizeCnpj,
   type BatchStatus,
@@ -11,20 +14,28 @@ import {
 } from '@motor/domain'
 import type { SqliteDatabase } from './sqlite-database'
 
-export type StoredIngestionStatus =
-  | 'INVENTARIADA'
-  | 'PROCESSADA'
-  | 'PENDENTE'
-  | 'REJEITADA'
-  | 'IGNORADA'
-export type StoredRepetition = 'NAO_CLASSIFICADA' | 'ORIGINAL' | 'REPETIDA' | 'NAO_CLASSIFICAVEL'
-export type StoredContentConflict =
-  | 'NAO_CLASSIFICADO'
-  | 'SEM_CONFLITO'
-  | 'CONFLITO_CONTEUDO'
-  | 'NAO_CLASSIFICAVEL'
-export type StoredFileKind = 'XML' | 'ZIP' | 'UNKNOWN'
-export type StoredFileOrigin = 'SELECTED_FILE' | 'FOLDER_FILE' | 'ZIP_ENTRY'
+/** Valores persistidos nas ocorrências; enums evitam códigos divergentes entre fluxos. */
+export enum IngestionStatusCode {
+  INVENTARIADA = 'INVENTARIADA', PROCESSADA = 'PROCESSADA', PENDENTE = 'PENDENTE',
+  REJEITADA = 'REJEITADA', IGNORADA = 'IGNORADA',
+}
+export type StoredIngestionStatus = `${IngestionStatusCode}`
+export enum RepetitionCode {
+  NAO_CLASSIFICADA = 'NAO_CLASSIFICADA', ORIGINAL = 'ORIGINAL',
+  REPETIDA = 'REPETIDA', NAO_CLASSIFICAVEL = 'NAO_CLASSIFICAVEL',
+}
+export type StoredRepetition = `${RepetitionCode}`
+export enum ContentConflictCode {
+  NAO_CLASSIFICADO = 'NAO_CLASSIFICADO', SEM_CONFLITO = 'SEM_CONFLITO',
+  CONFLITO_CONTEUDO = 'CONFLITO_CONTEUDO', NAO_CLASSIFICAVEL = 'NAO_CLASSIFICAVEL',
+}
+export type StoredContentConflict = `${ContentConflictCode}`
+export enum FileKindCode { XML = 'XML', ZIP = 'ZIP', UNKNOWN = 'UNKNOWN' }
+export type StoredFileKind = `${FileKindCode}`
+export enum FileOriginCode {
+  SELECTED_FILE = 'SELECTED_FILE', FOLDER_FILE = 'FOLDER_FILE', ZIP_ENTRY = 'ZIP_ENTRY',
+}
+export type StoredFileOrigin = `${FileOriginCode}`
 
 export interface FiscalBatchRecord {
   id: string
@@ -79,6 +90,7 @@ export interface NormalizedFiscalDocumentRecord {
   occurrenceId: string
   contentHash: string
   normalized: NormalizedNfe
+  ruleAssessments?: Readonly<Record<string, ItemRuleAssessment>>
   eligibleForProcessing: boolean
   pendingReason?: string
   createdAt: string
@@ -143,7 +155,7 @@ interface OccurrenceRow extends Record<string, unknown> {
 
 function requiredText(value: string, field: string): string {
   const normalized = value.trim()
-  if (!normalized) throw new Error(`${field} deve ser informado.`)
+  if (!normalized) throw new AppError(AppErrorCode.REQUIRED_FIELD, { field })
   return normalized
 }
 
@@ -155,7 +167,7 @@ function optionalText(value: string | undefined): string | undefined {
 function normalizedHash(value: string): string {
   const normalized = value.trim().toLowerCase()
   if (!/^[a-f0-9]{64}$/.test(normalized)) {
-    throw new Error('contentHash deve ser um SHA-256 hexadecimal com 64 caracteres.')
+    throw new AppError(AppErrorCode.INVALID_CONTENT_HASH)
   }
   return normalized
 }
@@ -259,7 +271,7 @@ export class SqliteOrganizationRepository {
        LIMIT 2`,
     )
     if (rows.length > 1) {
-      throw new Error('A instalação local possui mais de uma organização.')
+      throw new AppError(AppErrorCode.MULTIPLE_ORGANIZATIONS)
     }
     return rows[0] ? mapOrganization(rows[0]) : undefined
   }
@@ -270,7 +282,7 @@ export class SqliteOrganizationRepository {
         'SELECT count(*) AS total FROM organizacoes',
       )
       if (Number(existing?.total ?? 0) !== 0) {
-        throw new Error('A organização desta instalação já foi configurada.')
+        throw new AppError(AppErrorCode.ORGANIZATION_ALREADY_CONFIGURED)
       }
       this.create(organization)
     })
@@ -284,7 +296,7 @@ export class SqliteOrganizationRepository {
       requiredText(id, 'organization.id'),
     )
     const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
-    if (Number(changes?.changes ?? 0) !== 1) throw new Error('Organização não encontrada.')
+    if (Number(changes?.changes ?? 0) !== 1) throw new AppError(AppErrorCode.ORGANIZATION_NOT_FOUND)
   }
 }
 
@@ -373,13 +385,13 @@ export class SqliteBatchRepository {
         left.order - right.order || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
     )
     if (ordered.some(({ batchId }) => batchId !== batch.id)) {
-      throw new Error('Todas as ocorrências devem pertencer ao lote criado.')
+      throw new AppError(AppErrorCode.OCCURRENCE_BATCH_MISMATCH)
     }
     if (diagnostics.some(({ batchId }) => batchId !== batch.id)) {
-      throw new Error('Todos os diagnósticos devem pertencer ao lote criado.')
+      throw new AppError(AppErrorCode.DIAGNOSTIC_BATCH_MISMATCH)
     }
     if (documents.some(({ batchId }) => batchId !== batch.id)) {
-      throw new Error('Todos os documentos devem pertencer ao lote criado.')
+      throw new AppError(AppErrorCode.DOCUMENT_BATCH_MISMATCH)
     }
     const totalDocuments = ordered.filter(({ accessKey }) => accessKey !== undefined).length
 
@@ -452,15 +464,16 @@ export class SqliteBatchRepository {
     const timestamp = assertCanonicalUtcTimestamp(canceledAt, 'canceledAt')
     this.database.run(
       `UPDATE lotes
-       SET status = 'CANCELADO', ultimo_cancelamento_em = ?, atualizado_em = ?
+       SET status = ?, ultimo_cancelamento_em = ?, atualizado_em = ?
        WHERE id = ? AND status IN ('VALIDANDO', 'PROCESSANDO', 'INTERROMPIDO')`,
+      BatchStatusCode.CANCELADO,
       timestamp,
       timestamp,
       requiredText(id, 'batch.id'),
     )
     const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
     if (Number(changes?.changes ?? 0) !== 1) {
-      throw new Error('Lote inexistente ou em estado que não permite cancelamento.')
+      throw new AppError(AppErrorCode.BATCH_CANNOT_CANCEL)
     }
   }
 
@@ -468,14 +481,15 @@ export class SqliteBatchRepository {
     const timestamp = assertCanonicalUtcTimestamp(resumedAt, 'resumedAt')
     this.database.run(
       `UPDATE lotes
-       SET status = 'PROCESSANDO', atualizado_em = ?
+       SET status = ?, atualizado_em = ?
        WHERE id = ? AND status IN ('CANCELADO', 'INTERROMPIDO')`,
+      BatchStatusCode.PROCESSANDO,
       timestamp,
       requiredText(id, 'batch.id'),
     )
     const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
     if (Number(changes?.changes ?? 0) !== 1) {
-      throw new Error('Lote inexistente ou em estado que não permite retomada.')
+      throw new AppError(AppErrorCode.BATCH_CANNOT_RESUME)
     }
   }
 
@@ -534,6 +548,7 @@ export class SqliteBatchRepository {
       id: row.id,
       batchId: row.lote_id,
       occurrenceId: row.ocorrencia_arquivo_id,
+      ruleAssessments: this.readRuleAssessments(row.id),
       ...(row.empresa_id ? { companyId: row.empresa_id } : {}),
       contentHash: row.hash_xml,
       normalized: JSON.parse(row.dados_normalizados_json) as NormalizedNfe,
@@ -543,6 +558,105 @@ export class SqliteBatchRepository {
         : {}),
       createdAt: row.criado_em,
     }))
+  }
+
+  /** Registra uma execução completa sem modificar a avaliação da importação ou execuções anteriores. */
+  createRuleAssessmentRun(
+    batchId: string,
+    packId: string,
+    packVersion: number,
+    assessedAt: string,
+    assessments: readonly { documentId: string; itemNumber: string; assessment: ItemRuleAssessment }[],
+  ): RuleAssessmentRunSummary {
+    if (!Number.isSafeInteger(packVersion) || packVersion < 1) throw new AppError(AppErrorCode.INVALID_PACK_VERSION)
+    const timestamp = assertCanonicalUtcTimestamp(assessedAt, 'assessedAt')
+    const id = randomUUID()
+    return this.database.transaction(() => {
+      if (!this.findById(batchId)) throw new AppError(AppErrorCode.BATCH_RECORD_NOT_FOUND)
+      const items = this.database.all<{ id: string; documento_id: string; numero_item: string }>(
+        `SELECT i.id, i.documento_id, i.numero_item FROM itens_documento i
+         JOIN documentos_fiscais d ON d.id = i.documento_id
+         WHERE d.lote_id = ? ORDER BY d.id, i.numero_item`, batchId,
+      )
+      if (items.length === 0) throw new AppError(AppErrorCode.BATCH_NO_ITEMS)
+      const byKey = new Map(items.map((item) => [JSON.stringify([item.documento_id, item.numero_item]), item.id]))
+      const submitted = new Set<string>()
+      if (assessments.length !== items.length) throw new AppError(AppErrorCode.ASSESSMENT_INCOMPLETE)
+      for (const { documentId, itemNumber, assessment } of assessments) {
+        const key = JSON.stringify([documentId, itemNumber])
+        if (!byKey.has(key) || submitted.has(key)) throw new AppError(AppErrorCode.ASSESSMENT_ITEM_INVALID)
+        if (assessment.packId !== packId || assessment.packVersion !== packVersion || assessment.assessedAt !== timestamp) {
+          throw new AppError(AppErrorCode.ASSESSMENT_RUN_MISMATCH)
+        }
+        submitted.add(key)
+      }
+      const previous = this.database.get<{ number: number }>(
+        'SELECT COALESCE(MAX(numero_execucao), 0) AS number FROM execucoes_avaliacao_regras WHERE lote_id = ?', batchId,
+      )
+      const number = (previous?.number ?? 0) + 1
+      this.database.run(
+        `INSERT INTO execucoes_avaliacao_regras
+         (id, lote_id, numero_execucao, pacote_id, pacote_versao, avaliada_em)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        id, batchId, number, requiredText(packId, 'packId'), packVersion, timestamp,
+      )
+      for (const { documentId, itemNumber, assessment } of assessments) {
+        this.database.run(
+          `INSERT INTO avaliacoes_regras_itens (execucao_id, item_id, avaliacao_json)
+           VALUES (?, ?, ?)`,
+          id, byKey.get(JSON.stringify([documentId, itemNumber]))!, JSON.stringify(assessment),
+        )
+      }
+      return { id, number, packId, packVersion, assessedAt: timestamp, itemCount: items.length }
+    })
+  }
+
+  listRuleAssessmentRuns(batchId: string): readonly RuleAssessmentRunSummary[] {
+    return this.database.all<{
+      id: string; numero_execucao: number; pacote_id: string; pacote_versao: number;
+      avaliada_em: string; total_itens: number
+    }>(
+      `SELECT e.id, e.numero_execucao, e.pacote_id, e.pacote_versao, e.avaliada_em,
+              COUNT(a.item_id) AS total_itens
+       FROM execucoes_avaliacao_regras e
+       LEFT JOIN avaliacoes_regras_itens a ON a.execucao_id = e.id
+       WHERE e.lote_id = ?
+       GROUP BY e.id ORDER BY e.numero_execucao`, batchId,
+    ).map((row) => ({
+      id: row.id, number: row.numero_execucao, packId: row.pacote_id,
+      packVersion: row.pacote_versao, assessedAt: row.avaliada_em, itemCount: row.total_itens,
+    }))
+  }
+
+  readRuleAssessmentsForRun(batchId: string, runId: string): ReadonlyMap<string, Readonly<Record<string, ItemRuleAssessment>>> {
+    const run = this.database.get<{ id: string }>(
+      'SELECT id FROM execucoes_avaliacao_regras WHERE id = ? AND lote_id = ?', runId, batchId,
+    )
+    if (!run) throw new AppError(AppErrorCode.ASSESSMENT_RUN_NOT_FOUND)
+    const rows = this.database.all<{
+      documento_id: string; numero_item: string; avaliacao_json: string
+    }>(
+      `SELECT i.documento_id, i.numero_item, a.avaliacao_json
+       FROM avaliacoes_regras_itens a JOIN itens_documento i ON i.id = a.item_id
+       WHERE a.execucao_id = ? ORDER BY i.documento_id, i.numero_item`, runId,
+    )
+    const byDocument = new Map<string, Record<string, ItemRuleAssessment>>()
+    for (const row of rows) {
+      const values = byDocument.get(row.documento_id) ?? Object.create(null) as Record<string, ItemRuleAssessment>
+      values[row.numero_item] = JSON.parse(row.avaliacao_json) as ItemRuleAssessment
+      byDocument.set(row.documento_id, values)
+    }
+    return byDocument
+  }
+
+  private readRuleAssessments(documentId: string): Readonly<Record<string, ItemRuleAssessment>> {
+    const rows = this.database.all<{ numero_item: string; avaliacao_regras_json: string | null }>(
+      `SELECT numero_item, avaliacao_regras_json FROM itens_documento
+       WHERE documento_id = ? ORDER BY numero_item`,
+      documentId,
+    )
+    return Object.fromEntries(rows.filter((row) => row.avaliacao_regras_json !== null)
+      .map((row) => [row.numero_item, JSON.parse(row.avaliacao_regras_json!) as ItemRuleAssessment]))
   }
 
   private insertNormalizedDocument(document: NormalizedFiscalDocumentRecord): void {
@@ -579,8 +693,8 @@ export class SqliteBatchRepository {
       this.database.run(
         `INSERT INTO itens_documento (
            id, documento_id, numero_item, codigo_produto_fornecedor,
-           descricao, ncm, cest, cfop, dados_normalizados_json
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           descricao, ncm, cest, cfop, dados_normalizados_json, avaliacao_regras_json
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         randomUUID(),
         document.id,
         requiredText(item.itemNumber, 'item.itemNumber'),
@@ -590,20 +704,22 @@ export class SqliteBatchRepository {
         item.cest ?? null,
         item.cfop ?? null,
         JSON.stringify(item),
+        document.ruleAssessments?.[item.itemNumber]
+          ? JSON.stringify(document.ruleAssessments[item.itemNumber]) : null,
       )
     }
   }
 
   private insertOccurrence(occurrence: FileOccurrenceRecord): void {
     if (!Number.isSafeInteger(occurrence.sizeBytes) || occurrence.sizeBytes < 0) {
-      throw new Error('occurrence.sizeBytes deve ser um inteiro não negativo.')
+      throw new AppError(AppErrorCode.INVALID_OCCURRENCE_SIZE)
     }
     if (!Number.isSafeInteger(occurrence.order) || occurrence.order < 1) {
-      throw new Error('occurrence.order deve ser um inteiro positivo.')
+      throw new AppError(AppErrorCode.INVALID_STORED_OCCURRENCE_ORDER)
     }
     const accessKey = optionalText(occurrence.accessKey)
     if (accessKey && !/^\d{44}$/.test(accessKey)) {
-      throw new Error('occurrence.accessKey deve possuir 44 dígitos.')
+      throw new AppError(AppErrorCode.INVALID_ACCESS_KEY)
     }
 
     this.database.run(

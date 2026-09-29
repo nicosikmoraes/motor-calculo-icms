@@ -1,8 +1,11 @@
+import { AppError, AppErrorCode, AppErrorMessage } from '@motor/domain'
 import type { BatchOperationProgress } from '@motor/contracts'
 
 export class BatchOperationCancelledError extends Error {
+  readonly code: AppErrorCode
   constructor() {
-    super('Importação cancelada.')
+    super(AppErrorMessage.IMPORT_CANCELLED)
+    this.code = AppErrorCode.IMPORT_CANCELLED
     this.name = 'BatchOperationCancelledError'
   }
 }
@@ -28,7 +31,7 @@ export class BatchOperationRegistry {
     total: number,
     send: (progress: BatchOperationProgress) => void,
   ): BatchOperationSession {
-    if (!operationId || this.sessions.has(operationId)) throw new Error('Operação de importação inválida ou duplicada.')
+    if (!operationId || this.sessions.has(operationId)) throw new AppError(AppErrorCode.INVALID_OPERATION)
     const controller = new AbortController()
     let completed = 0
     let expected = Math.max(0, total)

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocumentSummary } from '@motor/contracts'
@@ -10,8 +11,26 @@ const detail = ref<BatchDetail | null>(null)
 const error = ref('')
 const notice = ref('')
 const saving = ref(false)
+const reassessing = ref(false)
+const selectedRunId = ref('')
 const profilesByCompany = ref<Record<string, readonly FiscalProfileSummary[]>>({})
 const selectedProfiles = ref<Record<string, string>>({})
+const itemCount = computed(() => detail.value?.documents.reduce((total, document) => total + document.items.length, 0) ?? 0)
+const comparison = computed(() => {
+  if (!selectedRunId.value || !detail.value) return null
+  const comparable = detail.value.documents.flatMap((document) => document.items)
+    .filter((item) => item.originalRuleAssessment && item.ruleAssessment)
+  const changed = comparable.filter((item) => JSON.stringify({
+    kind: item.originalRuleAssessment?.kind,
+    selectedRuleId: item.originalRuleAssessment?.selectedRuleId,
+    evaluated: item.originalRuleAssessment?.evaluated,
+  }) !== JSON.stringify({
+    kind: item.ruleAssessment?.kind,
+    selectedRuleId: item.ruleAssessment?.selectedRuleId,
+    evaluated: item.ruleAssessment?.evaluated,
+  })).length
+  return { comparable: comparable.length, changed }
+})
 const pendingItems = computed(() => detail.value?.documents.flatMap((document) =>
   document.items
     .filter((item) => item.classification !== 'CLASSIFICADO')
@@ -23,11 +42,42 @@ function itemKey(document: FiscalDocumentSummary, item: FiscalItemSummary): stri
 }
 
 async function loadDetail(): Promise<void> {
-  const loaded = await window.desktopApi.getBatchDetail(String(route.params.id))
+  const loaded = await window.desktopApi.getBatchDetail(String(route.params.id), selectedRunId.value || undefined)
   detail.value = loaded
   const companyIds = [...new Set(loaded.documents.map((document) => document.companyId).filter((id): id is string => Boolean(id)))]
   const entries = await Promise.all(companyIds.map(async (id) => [id, await window.desktopApi.listFiscalProfiles(id)] as const))
   profilesByCompany.value = Object.fromEntries(entries)
+}
+
+async function chooseRun(): Promise<void> {
+  error.value = ''
+  try {
+    await loadDetail()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.ASSESSMENT_LOAD
+  }
+}
+
+async function reassessRules(): Promise<void> {
+  if (!detail.value || reassessing.value) return
+  error.value = ''
+  notice.value = ''
+  try {
+    const pack = await window.desktopApi.getBuiltinRulePack()
+    const original = detail.value.originalAssessmentPack
+    const originalLabel = original ? `${original.id} v${original.version}` : 'indisponível'
+    const message = `Avaliação original: ${originalLabel}\nNova avaliação: ${pack.id} v${pack.version}\n\nA nova execução será salva separadamente. A original não será alterada. Continuará sem cálculo de ICMS. Deseja continuar?`
+    if (!window.confirm(message)) return
+    reassessing.value = true
+    const run = await window.desktopApi.reassessBatchRules(detail.value.batch.id)
+    selectedRunId.value = run.id
+    await loadDetail()
+    notice.value = `Reavaliação ${run.number} salva com ${run.itemCount} item(ns), pacote ${run.packId} v${run.packVersion}.`
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_REASSESS
+  } finally {
+    reassessing.value = false
+  }
 }
 
 async function linkItem(document: FiscalDocumentSummary, item: FiscalItemSummary): Promise<void> {
@@ -45,7 +95,7 @@ async function linkItem(document: FiscalDocumentSummary, item: FiscalItemSummary
     await loadDetail()
     notice.value = 'Produto vinculado ao perfil. A situação dos itens foi atualizada.'
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível vincular o produto.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.PRODUCT_LINK
   } finally {
     saving.value = false
   }
@@ -59,7 +109,7 @@ onMounted(async () => {
   try {
     await loadDetail()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar o lote.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LOAD
   }
 })
 </script>
@@ -78,6 +128,23 @@ onMounted(async () => {
           <p class="lead">{{ detail.batch.companyName }} · {{ environment(detail.batch.environmentCode) }} · {{ detail.batch.id }}</p>
         </div>
       </header>
+
+      <section class="card reassessment-panel" aria-labelledby="reassessment-title">
+        <div>
+          <h3 id="reassessment-title">Histórico da avaliação de regras</h3>
+          <p>Original: {{ detail.originalAssessmentPack ? `${detail.originalAssessmentPack.id} v${detail.originalAssessmentPack.version}` : 'indisponível para este lote' }}. Pacotes em rascunho não calculam ICMS.</p>
+        </div>
+        <div class="reassessment-controls">
+          <label for="rule-run">Ver execução</label>
+          <select id="rule-run" v-model="selectedRunId" :disabled="reassessing" @change="chooseRun">
+            <option value="">{{ detail.originalAssessmentPack ? 'Original da importação' : 'Original indisponível' }}</option>
+            <option v-for="run in detail.ruleAssessmentRuns" :key="run.id" :value="run.id">Reavaliação {{ run.number }} · {{ run.packId }} v{{ run.packVersion }} · {{ new Date(run.assessedAt).toLocaleString('pt-BR') }}</option>
+          </select>
+          <button class="button secondary" type="button" :disabled="reassessing || itemCount === 0" @click="reassessRules">{{ reassessing ? 'Reavaliando…' : 'Reavaliar regras' }}</button>
+        </div>
+        <p v-if="comparison && comparison.comparable > 0" class="comparison-note">{{ comparison.changed }} de {{ comparison.comparable }} item(ns) apresentam resultado diferente da importação. A avaliação original permanece salva.</p>
+        <p v-else-if="comparison" class="comparison-note">Este lote não possui avaliação original registrada para comparar. A nova execução permanece salva.</p>
+      </section>
 
       <div class="indicator-grid">
         <article class="card indicator"><strong>{{ detail.batch.totalDocuments }}</strong><span>Notas</span></article>
@@ -119,7 +186,7 @@ onMounted(async () => {
                   <td>{{ item.declaredIcmsAmount || '—' }}</td>
                   <td>
                     <ItemClassificationDetails :item="item" />
-                    <RuleAssessmentDetails :assessment="item.ruleAssessment" />
+                    <RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" />
                     <div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action">
                       <select v-model="selectedProfiles[itemKey(document, item)]" aria-label="Perfil fiscal do produto">
                         <option value="">Escolher perfil</option>
@@ -150,7 +217,7 @@ onMounted(async () => {
           <article v-for="{ document, item } in pendingItems" :key="itemKey(document, item)" class="card item-pendency-card">
             <p class="item-pendency-context">NF-e {{ document.number }} · Item {{ item.itemNumber }} · {{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</p>
             <ItemClassificationDetails :item="item" expanded />
-            <RuleAssessmentDetails :assessment="item.ruleAssessment" />
+            <RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" />
           </article>
         </div>
       </section>
@@ -222,4 +289,12 @@ onMounted(async () => {
 @media (max-width: 650px) {
   .diagnostic-list p { grid-column: 1; }
 }
+
+.reassessment-panel { display: grid; gap: 12px; margin-bottom: 20px; padding: 18px 20px; }
+.reassessment-panel h3 { margin: 0 0 5px; font-size: 16px; }
+.reassessment-panel p { margin: 0; color: #56647a; font-size: 12px; }
+.reassessment-controls { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+.reassessment-controls label { font-size: 12px; font-weight: 700; }
+.reassessment-controls select { min-width: min(100%, 260px); max-width: 100%; flex: 1; }
+.reassessment-panel .comparison-note { font-weight: 700; }
 </style>

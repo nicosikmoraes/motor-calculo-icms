@@ -6,7 +6,7 @@ import type {
   NormalizedParty,
 } from '@motor/domain'
 import {
-  NfeParseError,
+  NfeParseError, NfeParseErrorCode, NfeParseErrorMessage, formatNfeParseErrorMessage,
   asObject,
   asString,
   readNfeXmlStructure,
@@ -148,25 +148,25 @@ export function normalizeNfeStructure({ info }: NfeXmlStructure): NormalizedNfe 
   const version = requiredString(info, '@_versao')
   if (version !== '4.00') {
     throw new NfeParseError(
-      'UNSUPPORTED_LAYOUT_VERSION',
-      `Leiaute ${version} não suportado; o MVP aceita apenas 4.00.`,
+      NfeParseErrorCode.UNSUPPORTED_LAYOUT_VERSION,
+      formatNfeParseErrorMessage(NfeParseErrorMessage.UNSUPPORTED_LAYOUT, { version }),
     )
   }
 
   const ide = asObject(info.ide)
-  if (!ide) throw new NfeParseError('MISSING_NFE_INFO', 'O grupo ide não foi encontrado.')
+  if (!ide) throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, NfeParseErrorMessage.MISSING_IDE)
   const model = requiredString(ide, 'mod')
   if (model !== '55' && model !== '65') {
     throw new NfeParseError(
-      'UNSUPPORTED_DOCUMENT_MODEL',
-      `Modelo ${model} não suportado; o MVP aceita apenas 55 e 65.`,
+      NfeParseErrorCode.UNSUPPORTED_DOCUMENT_MODEL,
+      formatNfeParseErrorMessage(NfeParseErrorMessage.UNSUPPORTED_MODEL, { model }),
     )
   }
 
   const id = requiredString(info, '@_Id')
   const details = Array.isArray(info.det) ? info.det : info.det ? [info.det] : []
   const issuer = party(asObject(info.emit), 'enderEmit')
-  if (!issuer) throw new NfeParseError('MISSING_NFE_INFO', 'O grupo emit não foi encontrado.')
+  if (!issuer) throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, NfeParseErrorMessage.MISSING_ISSUER)
 
   return {
     kind: 'NFE',

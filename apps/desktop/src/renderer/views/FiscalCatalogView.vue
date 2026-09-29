@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { computed, onMounted, ref, watch } from 'vue'
 import type { FiscalProfileSummary, SupplierProductSummary, WorkspaceState } from '@motor/contracts'
 
@@ -26,7 +27,7 @@ function displayDate(value: string): string {
 }
 
 function message(cause: unknown): string {
-  return cause instanceof Error ? cause.message : 'Não foi possível concluir a operação.'
+  return cause instanceof Error ? cause.message : RendererErrorMessage.OPERATION_FAILED
 }
 
 async function loadCatalog(): Promise<void> {

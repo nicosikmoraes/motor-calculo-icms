@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { ref } from 'vue'
 
 const emit = defineEmits<{ created: [] }>()
@@ -13,7 +14,7 @@ async function createOrganization(): Promise<void> {
     await window.desktopApi.createOrganization({ name: name.value })
     emit('created')
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível criar o escritório.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.OFFICE_CREATE
   } finally {
     saving.value = false
   }

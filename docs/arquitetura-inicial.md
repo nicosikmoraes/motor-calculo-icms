@@ -115,7 +115,7 @@ packages/
   database/
 ```
 
-Regras fiscais e cálculos não ficam em componentes Vue. Pinia mantém somente estado da interface.
+Regras fiscais e cálculos não ficam em componentes Vue. Vue Router organiza a navegação entre telas. Pinia mantém o estado de interface compartilhado; dados exclusivos de uma tela ou componente podem permanecer locais. A persistência e o motor fiscal continuam fora do renderer.
 
 ## 5. Processamento
 

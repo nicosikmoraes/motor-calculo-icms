@@ -65,6 +65,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@motor/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@motor/domain':
         specifier: workspace:*
         version: link:../domain

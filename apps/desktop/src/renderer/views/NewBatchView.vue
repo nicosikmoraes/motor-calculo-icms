@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { BatchCompanyCandidate, BatchOperationProgress, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
@@ -39,7 +40,7 @@ async function cancelOperation(): Promise<void> {
   try {
     await window.desktopApi.cancelBatchOperation(activeOperationId.value)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível cancelar a operação.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.OPERATION_CANCEL
     cancelling.value = false
   }
 }
@@ -90,7 +91,7 @@ async function selectSources(): Promise<void> {
     }
   } catch (cause) {
     if (cancelling.value) notice.value = 'Inspeção cancelada. Selecione os arquivos para tentar novamente.'
-    else error.value = cause instanceof Error ? cause.message : 'Não foi possível inspecionar os arquivos.'
+    else error.value = cause instanceof Error ? cause.message : RendererErrorMessage.FILE_INSPECTION
   } finally {
     selecting.value = false
     inspecting.value = false
@@ -115,7 +116,7 @@ async function createBatch(): Promise<void> {
       sources: serializableSources(sources.value),
     })
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível criar o lote.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_CREATE
   } finally {
     creatingBatch.value = false
     activeOperationId.value = ''
@@ -161,7 +162,7 @@ async function registerCandidate(): Promise<void> {
     }
     registrationCandidate.value = null
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível cadastrar a empresa.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.COMPANY_CREATE
   } finally {
     registering.value = false
   }
@@ -172,7 +173,7 @@ onMounted(() => {
     if (progress.operationId === activeOperationId.value) operationProgress.value = progress
   })
   void loadWorkspace().catch((cause) => {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar as empresas.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.COMPANY_LIST_LOAD
   })
 })
 onUnmounted(() => unsubscribeProgress?.())

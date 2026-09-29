@@ -3,17 +3,28 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { ItemRuleAssessment } from '@motor/contracts'
 
-const props = defineProps<{ assessment: ItemRuleAssessment }>()
+const props = defineProps<{ assessment: ItemRuleAssessment | undefined; originalAssessment?: ItemRuleAssessment | undefined }>()
 
 const fieldLabels: Record<string, string> = {
   originState: 'UF de origem', destinationState: 'UF de destino', cfop: 'CFOP',
   issuerRegime: 'CRT', cst: 'CST', merchandiseOrigin: 'origem da mercadoria',
   operationType: 'direção da operação', purpose: 'finalidade',
 }
-const matchingDrafts = computed(() => props.assessment.evaluated.filter((rule) =>
+const matchingDrafts = computed(() => (props.assessment?.evaluated ?? []).filter((rule) =>
   rule.status === 'DRAFT' && rule.exclusionReasons.every((reason) => reason === 'NOT_APPROVED'),
 ))
+const assessedContext = computed(() => Object.entries(props.assessment?.context ?? {})
+  .map(([field, value]) => `${fieldLabels[field] || field}: ${value}`).join(' · '))
+const changedFromOriginal = computed(() => {
+  if (!props.assessment || !props.originalAssessment) return false
+  return JSON.stringify({ kind: props.assessment.kind, selectedRuleId: props.assessment.selectedRuleId,
+    evaluated: props.assessment.evaluated }) !== JSON.stringify({
+    kind: props.originalAssessment.kind, selectedRuleId: props.originalAssessment.selectedRuleId,
+    evaluated: props.originalAssessment.evaluated,
+  })
+})
 const heading = computed(() => {
+  if (!props.assessment) return 'Avaliação histórica indisponível'
   if (props.assessment.kind === 'DRAFT_MATCH') return `${matchingDrafts.value.length} regra(s) compatível(is), cálculo pendente`
   if (props.assessment.kind === 'SELECTED') return 'Regra aprovada selecionada'
   if (props.assessment.kind === 'AMBIGUOUS') return 'Regras empatadas: revisão necessária'
@@ -24,8 +35,10 @@ const heading = computed(() => {
 <template>
   <details class="rule-assessment">
     <summary>{{ heading }}</summary>
-    <div class="rule-assessment-body">
-      <p>Avaliação atual do pacote {{ assessment.packId }} · versão {{ assessment.packVersion }}. Esta avaliação não calcula imposto.</p>
+    <div v-if="assessment" class="rule-assessment-body">
+      <p>Avaliação registrada em {{ new Date(assessment.assessedAt).toLocaleString('pt-BR') }} · pacote {{ assessment.packId }} · versão {{ assessment.packVersion }}. Esta avaliação não calcula imposto.</p>
+      <p v-if="originalAssessment">Comparação com a importação: {{ changedFromOriginal ? 'resultado alterado' : 'mesmo resultado' }} · pacote original {{ originalAssessment.packId }} v{{ originalAssessment.packVersion }}.</p>
+      <p v-if="assessedContext">Dados usados: {{ assessedContext }}.</p>
       <ul>
         <li v-for="rule in assessment.evaluated" :key="rule.ruleId">
           <strong>{{ rule.ruleName }}</strong>
@@ -37,8 +50,9 @@ const heading = computed(() => {
           <span v-else>Condições correspondem à regra aprovada.</span>
         </li>
       </ul>
-      <RouterLink to="/regras">Ver propostas e fundamentos</RouterLink>
+      <RouterLink to="/regras">Ver pacote atual de propostas</RouterLink>
     </div>
+    <p v-else class="rule-assessment-body">Este lote foi criado antes do registro das avaliações por item. O resultado original não pode ser reconstruído com segurança.</p>
   </details>
 </template>
 

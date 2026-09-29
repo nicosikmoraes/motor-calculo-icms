@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from './app-error'
 export const BRAZILIAN_STATES = [
   'AC',
   'AL',
@@ -75,25 +76,25 @@ export function isValidCnpj(value: string): boolean {
 
 export function normalizeCnpj(input: string): string {
   const normalized = input.trim().replace(/[./-]/g, '')
-  if (!isValidCnpj(normalized)) throw new Error('CNPJ inválido.')
+  if (!isValidCnpj(normalized)) throw new AppError(AppErrorCode.INVALID_CNPJ)
   return normalized
 }
 
 export function normalizeBrazilianState(input: string): BrazilianState {
   const normalized = input.trim().toUpperCase()
   if (!(BRAZILIAN_STATES as readonly string[]).includes(normalized)) {
-    throw new Error(`UF inválida: ${input}.`)
+    throw new AppError(AppErrorCode.INVALID_STATE, { value: input })
   }
   return normalized as BrazilianState
 }
 
 export function assertCanonicalUtcTimestamp(value: string, field = 'data'): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
-    throw new Error(`${field} deve usar UTC no formato ISO 8601 canônico.`)
+    throw new AppError(AppErrorCode.INVALID_TIMESTAMP_FORMAT, { field })
   }
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== value) {
-    throw new Error(`${field} contém uma data inválida.`)
+    throw new AppError(AppErrorCode.INVALID_TIMESTAMP_VALUE, { field })
   }
   return value
 }

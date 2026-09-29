@@ -1,14 +1,18 @@
 import type { NormalizedNfe } from './normalized-nfe'
 import { normalizeCnpj } from './registrations'
 
-export type FiscalEnvironmentCode = '1' | '2'
-
-export type DocumentIngestionPendingReason =
-  | 'EMPRESA_DIVERGENTE'
-  | 'AMBIENTE_NAO_INFORMADO'
-  | 'AMBIENTE_DIVERGENTE'
-  | 'OCORRENCIA_INELEGIVEL'
-
+export enum FiscalEnvironment {
+  PRODUCTION = '1',
+  HOMOLOGATION = '2',
+}
+export type FiscalEnvironmentCode = `${FiscalEnvironment}`
+export enum DocumentIngestionPendingReasonCode {
+  EMPRESA_DIVERGENTE = 'EMPRESA_DIVERGENTE',
+  AMBIENTE_NAO_INFORMADO = 'AMBIENTE_NAO_INFORMADO',
+  AMBIENTE_DIVERGENTE = 'AMBIENTE_DIVERGENTE',
+  OCORRENCIA_INELEGIVEL = 'OCORRENCIA_INELEGIVEL',
+}
+export type DocumentIngestionPendingReason = `${DocumentIngestionPendingReasonCode}`
 export interface DocumentIngestionClassification {
   eligibleForProcessing: boolean
   pendingReasons: readonly DocumentIngestionPendingReason[]

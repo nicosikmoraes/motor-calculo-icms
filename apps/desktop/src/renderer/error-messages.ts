@@ -1,0 +1,20 @@
+/** Textos de contingência usados quando uma falha chega sem mensagem legível. */
+export enum RendererErrorMessage {
+  WORKSPACE_OPEN = 'Falha ao abrir o espaço local.',
+  OPERATION_FAILED = 'Não foi possível concluir a operação.',
+  BATCH_LIST_LOAD = 'Não foi possível carregar os lotes.',
+  OFFICE_CREATE = 'Não foi possível criar o escritório.',
+  OPERATION_CANCEL = 'Não foi possível cancelar a operação.',
+  FILE_INSPECTION = 'Não foi possível inspecionar os arquivos.',
+  BATCH_CREATE = 'Não foi possível criar o lote.',
+  COMPANY_CREATE = 'Não foi possível cadastrar a empresa.',
+  COMPANY_LIST_LOAD = 'Não foi possível carregar as empresas.',
+  ASSESSMENT_LOAD = 'Não foi possível carregar a avaliação.',
+  BATCH_REASSESS = 'Não foi possível reavaliar o lote.',
+  PRODUCT_LINK = 'Não foi possível vincular o produto.',
+  BATCH_LOAD = 'Não foi possível carregar o lote.',
+  OFFICE_UPDATE = 'Não foi possível atualizar o escritório.',
+  REGISTRATIONS_LOAD = 'Não foi possível carregar os cadastros.',
+  DASHBOARD_LOAD = 'Não foi possível carregar os indicadores.',
+  RULE_PACK_LOAD = 'Não foi possível carregar o pacote de regras.',
+}

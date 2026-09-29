@@ -1,6 +1,24 @@
+import { AppErrorCode, AppTypeError } from '@motor/domain'
+export enum XmlSecurityErrorCode {
+  XML_DOCTYPE_FORBIDDEN = 'XML_DOCTYPE_FORBIDDEN',
+  XML_ENTITY_FORBIDDEN = 'XML_ENTITY_FORBIDDEN',
+  XML_TOO_LARGE = 'XML_TOO_LARGE',
+  XML_DEPTH_EXCEEDED = 'XML_DEPTH_EXCEEDED',
+}
+
+export enum XmlSecurityErrorMessage {
+  DEPTH_EXCEEDED = 'XML excede a profundidade máxima de {maxDepth} elementos.',
+  TOO_LARGE = 'XML excede o limite de {maxBytes} bytes.',
+  FORBIDDEN_DECLARATION = 'DTD e entidades XML não são aceitos em documentos fiscais.',
+}
+
+function formatXmlSecurityMessage(message: XmlSecurityErrorMessage, params: Readonly<Record<string, number>>): string {
+  return message.replace(/\{(\w+)\}/g, (_, key: string) => String(params[key] ?? `{${key}}`))
+}
+
 const FORBIDDEN_XML_DECLARATIONS = [
-  { pattern: /<!DOCTYPE\b/i, code: 'XML_DOCTYPE_FORBIDDEN' },
-  { pattern: /<!ENTITY\b/i, code: 'XML_ENTITY_FORBIDDEN' },
+  { pattern: /<!DOCTYPE\b/i, code: XmlSecurityErrorCode.XML_DOCTYPE_FORBIDDEN },
+  { pattern: /<!ENTITY\b/i, code: XmlSecurityErrorCode.XML_ENTITY_FORBIDDEN },
 ] as const
 
 export interface XmlSecurityPolicy {
@@ -12,11 +30,6 @@ export const PRODUCTION_XML_SECURITY_POLICY: Readonly<XmlSecurityPolicy> = Objec
   maxBytes: 10 * 1024 * 1024,
   maxDepth: 100,
 })
-
-export type XmlSecurityErrorCode =
-  | (typeof FORBIDDEN_XML_DECLARATIONS)[number]['code']
-  | 'XML_TOO_LARGE'
-  | 'XML_DEPTH_EXCEEDED'
 
 export class XmlSecurityError extends Error {
   constructor(
@@ -31,7 +44,7 @@ export class XmlSecurityError extends Error {
 function assertValidPolicy(policy: XmlSecurityPolicy): void {
   for (const [name, value] of Object.entries(policy)) {
     if (!Number.isSafeInteger(value) || value <= 0) {
-      throw new TypeError(`Limite XML inválido em ${name}: ${value}.`)
+      throw new AppTypeError(AppErrorCode.INVALID_XML_LIMIT, { name, value })
     }
   }
 }
@@ -83,8 +96,8 @@ function assertXmlDepth(xml: string, maxDepth: number): void {
       depth += 1
       if (depth > maxDepth) {
         throw new XmlSecurityError(
-          'XML_DEPTH_EXCEEDED',
-          `XML excede a profundidade máxima de ${maxDepth} elementos.`,
+          XmlSecurityErrorCode.XML_DEPTH_EXCEEDED,
+          formatXmlSecurityMessage(XmlSecurityErrorMessage.DEPTH_EXCEEDED, { maxDepth }),
         )
       }
       if (tag.endsWith('/')) depth -= 1
@@ -100,15 +113,15 @@ export function assertSafeXml(
   assertValidPolicy(policy)
   if (Buffer.byteLength(xml, 'utf8') > policy.maxBytes) {
     throw new XmlSecurityError(
-      'XML_TOO_LARGE',
-      `XML excede o limite de ${policy.maxBytes} bytes.`,
+      XmlSecurityErrorCode.XML_TOO_LARGE,
+      formatXmlSecurityMessage(XmlSecurityErrorMessage.TOO_LARGE, { maxBytes: policy.maxBytes }),
     )
   }
   for (const forbidden of FORBIDDEN_XML_DECLARATIONS) {
     if (forbidden.pattern.test(xml)) {
       throw new XmlSecurityError(
         forbidden.code,
-        'DTD e entidades XML não são aceitos em documentos fiscais.',
+        XmlSecurityErrorMessage.FORBIDDEN_DECLARATION,
       )
     }
   }

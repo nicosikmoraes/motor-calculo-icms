@@ -16,16 +16,35 @@ export interface ParsedNfe {
   itemCount: number
 }
 
+export enum NfeParseErrorCode {
+  XML_NOT_WELL_FORMED = 'XML_NOT_WELL_FORMED',
+  UNSUPPORTED_XML_ROOT = 'UNSUPPORTED_XML_ROOT',
+  UNSUPPORTED_LAYOUT_VERSION = 'UNSUPPORTED_LAYOUT_VERSION',
+  MISSING_NFE_INFO = 'MISSING_NFE_INFO',
+  UNSUPPORTED_DOCUMENT_MODEL = 'UNSUPPORTED_DOCUMENT_MODEL',
+}
+
+/** Mensagens do parser; parâmetros entre chaves são preenchidos na origem. */
+export enum NfeParseErrorMessage {
+  MISSING_FIELD = 'Campo obrigatório não encontrado: {field}.',
+  MALFORMED_XML = 'XML malformado: {detail} (linha {line}).',
+  UNSUPPORTED_ROOT = 'O XML não contém uma raiz NFe ou nfeProc suportada.',
+  MISSING_INFO = 'O grupo infNFe não foi encontrado.',
+  UNSUPPORTED_LAYOUT = 'Leiaute {version} não suportado; o MVP aceita apenas 4.00.',
+  MISSING_IDE = 'O grupo ide não foi encontrado.',
+  UNSUPPORTED_MODEL = 'Modelo {model} não suportado; o MVP aceita apenas 55 e 65.',
+  MISSING_ISSUER = 'O grupo emit não foi encontrado.',
+}
+
+export function formatNfeParseErrorMessage(
+  message: NfeParseErrorMessage,
+  params: Readonly<Record<string, string | number>> = {},
+): string {
+  return message.replace(/\{(\w+)\}/g, (_, key: string) => String(params[key] ?? `{${key}}`))
+}
+
 export class NfeParseError extends Error {
-  constructor(
-    readonly code:
-      | 'XML_NOT_WELL_FORMED'
-      | 'UNSUPPORTED_XML_ROOT'
-      | 'UNSUPPORTED_LAYOUT_VERSION'
-      | 'MISSING_NFE_INFO'
-      | 'UNSUPPORTED_DOCUMENT_MODEL',
-    message: string,
-  ) {
+  constructor(readonly code: NfeParseErrorCode, message: string) {
     super(message)
     this.name = 'NfeParseError'
   }
@@ -59,7 +78,7 @@ export function asString(value: unknown): string | undefined {
 export function requiredString(object: XmlObject, key: string): string {
   const value = asString(object[key])
   if (!value) {
-    throw new NfeParseError('MISSING_NFE_INFO', `Campo obrigatório não encontrado: ${key}.`)
+    throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, formatNfeParseErrorMessage(NfeParseErrorMessage.MISSING_FIELD, { field: key }))
   }
   return value
 }
@@ -77,8 +96,8 @@ export function readNfeXmlStructure(xml: string): NfeXmlStructure {
   const wellFormed = XMLValidator.validate(xml)
   if (wellFormed !== true) {
     throw new NfeParseError(
-      'XML_NOT_WELL_FORMED',
-      `XML malformado: ${wellFormed.err.msg} (linha ${wellFormed.err.line}).`,
+      NfeParseErrorCode.XML_NOT_WELL_FORMED,
+      formatNfeParseErrorMessage(NfeParseErrorMessage.MALFORMED_XML, { detail: wellFormed.err.msg, line: wellFormed.err.line }),
     )
   }
 
@@ -88,14 +107,14 @@ export function readNfeXmlStructure(xml: string): NfeXmlStructure {
 
   if (!nfe) {
     throw new NfeParseError(
-      'UNSUPPORTED_XML_ROOT',
-      'O XML não contém uma raiz NFe ou nfeProc suportada.',
+      NfeParseErrorCode.UNSUPPORTED_XML_ROOT,
+      NfeParseErrorMessage.UNSUPPORTED_ROOT,
     )
   }
 
   const info = asObject(nfe.infNFe)
   if (!info) {
-    throw new NfeParseError('MISSING_NFE_INFO', 'O grupo infNFe não foi encontrado.')
+    throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, NfeParseErrorMessage.MISSING_INFO)
   }
 
   return { ...(processed ? { processed } : {}), nfe, info }
@@ -106,19 +125,19 @@ export function parseNfeStructure({ processed, info }: NfeXmlStructure): ParsedN
   const schemaVersion = requiredString(info, '@_versao')
   if (schemaVersion !== '4.00') {
     throw new NfeParseError(
-      'UNSUPPORTED_LAYOUT_VERSION',
-      `Leiaute ${schemaVersion} não suportado; o MVP aceita apenas 4.00.`,
+      NfeParseErrorCode.UNSUPPORTED_LAYOUT_VERSION,
+      formatNfeParseErrorMessage(NfeParseErrorMessage.UNSUPPORTED_LAYOUT, { version: schemaVersion }),
     )
   }
 
   const ide = asObject(info.ide)
-  if (!ide) throw new NfeParseError('MISSING_NFE_INFO', 'O grupo ide não foi encontrado.')
+  if (!ide) throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, NfeParseErrorMessage.MISSING_IDE)
 
   const model = requiredString(ide, 'mod')
   if (model !== '55' && model !== '65') {
     throw new NfeParseError(
-      'UNSUPPORTED_DOCUMENT_MODEL',
-      `Modelo ${model} não suportado; o MVP aceita apenas 55 e 65.`,
+      NfeParseErrorCode.UNSUPPORTED_DOCUMENT_MODEL,
+      formatNfeParseErrorMessage(NfeParseErrorMessage.UNSUPPORTED_MODEL, { model }),
     )
   }
 

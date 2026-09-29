@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { validateXML, type XMLFileInfo, type XMLValidationError } from 'xmllint-wasm'
@@ -58,7 +59,7 @@ export async function validateNfeSchema(
   const schemas = await loadSchemas(options.schemaDirectory ?? defaultSchemaDirectory())
   const entryName = detectSchema(xml)
   const entry = schemas.get(entryName)
-  if (!entry) throw new Error(`Schema principal não encontrado: ${entryName}.`)
+  if (!entry) throw new AppError(AppErrorCode.MAIN_SCHEMA_MISSING, { name: entryName })
 
   const result = await validateXML({
     xml: [{ fileName: options.fileName ?? 'documento.xml', contents: xml }],
