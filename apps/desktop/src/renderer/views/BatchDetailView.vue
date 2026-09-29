@@ -5,6 +5,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocumentSummary } from '@motor/contracts'
 import ItemClassificationDetails from '../components/ItemClassificationDetails.vue'
 import RuleAssessmentDetails from '../components/RuleAssessmentDetails.vue'
+import CalculationMemoryDetails from '../components/CalculationMemoryDetails.vue'
 
 const route = useRoute()
 const detail = ref<BatchDetail | null>(null)
@@ -187,6 +188,7 @@ onMounted(async () => {
                   <td>
                     <ItemClassificationDetails :item="item" />
                     <RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" />
+                    <CalculationMemoryDetails :calculation="item.calculation" />
                     <div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action">
                       <select v-model="selectedProfiles[itemKey(document, item)]" aria-label="Perfil fiscal do produto">
                         <option value="">Escolher perfil</option>
@@ -218,6 +220,7 @@ onMounted(async () => {
             <p class="item-pendency-context">NF-e {{ document.number }} · Item {{ item.itemNumber }} · {{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</p>
             <ItemClassificationDetails :item="item" expanded />
             <RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" />
+            <CalculationMemoryDetails :calculation="item.calculation" />
           </article>
         </div>
       </section>

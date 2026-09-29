@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 
 **Projeto:** ContabiliNico
-**Versão:** 0.1.0 — rascunho acadêmico
-**Última atualização:** 16/09/2026
+**Versão:** 0.2.0 — backlog preparado
+**Última atualização:** 25/09/2026
 
 > Este documento apresenta o que o produto faz em formato acadêmico. As regras
 > fiscais completas continuam em [Regras de negócio](regras-de-negocio.md), sem
@@ -18,6 +18,8 @@ conferência manual é repetitiva, sujeita a inconsistências e difícil de audi
 regras fiscais. O usuário envia XMLs de NF-e/NFC-e; o sistema valida os documentos,
 seleciona regras vigentes, recalcula os componentes do ICMS, identifica
 divergências e produz um relatório com memória de cálculo e pendências.
+Como fluxo independente do tratamento fiscal, a aplicação permite doações
+básicas pelo Stripe em ambiente de testes.
 
 **Como saberemos que deu certo:** para um lote homologado, cada item terá um
 resultado calculado ou uma pendência explícita; o usuário conseguirá rastrear a
@@ -55,10 +57,10 @@ responsabilidades de negócio.
 
 ## 4. Escopo Funcional — User Stories
 
-> Toda história permanece em `⚪ Draft`. Somente o autor pode promovê-la para
-> `🟡 Ready` depois de ler e assumir seus critérios.
+> As histórias com critérios definidos foram promovidas para `🟡 Ready` por
+> solicitação do autor. US04 permanece `⚪ Draft` até ser dividida por componente fiscal.
 
-### US01 — Manter empresas e perfis fiscais · `Must Have` · `M` · Status: `⚪ Draft`
+### US01 — Manter empresas e perfis fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** cadastrar empresas e perfis fiscais
 **para que** o motor conheça o contexto utilizado na seleção das regras.
@@ -74,7 +76,7 @@ responsabilidades de negócio.
 
 **Regras relacionadas:** RN-006, RN-014, RN-015 a RN-019.
 
-### US02 — Criar e versionar regras fiscais · `Must Have` · `M` · Status: `⚪ Draft`
+### US02 — Criar e versionar regras fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** cadastrar e publicar regras fiscais
 com vigência e fundamento **para que** os cálculos sejam consistentes e auditáveis.
@@ -87,7 +89,7 @@ com vigência e fundamento **para que** os cálculos sejam consistentes e audit�
 
 **Regras relacionadas:** RN-006 a RN-014, RN-028 a RN-031.
 
-### US03 — Importar um lote de documentos fiscais · `Must Have` · `M` · Status: `⚪ Draft`
+### US03 — Importar um lote de documentos fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** enviar XMLs ou um ZIP **para que** as
 notas sejam inventariadas, validadas e preparadas para cálculo em conjunto.
@@ -123,7 +125,7 @@ regra vigente **para que** eu possa comparar o imposto esperado com o declarado.
 > **Atenção:** esta história é obrigatória e grande. Antes de promovê-la para
 > `Ready`, deve ser dividida verticalmente por componente fiscal homologável.
 
-### US05 — Investigar e resolver pendências · `Must Have` · `M` · Status: `⚪ Draft`
+### US05 — Investigar e resolver pendências · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** visualizar o motivo de cada pendência
 e complementar dados autorizados **para que** eu possa solicitar um novo cálculo
@@ -137,7 +139,7 @@ sem modificar o XML.
 
 **Regras relacionadas:** RN-003, RN-004, RN-024, RN-032, RN-033 e RN-035.
 
-### US06 — Tratar ocorrências repetidas e conflitantes · `Must Have` · `M` · Status: `⚪ Draft`
+### US06 — Tratar ocorrências repetidas e conflitantes · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** ser avisado sobre notas repetidas ou
 conflitantes **para que** o lote não duplique valores nem esconda documentos.
@@ -150,7 +152,7 @@ conflitantes **para que** o lote não duplique valores nem esconda documentos.
 
 **Regras relacionadas:** DT-019 e regras de estado da seção 9 de `regras-de-negocio.md`.
 
-### US07 — Exportar relatório auditável · `Must Have` · `M` · Status: `⚪ Draft`
+### US07 — Exportar relatório auditável · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** exportar um XLSX consolidado **para que**
 eu possa analisar, compartilhar e arquivar os resultados do lote.
@@ -163,7 +165,7 @@ eu possa analisar, compartilhar e arquivar os resultados do lote.
 
 **Regras relacionadas:** RN-002 a RN-005 e seção 10 de `regras-de-negocio.md`.
 
-### US08 — Exportar e importar configurações · `Should Have` · `M` · Status: `⚪ Draft`
+### US08 — Exportar e importar configurações · `Should Have` · `M` · Status: `🟡 Ready`
 
 **Como** responsável pela instalação, **eu quero** transportar cadastros e regras
 em um pacote controlado **para que** outra instalação possa reutilizar a
@@ -176,6 +178,28 @@ configuração sem mesclar bancos.
 - [ ] **Dado** uma falha durante a importação, **quando** a operação termina, **então** a instalação mantém o estado anterior.
 
 **Regras relacionadas:** manual, seções 10 e 11.
+
+### US09 — Fazer doação pelo Stripe · `Must Have` · `M` · Status: `🟡 Ready`
+
+**Como** apoiador do projeto, **eu quero** fazer uma doação pelo Stripe
+**para que** eu possa contribuir com o ContabiliNico de forma simples.
+
+**Critérios de aceite:**
+
+- [ ] **Dado** um valor positivo em BRL, **quando** o apoiador confirma a intenção,
+  **então** o sistema cria um pedido de doação identificável e uma sessão do Stripe
+  Checkout em ambiente de testes, inicialmente com pagamento pendente.
+- [ ] **Dado** um pagamento concluído, **quando** o webhook válido do Stripe é
+  recebido, **então** o pedido é marcado como pago uma única vez, mesmo que o
+  evento seja entregue novamente.
+- [ ] **Dado** cancelamento, falha ou retorno à página sem confirmação do webhook,
+  **quando** o apoiador consulta o pedido, **então** ele não aparece como pago.
+- [ ] **Dado** qualquer doação, **quando** seus dados são persistidos, **então**
+  o sistema guarda apenas identificadores, valor, moeda e estado necessários à
+  conciliação; dados de cartão não são armazenados e dados fiscais não são
+  enviados ao Stripe.
+
+**Escopo:** fluxo independente do cálculo de ICMS; Stripe em ambiente de testes.
 
 ## 5. Regras de Negócio Consolidadas
 
@@ -225,13 +249,15 @@ O catálogo completo RN-001 a RN-035 está em
 | # | Decisão pendente | Responsável |
 | :--- | :--- | :--- |
 | 1 | Confirmar se o tema é único na turma | Autor, consultando a planilha do Moodle |
-| 2 | Obter o aceite formal do professor para o tema | Autor e professor |
-| 3 | Decidir com o professor se o fluxo de pagamento é obrigatório para este projeto e, se for, qual relação legítima ele terá com o produto | Autor e professor |
-| 4 | Ratificar prioridades, tamanhos e promover individualmente as histórias escolhidas de `Draft` para `Ready` | Autor |
-| 5 | Dividir US04 em fatias fiscais menores antes de iniciar sua implementação | Autor |
+| 2 | Confirmar com o professor se o pedido de doação e a confirmação via Stripe atendem ao critério acadêmico de pedido e pagamento | Autor e professor |
+| 3 | Dividir US04 em fatias fiscais menores antes de iniciar sua implementação | Autor |
+
+O autor informou em 25/09/2026 que o tema ContabiliNico foi aprovado pelo
+professor e definiu Stripe básico para doações como fluxo de pagamento.
 
 ## 9. Histórico
 
 | Data | Versão | O que mudou |
 | :--- | :--- | :--- |
 | 16/09/2026 | 0.1.0 | Rascunho acadêmico organizado a partir das decisões documentadas no projeto |
+| 25/09/2026 | 0.2.0 | Aceite do tema informado pelo autor; histórias US01–US03 e US05–US09 promovidas a Ready; doação Stripe definida como fluxo independente |

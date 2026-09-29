@@ -99,7 +99,7 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 ## Prioridade 10 — bibliotecas e observabilidade
 
 1. Homologar o parser com massa anonimizada representativa, teste de carga e instalador Windows; a prova de conceito e as versões iniciais já estão registradas.
-2. Biblioteca de decimal exato.
+2. Biblioteca de decimal exato: `decimal.js` escolhida na DT-032; falta aprovar escala, operações de divisão/rateio e arredondamento fiscal no MD-05.
 3. Biblioteca de geração de XLSX.
 4. Empacotamento e distribuição do Electron.
 5. Formato, retenção e exportação de logs de suporte.

@@ -1,8 +1,9 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS, type BatchDetail, type BatchListItem } from '@motor/contracts'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteFiscalCatalogRepository,
-  SqliteOrganizationRepository } from '@motor/database'
+  SqliteOrganizationRepository, SqliteCalculationRepository } from '@motor/database'
 import { AppError, AppErrorCode } from '@motor/domain'
+import { pendingCalculation } from '@motor/tax-engine'
 import { classifyFiscalItem } from './fiscal-item-classification'
 import { activeDatabase, requiredInputText } from './main-services'
 
@@ -55,6 +56,8 @@ export function registerBatchQueryHandlers(): void {
         .listByOrganization(organization.id).map((company) => [company.id, company]))
       // Regras fiscais vêm do registro histórico; a classificação cadastral usa o catálogo atual.
       const documents = batches.listNormalizedDocuments(batchId)
+      const calculations = new SqliteCalculationRepository(connection)
+      const latestCalculations = new Map(documents.map((document) => [document.id, calculations.latestByDocument(document.id)] as const))
       const ruleAssessmentRuns = batches.listRuleAssessmentRuns(batchId)
       const selectedAssessments = runId ? batches.readRuleAssessmentsForRun(batchId, runId) : undefined
       const originalAssessment = documents.flatMap((document) => Object.values(document.ruleAssessments ?? {}))[0]
@@ -123,6 +126,28 @@ export function registerBatchQueryHandlers(): void {
             const selectedAssessment = selectedAssessments?.get(id)?.[item.itemNumber] ?? ruleAssessments?.[item.itemNumber]
             return {
               itemNumber: item.itemNumber,
+              calculation: (() => {
+                const run = latestCalculations.get(id)
+                const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
+                if (saved) return { ...saved.memory, runId: run!.id, engineVersion: run!.engineVersion }
+                return pendingCalculation(
+                  'PENDING_RULE',
+                  'A composição da base, as exceções e o arredondamento ainda aguardam homologação fiscal.',
+                  [
+                    ...(item.productAmount ? [{ name: 'valorProduto', value: item.productAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                    ...(item.freightAmount ? [{ name: 'frete', value: item.freightAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                    ...(item.insuranceAmount ? [{ name: 'seguro', value: item.insuranceAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                    ...(item.discountAmount ? [{ name: 'desconto', value: item.discountAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                    ...(item.otherAmount ? [{ name: 'outrasDespesas', value: item.otherAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                    ...(item.ipiAmount ? [{ name: 'IPI', value: item.ipiAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+                  ],
+                  {
+                    ...(item.declaredIcms?.baseAmount ? { base: item.declaredIcms.baseAmount } : {}),
+                    ...(item.declaredIcms?.rate ? { rate: item.declaredIcms.rate } : {}),
+                    ...(item.declaredIcms?.amount ? { amount: item.declaredIcms.amount } : {}),
+                  },
+                )
+              })(),
               ...(selectedAssessment ? { ruleAssessment: selectedAssessment } : {}),
               ...(runId && ruleAssessments?.[item.itemNumber]
                 ? { originalRuleAssessment: ruleAssessments[item.itemNumber] } : {}),

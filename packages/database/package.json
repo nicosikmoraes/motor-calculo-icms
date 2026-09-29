@@ -6,7 +6,8 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@motor/domain": "workspace:*",
-    "@motor/contracts": "workspace:*"
+    "@motor/contracts": "workspace:*",
+    "@motor/tax-engine": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

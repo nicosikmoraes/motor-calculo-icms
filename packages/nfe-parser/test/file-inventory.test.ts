@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
 import {
   createBatchProvenance,
   inventoryContents,
@@ -100,7 +101,7 @@ describe('inventário de arquivos', () => {
   it('lê arquivos locais em streaming com a mesma representação canônica', async () => {
     const fixturePath = new URL('./fixtures/nfe-proc-minima.xml', import.meta.url)
     const result = await inventoryLocalFiles(batch, [
-      { absolutePath: fixturePath.pathname, relativePath: 'entrada/nota.xml' },
+      { absolutePath: fileURLToPath(fixturePath), relativePath: 'entrada/nota.xml' },
     ])
 
     expect(result.occurrences[0]).toMatchObject({

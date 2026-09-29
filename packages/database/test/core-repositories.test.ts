@@ -133,12 +133,14 @@ describe("migrations e repositórios centrais", () => {
       "documentos_fiscais",
       "empresas",
       "execucoes_avaliacao_regras",
+      "execucoes_calculo",
       "itens_documento",
       "lotes",
       "ocorrencias_arquivo",
       "organizacoes",
       "perfis_fiscais",
       "produtos_fornecedor",
+      "resultados_item_calculo",
       "schema_migrations",
     ]);
     expect(indexes).toContain("idx_ocorrencias_lote_chave");
