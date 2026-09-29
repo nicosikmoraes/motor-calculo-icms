@@ -27,7 +27,9 @@ Decisões de produto confirmadas em 28/09/2026. Este plano não define fórmula,
 ## Progresso técnico
 
 - Passo 1: contratos de revisão esperada e erros distinguíveis preparados no domínio e nos contratos IPC. A revisão ainda não é lida nem gravada até a migration do passo 3.
-- Passo 2: operações existentes de organização, empresa, perfil fiscal e produto de fornecedor extraídas dos handlers IPC para casos de uso com portas de persistência. Edição, inativação e reativação serão conectadas após o schema de revisão e auditoria.
+- Passo 2: operações existentes de organização, empresa, perfil fiscal e produto de fornecedor extraídas dos handlers IPC para casos de uso com portas de persistência.
+- Passos 3–6 (parciais): migration `0011` adiciona revisão e eventos de auditoria; criações, renomeação do escritório e vínculo de produto registram eventos na mesma transação. Há consulta por entidade, período e operação, conflito de revisão na edição do escritório e do vínculo de produto, além de expurgo automático após seis meses.
+- Pendentes nesta fase: casos de uso e telas para editar, inativar e reativar empresa, perfil e produto; revisão das demais edições; conexão da limpeza após restauração quando MD-10 for implementado.
 
 ## Critério de conclusão
 

@@ -5,6 +5,7 @@ import type { SqliteDatabase } from './sqlite-database'
 
 export interface FiscalProfileRecord {
   id: string
+  revision: number
   organizationId: string
   companyId: string
   name: string
@@ -15,6 +16,7 @@ export interface FiscalProfileRecord {
 
 export interface SupplierProductRecord {
   id: string
+  revision: number
   companyId: string
   supplierCnpj: string
   productCode: string
@@ -40,12 +42,13 @@ export function fiscalDate(value: string, field: string): string {
 export class SqliteFiscalCatalogRepository {
   constructor(private readonly database: SqliteDatabase) {}
 
-  createProfile(input: Omit<FiscalProfileRecord, 'id' | 'createdAt'>): FiscalProfileRecord {
+  createProfile(input: Omit<FiscalProfileRecord, 'id' | 'createdAt' | 'revision'>): FiscalProfileRecord {
     const validFrom = fiscalDate(input.validFrom, 'Início da vigência')
     const validUntil = input.validUntil ? fiscalDate(input.validUntil, 'Fim da vigência') : undefined
     if (validUntil && validUntil < validFrom) throw new AppError(AppErrorCode.INVALID_VALIDITY_RANGE)
     const profile: FiscalProfileRecord = {
       id: randomUUID(),
+      revision: 1,
       organizationId: required(input.organizationId, 'Organização'),
       companyId: required(input.companyId, 'Empresa'),
       name: required(input.name, 'Nome do perfil'),
@@ -65,14 +68,14 @@ export class SqliteFiscalCatalogRepository {
 
   listProfiles(companyId: string): readonly FiscalProfileRecord[] {
     return this.database.all<{
-      id: string; organizacao_id: string; empresa_id: string; nome: string;
+      id: string; organizacao_id: string; empresa_id: string; nome: string; revisao: number;
       vigente_de: string; vigente_ate: string | null; criado_em: string
     }>(
-      `SELECT id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em
+      `SELECT id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em, revisao
        FROM perfis_fiscais WHERE empresa_id = ? ORDER BY nome COLLATE NOCASE, vigente_de, id`,
       companyId,
     ).map((row) => ({
-      id: row.id, organizationId: row.organizacao_id, companyId: row.empresa_id,
+      id: row.id, revision: row.revisao, organizationId: row.organizacao_id, companyId: row.empresa_id,
       name: row.nome, validFrom: row.vigente_de,
       ...(row.vigente_ate ? { validUntil: row.vigente_ate } : {}),
       createdAt: row.criado_em,
@@ -127,20 +130,22 @@ export class SqliteFiscalCatalogRepository {
        (id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (empresa_id, fornecedor_cnpj, codigo_produto)
-       DO UPDATE SET perfil_fiscal_id = excluded.perfil_fiscal_id, atualizado_em = excluded.atualizado_em`,
+       DO UPDATE SET perfil_fiscal_id = excluded.perfil_fiscal_id, atualizado_em = excluded.atualizado_em,
+                     revisao = produtos_fornecedor.revisao + 1
+       WHERE produtos_fornecedor.perfil_fiscal_id <> excluded.perfil_fiscal_id`,
       randomUUID(), companyId, supplierCnpj, productCode, profileId, now, now,
     )
     const saved = this.database.get<{
       id: string; empresa_id: string; fornecedor_cnpj: string; codigo_produto: string;
-      perfil_fiscal_id: string; criado_em: string; atualizado_em: string
+      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number
     }>(
-      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em
+      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao
        FROM produtos_fornecedor WHERE empresa_id = ? AND fornecedor_cnpj = ? AND codigo_produto = ?`,
       companyId, supplierCnpj, productCode,
     )
     if (!saved) throw new AppError(AppErrorCode.LINKED_PRODUCT_NOT_FOUND)
     return {
-      id: saved.id, companyId: saved.empresa_id, supplierCnpj: saved.fornecedor_cnpj,
+      id: saved.id, revision: saved.revisao, companyId: saved.empresa_id, supplierCnpj: saved.fornecedor_cnpj,
       productCode: saved.codigo_produto, profileId: saved.perfil_fiscal_id,
       createdAt: saved.criado_em, updatedAt: saved.atualizado_em,
     }
@@ -149,13 +154,13 @@ export class SqliteFiscalCatalogRepository {
   listSupplierProducts(companyId: string): readonly SupplierProductRecord[] {
     return this.database.all<{
       id: string; empresa_id: string; fornecedor_cnpj: string; codigo_produto: string;
-      perfil_fiscal_id: string; criado_em: string; atualizado_em: string
+      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number
     }>(
-      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em
+      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao
        FROM produtos_fornecedor WHERE empresa_id = ?
        ORDER BY fornecedor_cnpj, codigo_produto`, companyId,
     ).map((row) => ({
-      id: row.id, companyId: row.empresa_id, supplierCnpj: row.fornecedor_cnpj,
+      id: row.id, revision: row.revisao, companyId: row.empresa_id, supplierCnpj: row.fornecedor_cnpj,
       productCode: row.codigo_produto, profileId: row.perfil_fiscal_id,
       createdAt: row.criado_em, updatedAt: row.atualizado_em,
     }))

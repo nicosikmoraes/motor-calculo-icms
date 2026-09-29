@@ -98,6 +98,7 @@ export interface NormalizedFiscalDocumentRecord {
 
 interface OrganizationRow extends Record<string, unknown> {
   id: string
+  revisao: number
   nome: string
   ativo: number
   criado_em: string
@@ -106,6 +107,7 @@ interface OrganizationRow extends Record<string, unknown> {
 
 interface CompanyRow extends Record<string, unknown> {
   id: string
+  revisao: number
   organizacao_id: string
   razao_social: string
   nome_fantasia: string | null
@@ -175,6 +177,7 @@ function normalizedHash(value: string): string {
 function mapOrganization(row: OrganizationRow): Organization {
   return {
     id: row.id,
+    revision: row.revisao,
     name: row.nome,
     active: row.ativo === 1,
     createdAt: row.criado_em,
@@ -185,6 +188,7 @@ function mapOrganization(row: OrganizationRow): Organization {
 function mapCompany(row: CompanyRow): Company {
   return {
     id: row.id,
+    revision: row.revisao,
     organizationId: row.organizacao_id,
     legalName: row.razao_social,
     ...(row.nome_fantasia ? { tradeName: row.nome_fantasia } : {}),
@@ -256,7 +260,7 @@ export class SqliteOrganizationRepository {
 
   findById(id: string): Organization | undefined {
     const row = this.database.get<OrganizationRow>(
-      `SELECT id, nome, ativo, criado_em, atualizado_em
+      `SELECT id, nome, ativo, criado_em, atualizado_em, revisao
        FROM organizacoes WHERE id = ?`,
       id,
     )
@@ -265,7 +269,7 @@ export class SqliteOrganizationRepository {
 
   findSingle(): Organization | undefined {
     const rows = this.database.all<OrganizationRow>(
-      `SELECT id, nome, ativo, criado_em, atualizado_em
+      `SELECT id, nome, ativo, criado_em, atualizado_em, revisao
        FROM organizacoes
        ORDER BY criado_em, id
        LIMIT 2`,
@@ -277,26 +281,28 @@ export class SqliteOrganizationRepository {
   }
 
   createSingle(organization: Organization): void {
-    this.database.transaction(() => {
-      const existing = this.database.get<{ total: number | bigint }>(
-        'SELECT count(*) AS total FROM organizacoes',
-      )
-      if (Number(existing?.total ?? 0) !== 0) {
-        throw new AppError(AppErrorCode.ORGANIZATION_ALREADY_CONFIGURED)
-      }
-      this.create(organization)
-    })
+    const existing = this.database.get<{ total: number | bigint }>(
+      'SELECT count(*) AS total FROM organizacoes',
+    )
+    if (Number(existing?.total ?? 0) !== 0) {
+      throw new AppError(AppErrorCode.ORGANIZATION_ALREADY_CONFIGURED)
+    }
+    this.create(organization)
   }
 
-  rename(id: string, name: string, updatedAt: string): void {
+  rename(id: string, name: string, updatedAt: string, expectedRevision?: number): void {
     this.database.run(
-      `UPDATE organizacoes SET nome = ?, atualizado_em = ? WHERE id = ?`,
+      `UPDATE organizacoes SET nome = ?, atualizado_em = ?, revisao = revisao + 1
+       WHERE id = ? AND (? IS NULL OR revisao = ?)`,
       requiredText(name, 'organization.name'),
       assertCanonicalUtcTimestamp(updatedAt, 'organization.updatedAt'),
       requiredText(id, 'organization.id'),
+      expectedRevision ?? null, expectedRevision ?? null,
     )
     const changes = this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')
-    if (Number(changes?.changes ?? 0) !== 1) throw new AppError(AppErrorCode.ORGANIZATION_NOT_FOUND)
+    if (Number(changes?.changes ?? 0) !== 1) {
+      throw new AppError(expectedRevision === undefined ? AppErrorCode.ORGANIZATION_NOT_FOUND : AppErrorCode.REGISTRATION_REVISION_CONFLICT)
+    }
   }
 }
 
@@ -327,7 +333,7 @@ export class SqliteCompanyRepository {
   findById(id: string): Company | undefined {
     const row = this.database.get<CompanyRow>(
       `SELECT id, organizacao_id, razao_social, nome_fantasia, cnpj, uf,
-              ativo, inativada_em, criado_em, atualizado_em
+              ativo, inativada_em, criado_em, atualizado_em, revisao
        FROM empresas WHERE id = ?`,
       id,
     )
@@ -337,7 +343,7 @@ export class SqliteCompanyRepository {
   findByCnpj(organizationId: string, cnpj: string): Company | undefined {
     const row = this.database.get<CompanyRow>(
       `SELECT id, organizacao_id, razao_social, nome_fantasia, cnpj, uf,
-              ativo, inativada_em, criado_em, atualizado_em
+              ativo, inativada_em, criado_em, atualizado_em, revisao
        FROM empresas WHERE organizacao_id = ? AND cnpj = ?`,
       organizationId,
       normalizeCnpj(cnpj),
@@ -349,7 +355,7 @@ export class SqliteCompanyRepository {
     return this.database
       .all<CompanyRow>(
         `SELECT id, organizacao_id, razao_social, nome_fantasia, cnpj, uf,
-                ativo, inativada_em, criado_em, atualizado_em
+                ativo, inativada_em, criado_em, atualizado_em, revisao
          FROM empresas
          WHERE organizacao_id = ?
          ORDER BY razao_social COLLATE NOCASE, id`,

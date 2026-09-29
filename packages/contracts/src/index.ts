@@ -1,6 +1,7 @@
 export const IPC_CHANNELS = {
   APP_VERSION: 'app:get-version',
   GET_WORKSPACE: 'workspace:get',
+  LIST_REGISTRATION_AUDIT: 'registrations:audit-list',
   CREATE_ORGANIZATION: 'workspace:create-organization',
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
@@ -23,16 +24,46 @@ export const IPC_CHANNELS = {
 
 export interface OrganizationSummary {
   id: string
+  revision: number
   name: string
 }
 
 export interface CompanySummary {
   id: string
+  revision: number
   legalName: string
   tradeName?: string
   cnpj: string
   state: string
   active: boolean
+}
+
+export enum RegistrationEntityCode {
+  ORGANIZATION = 'ORGANIZATION', COMPANY = 'COMPANY',
+  FISCAL_PROFILE = 'FISCAL_PROFILE', SUPPLIER_PRODUCT = 'SUPPLIER_PRODUCT',
+}
+export enum RegistrationOperationCode {
+  CREATE = 'CREATE', UPDATE = 'UPDATE',
+  INACTIVATE = 'INACTIVATE', REACTIVATE = 'REACTIVATE',
+}
+export interface RegistrationAuditEvent {
+  id: string
+  entity: RegistrationEntityCode
+  entityId: string
+  operation: RegistrationOperationCode
+  revision: number
+  changes: Readonly<Record<string, { before: string | number | boolean | null; after: string | number | boolean | null }>>
+  computer: string
+  systemUser: string
+  createdAt: string
+}
+export interface RegistrationAuditFilter {
+  entity?: RegistrationEntityCode
+  entityId?: string
+  operation?: RegistrationOperationCode
+  from?: string
+  until?: string
+  limit?: number
 }
 
 export interface WorkspaceState {
@@ -77,6 +108,7 @@ export interface CreateOrganizationInput {
 
 export interface RenameOrganizationInput {
   name: string
+  expectedRevision: number
 }
 
 export interface CreateCompanyInput {
@@ -110,6 +142,7 @@ export interface CreateSuggestedFiscalProfileResult {
 
 export interface FiscalProfileSummary {
   id: string
+  revision: number
   companyId: string
   name: string
   validFrom: string
@@ -125,6 +158,7 @@ export interface CreateFiscalProfileInput {
 
 export interface SupplierProductSummary {
   id: string
+  revision: number
   companyId: string
   supplierCnpj: string
   productCode: string
@@ -132,6 +166,7 @@ export interface SupplierProductSummary {
 }
 
 export interface SaveSupplierProductInput {
+  expectedRevision?: number
   companyId: string
   supplierCnpj: string
   productCode: string
@@ -397,6 +432,7 @@ export interface BatchDetail {
 export interface DesktopApi {
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
+  listRegistrationAudit(filter?: RegistrationAuditFilter): Promise<readonly RegistrationAuditEvent[]>
   createOrganization(input: CreateOrganizationInput): Promise<OrganizationSummary>
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>

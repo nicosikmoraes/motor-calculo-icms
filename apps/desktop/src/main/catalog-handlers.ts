@@ -5,9 +5,11 @@ import {
   type CreateFiscalProfileInput, type CreateOrganizationInput,
   type CreateSuggestedFiscalProfileInput,
   type RenameOrganizationInput, type SaveSupplierProductInput,
+  type RegistrationAuditFilter,
 } from '@motor/contracts'
 import {
   SqliteCompanyRepository, SqliteFiscalCatalogRepository, SqliteOrganizationRepository,
+  SqliteRegistrationAuditRepository,
 } from '@motor/database'
 import { BUILTIN_ICMS_OWN_PACK } from '@motor/tax-engine'
 import { activeDatabase, inputRecord } from './main-services'
@@ -20,6 +22,7 @@ function registrationUseCases(): RegistrationUseCases {
     transaction: (operation) => connection.transaction(operation),
     organizations: new SqliteOrganizationRepository(connection),
     companies: new SqliteCompanyRepository(connection),
+    audit: new SqliteRegistrationAuditRepository(connection),
     catalog: new SqliteFiscalCatalogRepository(connection),
   }, randomUUID, () => new Date().toISOString())
 }
@@ -28,6 +31,9 @@ function registrationUseCases(): RegistrationUseCases {
 export function registerCatalogHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
   ipcMain.handle(IPC_CHANNELS.GET_WORKSPACE, () => registrationUseCases().getWorkspace())
+  ipcMain.handle(IPC_CHANNELS.LIST_REGISTRATION_AUDIT, (_event, rawFilter: unknown) =>
+    registrationUseCases().listAudit(rawFilter === undefined ? {} :
+      inputRecord(rawFilter) as unknown as RegistrationAuditFilter))
   ipcMain.handle(IPC_CHANNELS.CREATE_ORGANIZATION, (_event, rawInput: unknown) =>
     registrationUseCases().createOrganization(inputRecord(rawInput) as unknown as CreateOrganizationInput))
   ipcMain.handle(IPC_CHANNELS.RENAME_ORGANIZATION, (_event, rawInput: unknown) =>
