@@ -5,6 +5,8 @@ export const IPC_CHANNELS = {
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
   LIST_FISCAL_PROFILES: 'fiscal-profiles:list',
+  LIST_FISCAL_PROFILE_SUGGESTIONS: 'fiscal-profiles:list-suggestions',
+  CREATE_SUGGESTED_FISCAL_PROFILE: 'fiscal-profiles:create-suggestion',
   GET_BUILTIN_RULE_PACK: 'fiscal-rules:built-in-pack',
   CREATE_FISCAL_PROFILE: 'fiscal-profiles:create',
   LIST_SUPPLIER_PRODUCTS: 'supplier-products:list',
@@ -38,6 +40,37 @@ export interface WorkspaceState {
   companies: readonly CompanySummary[]
 }
 
+/** Contrato de edição versionada, usado quando a migration de revisões estiver ativa. */
+export interface RegistrationMutationInput {
+  id: string
+  expectedRevision: number
+}
+
+export interface RegistrationMutationResult {
+  id: string
+  revision: number
+}
+
+export interface UpdateOrganizationRegistrationInput extends RegistrationMutationInput {
+  name: string
+}
+
+export interface UpdateCompanyRegistrationInput extends RegistrationMutationInput {
+  legalName: string
+  tradeName?: string
+  state: string
+}
+
+export interface UpdateFiscalProfileRegistrationInput extends RegistrationMutationInput {
+  name: string
+  validFrom: string
+  validUntil?: string
+}
+
+export interface UpdateSupplierProductRegistrationInput extends RegistrationMutationInput {
+  profileId: string
+}
+
 export interface CreateOrganizationInput {
   name: string
 }
@@ -51,6 +84,28 @@ export interface CreateCompanyInput {
   tradeName?: string
   cnpj: string
   state: string
+}
+
+/** Proposta cadastral extraída de XMLs; não representa regra ou alíquota aprovada. */
+export interface FiscalProfileSuggestion {
+  key: string
+  name: string
+  validFrom: string
+  ncm: string
+  cest?: string
+  originCode?: string
+  documentCount: number
+  products: readonly { supplierCnpj: string; productCode: string; description?: string }[]
+}
+
+export interface CreateSuggestedFiscalProfileInput {
+  companyId: string
+  suggestionKey: string
+}
+
+export interface CreateSuggestedFiscalProfileResult {
+  profile: FiscalProfileSummary
+  linkedProducts: number
 }
 
 export interface FiscalProfileSummary {
@@ -277,13 +332,26 @@ export interface FiscalItemSummary {
   calculation: ItemCalculationSummary
 }
 
+export enum CalculationStatusCode {
+  PENDING_RULE = 'PENDING_RULE',
+  PENDING_DATA = 'PENDING_DATA',
+  UNSUPPORTED = 'UNSUPPORTED',
+  CALCULATED = 'CALCULATED',
+}
+
+export enum CalculationInputTreatmentCode {
+  INCLUDED = 'INCLUDED',
+  EXCLUDED = 'EXCLUDED',
+  UNDECIDED = 'UNDECIDED',
+}
+
 export interface ItemCalculationSummary {
-  status: 'PENDING_RULE' | 'PENDING_DATA' | 'UNSUPPORTED' | 'CALCULATED'
+  status: `${CalculationStatusCode}`
   reason?: string
   runId?: string
   engineVersion?: string
   rule?: { id: string; version: number; legalBasis: string }
-  inputs: readonly { name: string; value?: string; source: string; treatment: 'INCLUDED' | 'EXCLUDED' | 'UNDECIDED'; reason?: string }[]
+  inputs: readonly { name: string; value?: string; source: string; treatment: `${CalculationInputTreatmentCode}`; reason?: string }[]
   steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
   result?: { base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
@@ -333,6 +401,8 @@ export interface DesktopApi {
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
   listFiscalProfiles(companyId: string): Promise<readonly FiscalProfileSummary[]>
+  listFiscalProfileSuggestions(companyId: string): Promise<readonly FiscalProfileSuggestion[]>
+  createSuggestedFiscalProfile(input: CreateSuggestedFiscalProfileInput): Promise<CreateSuggestedFiscalProfileResult>
   getBuiltinRulePack(): Promise<BuiltinRulePackSummary>
   createFiscalProfile(input: CreateFiscalProfileInput): Promise<FiscalProfileSummary>
   listSupplierProducts(companyId: string): Promise<readonly SupplierProductSummary[]>

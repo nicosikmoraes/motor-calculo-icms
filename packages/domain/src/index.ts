@@ -1,3 +1,5 @@
+export * from './fiscal-profile-evidence'
+export * from './registration-operations'
 export * from './app-error'
 export * from './document-occurrence-classifier'
 export * from './document-ingestion-classifier'

@@ -1,3 +1,5 @@
+import { AppError, AppErrorCode } from '@motor/domain'
+import { CalculationStatusCode } from '@motor/tax-engine'
 import { randomUUID } from 'node:crypto'
 import type { CalculationMemory } from '@motor/tax-engine'
 import type { SqliteDatabase } from './sqlite-database'
@@ -27,10 +29,10 @@ export class SqliteCalculationRepository {
 
   save(input: SaveCalculationRunInput): CalculationRunRecord {
     if (!input.requestId.trim() || !input.batchId.trim() || !input.documentId.trim() || !input.engineVersion.trim() || !input.items.length) {
-      throw new Error('Execução de cálculo incompleta.')
+      throw new AppError(AppErrorCode.CALCULATION_RUN_INCOMPLETE)
     }
     if (new Set(input.items.map((item) => item.itemNumber)).size !== input.items.length) {
-      throw new Error('Número de item repetido na execução de cálculo.')
+      throw new AppError(AppErrorCode.DUPLICATE_CALCULATION_ITEM)
     }
     return this.database.transaction(() => {
       const existing = this.findByRequest(input.requestId, input.documentId)
@@ -38,19 +40,19 @@ export class SqliteCalculationRepository {
         if (existing.batchId !== input.batchId || existing.engineVersion !== input.engineVersion
           || existing.previousRunId !== input.previousRunId
           || JSON.stringify(existing.items) !== JSON.stringify(input.items)) {
-          throw new Error('Solicitação de cálculo reutilizada com conteúdo diferente.')
+          throw new AppError(AppErrorCode.CALCULATION_REQUEST_CONFLICT)
         }
         return existing
       }
       const document = this.database.get<{ id: string }>(
         'SELECT id FROM documentos_fiscais WHERE id = ? AND lote_id = ?', input.documentId, input.batchId,
       )
-      if (!document) throw new Error('Documento não pertence ao lote informado.')
+      if (!document) throw new AppError(AppErrorCode.CALCULATION_DOCUMENT_MISMATCH)
       if (input.previousRunId) {
         const previous = this.database.get<{ id: string }>(
           'SELECT id FROM execucoes_calculo WHERE id = ? AND documento_id = ?', input.previousRunId, input.documentId,
         )
-        if (!previous) throw new Error('Execução anterior não pertence ao documento.')
+        if (!previous) throw new AppError(AppErrorCode.CALCULATION_PREVIOUS_RUN_MISMATCH)
       }
       const record: CalculationRunRecord = {
         id: randomUUID(), requestId: input.requestId, batchId: input.batchId,
@@ -68,9 +70,9 @@ export class SqliteCalculationRepository {
       )
       for (const item of record.items) {
         if (item.memory.schemaVersion !== 1
-          || (item.memory.status === 'CALCULATED' && (!item.memory.result || !item.memory.rule || !item.memory.steps.length))
-          || (item.memory.status !== 'CALCULATED' && item.memory.result)) {
-          throw new Error('Memória de cálculo inconsistente.')
+          || (item.memory.status === CalculationStatusCode.CALCULATED && (!item.memory.result || !item.memory.rule || !item.memory.steps.length))
+          || (item.memory.status !== CalculationStatusCode.CALCULATED && item.memory.result)) {
+          throw new AppError(AppErrorCode.CALCULATION_MEMORY_INCONSISTENT)
         }
         this.database.run(
           `INSERT INTO resultados_item_calculo

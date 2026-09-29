@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { RendererErrorMessage } from '../error-messages'
 import { computed, onMounted, ref, watch } from 'vue'
-import type { FiscalProfileSummary, SupplierProductSummary, WorkspaceState } from '@motor/contracts'
+import type { FiscalProfileSummary, FiscalProfileSuggestion, SupplierProductSummary, WorkspaceState } from '@motor/contracts'
 
 const workspace = ref<WorkspaceState>({ companies: [] })
 const companyId = ref('')
 const profiles = ref<readonly FiscalProfileSummary[]>([])
+const suggestions = ref<readonly FiscalProfileSuggestion[]>([])
+const showAllSuggestions = ref(false)
 const products = ref<readonly SupplierProductSummary[]>([])
 const name = ref('')
 const validFrom = ref(new Date().toISOString().slice(0, 10))
@@ -19,6 +21,7 @@ const success = ref('')
 
 const activeCompanies = computed(() => workspace.value.companies.filter((company) => company.active))
 const selectedCompany = computed(() => activeCompanies.value.find((company) => company.id === companyId.value))
+const visibleSuggestions = computed(() => showAllSuggestions.value ? suggestions.value : suggestions.value.slice(0, 10))
 const profileNames = computed(() => new Map(profiles.value.map((profile) => [profile.id, profile.name])))
 
 function displayDate(value: string): string {
@@ -34,16 +37,19 @@ async function loadCatalog(): Promise<void> {
   if (!companyId.value) {
     profiles.value = []
     products.value = []
+    suggestions.value = []
     return
   }
   const selected = companyId.value
-  const [loadedProfiles, loadedProducts] = await Promise.all([
+  const [loadedProfiles, loadedProducts, loadedSuggestions] = await Promise.all([
     window.desktopApi.listFiscalProfiles(selected),
     window.desktopApi.listSupplierProducts(selected),
+    window.desktopApi.listFiscalProfileSuggestions(selected),
   ])
   if (companyId.value === selected) {
     profiles.value = loadedProfiles
     products.value = loadedProducts
+    suggestions.value = loadedSuggestions
   }
 }
 
@@ -62,6 +68,24 @@ async function createProfile(): Promise<void> {
     selectedProfileId.value = created.id
     await loadCatalog()
     success.value = `Perfil ${created.name} cadastrado.`
+  } catch (cause) {
+    error.value = message(cause)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function createSuggestedProfile(suggestion: FiscalProfileSuggestion): Promise<void> {
+  error.value = ''
+  success.value = ''
+  busy.value = true
+  try {
+    const result = await window.desktopApi.createSuggestedFiscalProfile({
+      companyId: companyId.value, suggestionKey: suggestion.key,
+    })
+    selectedProfileId.value = result.profile.id
+    await loadCatalog()
+    success.value = `Perfil ${result.profile.name} criado e ${result.linkedProducts} produto(s) vinculado(s).`
   } catch (cause) {
     error.value = message(cause)
   } finally {
@@ -95,6 +119,7 @@ watch(companyId, () => {
   error.value = ''
   success.value = ''
   selectedProfileId.value = ''
+  showAllSuggestions.value = false
   void loadCatalog().catch((cause) => { error.value = message(cause) })
 })
 
@@ -114,7 +139,7 @@ onMounted(async () => {
       <div>
         <p class="eyebrow">Cadastros fiscais</p>
         <h2>Perfis fiscais</h2>
-        <p>Defina classificações por empresa e associe os produtos dos fornecedores. Esta etapa organiza os cadastros, sem calcular impostos.</p>
+        <p>O sistema sugere agrupamentos com dados das notas importadas. Revise antes de criar um perfil; esta etapa não calcula impostos.</p>
       </div>
       <div v-if="companyId" class="catalog-summary" aria-label="Resumo dos cadastros">
         <div><strong>{{ profiles.length }}</strong><span>perfis</span></div>
@@ -154,14 +179,40 @@ onMounted(async () => {
         <small>{{ selectedCompany?.cnpj }}</small>
       </div>
 
+      <section class="card suggestion-panel" aria-labelledby="suggestion-title">
+        <header class="records-heading">
+          <div>
+            <p class="eyebrow">A partir das notas importadas</p>
+            <h3 id="suggestion-title">Sugestões de perfis</h3>
+          </div>
+          <span class="count-badge">{{ suggestions.length }}</span>
+        </header>
+        <p class="field-hint">Produtos ainda sem vínculo são agrupados quando NCM, CEST e origem informados nos XMLs são consistentes. Isso não confirma tratamento tributário. Confira a proposta antes de criar e vincular.</p>
+        <p v-if="!suggestions.length" class="records-empty">Nenhum grupo consistente de produtos sem vínculo foi encontrado nas notas desta empresa.</p>
+        <ul v-else class="suggestion-list">
+          <li v-for="suggestion in visibleSuggestions" :key="suggestion.key" class="suggestion-row">
+            <div class="suggestion-copy">
+              <strong>{{ suggestion.name }}</strong>
+              <span>{{ suggestion.products.length }} produto(s) · {{ suggestion.documentCount }} nota(s) · desde {{ displayDate(suggestion.validFrom) }}</span>
+              <details>
+                <summary>Conferir produtos</summary>
+                <ul><li v-for="product in suggestion.products" :key="`${product.supplierCnpj}:${product.productCode}`">{{ product.productCode }} · {{ product.supplierCnpj }}<span v-if="product.description"> · {{ product.description }}</span></li></ul>
+              </details>
+            </div>
+            <button class="button secondary" type="button" :disabled="busy" @click="createSuggestedProfile(suggestion)">Criar perfil e vincular</button>
+          </li>
+        </ul>
+        <button v-if="suggestions.length > 10" class="button secondary" type="button" @click="showAllSuggestions = !showAllSuggestions">{{ showAllSuggestions ? 'Mostrar menos' : `Mostrar todas (${suggestions.length})` }}</button>
+      </section>
+
       <div class="editor-grid">
         <article class="editor-card card">
           <div class="editor-heading">
             <span class="step-number" aria-hidden="true">02</span>
             <div>
               <p class="eyebrow">Classificação</p>
-              <h3>Criar perfil fiscal</h3>
-              <p>Nomeie o perfil e defina quando ele é válido.</p>
+              <h3>Criar perfil manualmente</h3>
+              <p>Use este formulário se nenhuma sugestão representar o agrupamento desejado.</p>
             </div>
           </div>
           <form class="catalog-form" @submit.prevent="createProfile">
@@ -206,7 +257,7 @@ onMounted(async () => {
             <div><p class="eyebrow">Biblioteca da empresa</p><h3 id="profiles-title">Perfis cadastrados</h3></div>
             <span class="count-badge">{{ profiles.length }}</span>
           </header>
-          <p v-if="!profiles.length" class="records-empty">Nenhum perfil cadastrado. Comece pelo formulário acima.</p>
+          <p v-if="!profiles.length" class="records-empty">Nenhum perfil cadastrado. Confirme uma sugestão ou use o formulário manual.</p>
           <ul v-else class="record-list">
             <li v-for="profile in profiles" :key="profile.id" class="profile-row">
               <span class="record-mark" aria-hidden="true">P</span>
@@ -295,4 +346,15 @@ onMounted(async () => {
   .product-row { align-items: flex-start; flex-wrap: wrap; }
   .product-row .profile-chip { max-width: 100%; margin-left: 45px; text-align: left; }
 }
+
+.suggestion-panel { margin-bottom: 22px; padding: 22px; }
+.suggestion-panel > .field-hint { margin: 10px 0 16px; max-width: 780px; }
+.suggestion-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.suggestion-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 14px; border: 1px solid #e0e7f2; border-radius: 10px; }
+.suggestion-copy { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.suggestion-copy > span { color: #68778b; font-size: 12px; }
+.suggestion-copy details { font-size: 12px; }
+.suggestion-copy details ul { margin: 7px 0 0; padding-left: 18px; }
+.suggestion-row .button { flex: none; }
+@media (max-width: 680px) { .suggestion-row { flex-direction: column; } }
 </style>

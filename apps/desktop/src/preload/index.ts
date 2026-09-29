@@ -8,6 +8,7 @@ import {
   type BatchListItem,
   type CompanySummary,
   type FiscalProfileSummary,
+  type FiscalProfileSuggestion, type CreateSuggestedFiscalProfileResult,
   type BuiltinRulePackSummary,
   type SupplierProductSummary,
   type CreatedBatchSummary,
@@ -30,6 +31,10 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_COMPANY, input) as Promise<CompanySummary>,
   listFiscalProfiles: (companyId) =>
     ipcRenderer.invoke(IPC_CHANNELS.LIST_FISCAL_PROFILES, companyId) as Promise<readonly FiscalProfileSummary[]>,
+  listFiscalProfileSuggestions: (companyId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_FISCAL_PROFILE_SUGGESTIONS, companyId) as Promise<readonly FiscalProfileSuggestion[]>,
+  createSuggestedFiscalProfile: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_SUGGESTED_FISCAL_PROFILE, { ...input }) as Promise<CreateSuggestedFiscalProfileResult>,
   getBuiltinRulePack: () =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_BUILTIN_RULE_PACK) as Promise<BuiltinRulePackSummary>,
   createFiscalProfile: (input) =>

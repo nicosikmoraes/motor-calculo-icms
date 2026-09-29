@@ -317,7 +317,7 @@ ingestão prontos para receber a implementação.
 - [x] desenhar os repositórios de organização e empresa a partir do modelo aprovado;
 - [x] implementar onboarding de organização única e tela persistente de empresa;
 - [x] implementar cadastro inicial de perfil fiscal e produto de fornecedor;
-- [ ] definir casos de uso sem detalhes de SQLite;
+- [x] definir casos de uso sem detalhes de SQLite;
 - [x] validar CNPJ, UF e identificadores normalizados no domínio;
 - [x] validar as datas e a vigência inicial dos perfis fiscais.
 

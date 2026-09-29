@@ -55,9 +55,16 @@ inicial da empresa.
 
 ### 2.2 Criar perfis fiscais
 
-Na tela **Perfis fiscais**, escolha a empresa, informe um nome e a vigência do perfil.
-Nesta primeira entrega, o perfil é apenas cadastral: NCM, CEST, finalidade,
-condições de regra e alíquotas ainda não são definidos nele. Para notas antigas,
+Na tela **Perfis fiscais**, escolha a empresa. O aplicativo propõe perfis a partir
+de produtos ainda sem vínculo nas notas importadas e elegíveis, agrupando apenas
+itens com NCM, CEST e origem consistentes. Confira os produtos e confirme a
+proposta para criar o perfil e vinculá-los em uma única operação. Itens com dados
+ausentes ou divergentes permanecem para análise manual.
+
+Nesta entrega, o perfil é um agrupamento cadastral com nome e vigência: ele ajuda
+a localizar o vínculo do produto e poderá participar da seleção de regras futuras.
+A proposta não define alíquota, benefício ou tratamento tributário, e não calcula
+impostos. Também é possível criar um perfil manualmente. Para notas antigas,
 escolha um início de vigência que cubra a data de emissão.
 
 ### 2.3 Vincular produtos de fornecedores
@@ -66,8 +73,8 @@ Associe `CNPJ do fornecedor + código do produto` ao perfil da empresa. Isso pod
 ser feito manualmente em **Perfis fiscais** ou pelo botão **Vincular** no item do
 detalhe de um lote. O detalhe mostrará **Classificado**, **Pendente** ou **Fora
 da vigência**. Alterar um vínculo atualiza a classificação exibida em lotes
-anteriores; não altera o XML nem calcula tributos. Sugestões automáticas e
-histórico versionado dos vínculos ficam para entregas posteriores.
+anteriores; não altera o XML nem calcula tributos. O histórico versionado dos
+vínculos fica para uma entrega posterior.
 
 ### 2.4 Cadastrar regras
 

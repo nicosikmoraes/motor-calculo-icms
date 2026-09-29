@@ -24,6 +24,11 @@ Decisões de produto confirmadas em 28/09/2026. Este plano não define fórmula,
 6. **Retenção:** executar limpeza na abertura, diariamente durante uso e após restauração. Preservar um registro técnico de execução da limpeza sem valores cadastrais removidos. O mecanismo de restauração será conectado quando MD-10 for implementado.
 7. **Verificação:** cobrir criação, edição, inativação, reativação, rollback conjunto, conflito de revisão, histórico preservado, consulta e expurgo no limite exato de seis meses. Rodar `pnpm check`.
 
+## Progresso técnico
+
+- Passo 1: contratos de revisão esperada e erros distinguíveis preparados no domínio e nos contratos IPC. A revisão ainda não é lida nem gravada até a migration do passo 3.
+- Passo 2: operações existentes de organização, empresa, perfil fiscal e produto de fornecedor extraídas dos handlers IPC para casos de uso com portas de persistência. Edição, inativação e reativação serão conectadas após o schema de revisão e auditoria.
+
 ## Critério de conclusão
 
 Os quatro cadastros podem ser criados, consultados, editados quando permitido, inativados e reativados por contratos de caso de uso; cada mudança concluída aparece uma vez na auditoria e nenhuma falha aparece como mudança. Conflitos de edição não sobrescrevem dados, resultados anteriores ficam intactos, e a limpeza respeita seis meses. O schema de regras versionadas é o incremento seguinte, sem bloquear esta entrega.

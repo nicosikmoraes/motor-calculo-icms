@@ -1,10 +1,23 @@
-export type CalculationStatus = 'PENDING_RULE' | 'PENDING_DATA' | 'UNSUPPORTED' | 'CALCULATED'
+import { CalculationError, CalculationErrorCode } from './calculation-error'
+export enum CalculationStatusCode {
+  PENDING_RULE = 'PENDING_RULE',
+  PENDING_DATA = 'PENDING_DATA',
+  UNSUPPORTED = 'UNSUPPORTED',
+  CALCULATED = 'CALCULATED',
+}
+export type CalculationStatus = `${CalculationStatusCode}`
+
+export enum CalculationInputTreatmentCode {
+  INCLUDED = 'INCLUDED',
+  EXCLUDED = 'EXCLUDED',
+  UNDECIDED = 'UNDECIDED',
+}
 
 export interface CalculationInput {
   name: string
   value?: string
   source: string
-  treatment: 'INCLUDED' | 'EXCLUDED' | 'UNDECIDED'
+  treatment: `${CalculationInputTreatmentCode}`
   reason?: string
 }
 
@@ -28,12 +41,12 @@ export interface CalculationMemory {
 }
 
 export function pendingCalculation(
-  status: Exclude<CalculationStatus, 'CALCULATED'>,
+  status: Exclude<CalculationStatus, `${CalculationStatusCode.CALCULATED}`>,
   reason: string,
   inputs: readonly CalculationInput[] = [],
   declared?: CalculationMemory['declared'],
 ): CalculationMemory {
-  if (!reason.trim()) throw new Error('Uma pendência de cálculo precisa de motivo.')
+  if (!reason.trim()) throw new CalculationError(CalculationErrorCode.MISSING_PENDING_REASON)
   return {
     schemaVersion: 1,
     status,
