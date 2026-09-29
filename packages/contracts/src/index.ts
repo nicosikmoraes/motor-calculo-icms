@@ -38,6 +38,37 @@ export interface WorkspaceState {
   companies: readonly CompanySummary[]
 }
 
+/** Contrato de edição versionada, usado quando a migration de revisões estiver ativa. */
+export interface RegistrationMutationInput {
+  id: string
+  expectedRevision: number
+}
+
+export interface RegistrationMutationResult {
+  id: string
+  revision: number
+}
+
+export interface UpdateOrganizationRegistrationInput extends RegistrationMutationInput {
+  name: string
+}
+
+export interface UpdateCompanyRegistrationInput extends RegistrationMutationInput {
+  legalName: string
+  tradeName?: string
+  state: string
+}
+
+export interface UpdateFiscalProfileRegistrationInput extends RegistrationMutationInput {
+  name: string
+  validFrom: string
+  validUntil?: string
+}
+
+export interface UpdateSupplierProductRegistrationInput extends RegistrationMutationInput {
+  profileId: string
+}
+
 export interface CreateOrganizationInput {
   name: string
 }
@@ -277,13 +308,26 @@ export interface FiscalItemSummary {
   calculation: ItemCalculationSummary
 }
 
+export enum CalculationStatusCode {
+  PENDING_RULE = 'PENDING_RULE',
+  PENDING_DATA = 'PENDING_DATA',
+  UNSUPPORTED = 'UNSUPPORTED',
+  CALCULATED = 'CALCULATED',
+}
+
+export enum CalculationInputTreatmentCode {
+  INCLUDED = 'INCLUDED',
+  EXCLUDED = 'EXCLUDED',
+  UNDECIDED = 'UNDECIDED',
+}
+
 export interface ItemCalculationSummary {
-  status: 'PENDING_RULE' | 'PENDING_DATA' | 'UNSUPPORTED' | 'CALCULATED'
+  status: `${CalculationStatusCode}`
   reason?: string
   runId?: string
   engineVersion?: string
   rule?: { id: string; version: number; legalBasis: string }
-  inputs: readonly { name: string; value?: string; source: string; treatment: 'INCLUDED' | 'EXCLUDED' | 'UNDECIDED'; reason?: string }[]
+  inputs: readonly { name: string; value?: string; source: string; treatment: `${CalculationInputTreatmentCode}`; reason?: string }[]
   steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
   result?: { base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }

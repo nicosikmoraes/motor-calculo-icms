@@ -1,3 +1,4 @@
+import { CalculationError, CalculationErrorCode } from './calculation-error'
 import Decimal from 'decimal.js'
 
 // Entradas fiscais chegam como texto. Este limite impede números desproporcionais
@@ -10,16 +11,16 @@ export type FiscalDecimalText = string
 
 function parse(value: string): Decimal {
   if (!DECIMAL_PATTERN.test(value) || value.replace(/\D/g, '').length > MAX_DIGITS) {
-    throw new Error('Valor decimal fiscal inválido ou acima do limite de precisão.')
+    throw new CalculationError(CalculationErrorCode.INVALID_DECIMAL)
   }
   return new FiscalDecimal(value)
 }
 
 function canonical(value: Decimal): FiscalDecimalText {
-  if (!value.isFinite()) throw new Error('Resultado decimal fiscal inválido.')
+  if (!value.isFinite()) throw new CalculationError(CalculationErrorCode.INVALID_DECIMAL_RESULT)
   const result = value.toFixed()
   if (result.replace(/\D/g, '').length > MAX_DIGITS) {
-    throw new Error('Resultado decimal fiscal acima do limite de precisão.')
+    throw new CalculationError(CalculationErrorCode.DECIMAL_PRECISION_EXCEEDED)
   }
   return result === '-0' ? '0' : result
 }
