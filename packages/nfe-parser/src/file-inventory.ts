@@ -1,11 +1,21 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 
-export type InventorySourceKind = 'XML' | 'ZIP' | 'UNKNOWN'
-export type InventoryOriginKind = 'SELECTED_FILE' | 'FOLDER_FILE' | 'ZIP_ENTRY'
-
+export enum InventorySourceKindCode {
+  XML = 'XML',
+  ZIP = 'ZIP',
+  UNKNOWN = 'UNKNOWN',
+}
+export type InventorySourceKind = `${InventorySourceKindCode}`
+export enum InventoryOriginKindCode {
+  SELECTED_FILE = 'SELECTED_FILE',
+  FOLDER_FILE = 'FOLDER_FILE',
+  ZIP_ENTRY = 'ZIP_ENTRY',
+}
+export type InventoryOriginKind = `${InventoryOriginKindCode}`
 export interface BatchProvenance {
   batchId: string
   receivedAt: string
@@ -75,7 +85,7 @@ export function normalizeInventoryPath(input: string): string {
     segments.length === 0 ||
     segments.some((segment) => segment === '..')
   ) {
-    throw new Error(`Caminho relativo inválido para inventário: ${input}.`)
+    throw new AppError(AppErrorCode.INVALID_INVENTORY_PATH, { path: input })
   }
 
   return segments.join('/')
@@ -187,7 +197,7 @@ export function inventoryContents(
 
 async function inspectLocalFile(source: LocalInventorySource): Promise<InspectedCandidate> {
   const metadata = await stat(source.absolutePath)
-  if (!metadata.isFile()) throw new Error(`A origem não é um arquivo: ${source.absolutePath}.`)
+  if (!metadata.isFile()) throw new AppError(AppErrorCode.INVENTORY_SOURCE_NOT_FILE, { path: source.absolutePath })
 
   const hash = createHash('sha256')
   const prefix = Buffer.alloc(512)
@@ -210,7 +220,7 @@ async function inspectLocalFile(source: LocalInventorySource): Promise<Inspected
     metadataAfterRead.mtimeMs !== metadata.mtimeMs ||
     metadataAfterRead.ino !== metadata.ino
   ) {
-    throw new Error(`O arquivo foi alterado durante o inventário: ${source.absolutePath}.`)
+    throw new AppError(AppErrorCode.INVENTORY_SOURCE_CHANGED, { path: source.absolutePath })
   }
 
   return {

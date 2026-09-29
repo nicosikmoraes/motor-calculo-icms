@@ -4,6 +4,7 @@ import {
   type BatchPreparation,
   type BatchOperationProgress,
   type BatchDetail,
+  type RuleAssessmentRunSummary,
   type BatchListItem,
   type CompanySummary,
   type FiscalProfileSummary,
@@ -59,8 +60,10 @@ const api: DesktopApi = {
   },
   listBatches: () =>
     ipcRenderer.invoke(IPC_CHANNELS.LIST_BATCHES) as Promise<readonly BatchListItem[]>,
-  getBatchDetail: (batchId) =>
-    ipcRenderer.invoke(IPC_CHANNELS.GET_BATCH_DETAIL, batchId) as Promise<BatchDetail>,
+  getBatchDetail: (batchId, runId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_BATCH_DETAIL, batchId, runId) as Promise<BatchDetail>,
+  reassessBatchRules: (batchId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.REASSESS_BATCH_RULES, batchId) as Promise<RuleAssessmentRunSummary>,
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

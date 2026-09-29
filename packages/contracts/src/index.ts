@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   BATCH_PROGRESS: 'batch:progress',
   LIST_BATCHES: 'batch:list',
   GET_BATCH_DETAIL: 'batch:get-detail',
+  REASSESS_BATCH_RULES: 'batch:reassess-rules',
 } as const
 
 export interface OrganizationSummary {
@@ -82,8 +83,11 @@ export interface SaveSupplierProductInput {
   profileId: string
 }
 
-export type SourceKind = 'XML' | 'ZIP'
-
+export enum SourceKindCode {
+  XML = 'XML',
+  ZIP = 'ZIP',
+}
+export type SourceKind = `${SourceKindCode}`
 export interface SelectedSource {
   path: string
   kind: SourceKind
@@ -129,9 +133,16 @@ export interface CreateBatchInput {
   sources: readonly SelectedSource[]
 }
 
+export enum BatchOperationPhaseCode {
+  INSPECTING = 'INSPECTING',
+  PROCESSING = 'PROCESSING',
+  SAVING = 'SAVING',
+  CANCELLING = 'CANCELLING',
+}
+
 export interface BatchOperationProgress {
   operationId: string
-  phase: 'INSPECTING' | 'PROCESSING' | 'SAVING' | 'CANCELLING'
+  phase: `${BatchOperationPhaseCode}`
   completed: number
   total: number
   currentSource?: string
@@ -175,22 +186,42 @@ export interface BatchDiagnosticSummary {
   message: string
 }
 
-export type ItemClassificationReason =
-  | 'COMPANY_MISSING'
-  | 'ISSUER_CNPJ_MISSING'
-  | 'PRODUCT_CODE_MISSING'
-  | 'PRODUCT_NOT_LINKED'
-  | 'PROFILE_NOT_FOUND'
-  | 'ISSUE_DATE_MISSING'
-  | 'PROFILE_NOT_YET_VALID'
-  | 'PROFILE_EXPIRED'
-  | 'PROFILE_ACTIVE'
+export enum ItemClassificationReasonCode {
+  COMPANY_MISSING = 'COMPANY_MISSING',
+  ISSUER_CNPJ_MISSING = 'ISSUER_CNPJ_MISSING',
+  PRODUCT_CODE_MISSING = 'PRODUCT_CODE_MISSING',
+  PRODUCT_NOT_LINKED = 'PRODUCT_NOT_LINKED',
+  PROFILE_NOT_FOUND = 'PROFILE_NOT_FOUND',
+  ISSUE_DATE_MISSING = 'ISSUE_DATE_MISSING',
+  PROFILE_NOT_YET_VALID = 'PROFILE_NOT_YET_VALID',
+  PROFILE_EXPIRED = 'PROFILE_EXPIRED',
+  PROFILE_ACTIVE = 'PROFILE_ACTIVE',
+}
+export type ItemClassificationReason = `${ItemClassificationReasonCode}`
+export enum FiscalRuleStatusCode {
+  DRAFT = 'DRAFT',
+  APPROVED = 'APPROVED',
+  REVOKED = 'REVOKED',
+}
+
+export enum RuleAssessmentKindCode {
+  SELECTED = 'SELECTED',
+  AMBIGUOUS = 'AMBIGUOUS',
+  DRAFT_MATCH = 'DRAFT_MATCH',
+  NO_MATCH = 'NO_MATCH',
+}
+
+export enum FiscalItemClassificationCode {
+  CLASSIFICADO = 'CLASSIFICADO',
+  PENDENTE = 'PENDENTE',
+  FORA_DA_VIGENCIA = 'FORA_DA_VIGENCIA',
+}
 
 export interface BuiltinRuleSummary {
   id: string
   version: number
   name: string
-  status: 'DRAFT' | 'APPROVED' | 'REVOKED'
+  status: `${FiscalRuleStatusCode}`
   validFrom: string
   validUntil?: string
   legalBasis: string
@@ -221,16 +252,19 @@ export interface RuleEvaluationSummary {
 export interface ItemRuleAssessment {
   packId: string
   packVersion: number
-  kind: 'SELECTED' | 'AMBIGUOUS' | 'DRAFT_MATCH' | 'NO_MATCH'
+  assessedAt: string
+  context: Readonly<Record<string, string>>
+  kind: `${RuleAssessmentKindCode}`
   selectedRuleId?: string
   evaluated: readonly RuleEvaluationSummary[]
 }
 
 export interface FiscalItemSummary {
   itemNumber: string
-  classification: 'CLASSIFICADO' | 'PENDENTE' | 'FORA_DA_VIGENCIA'
+  classification: `${FiscalItemClassificationCode}`
   classificationReason: ItemClassificationReason
-  ruleAssessment: ItemRuleAssessment
+  ruleAssessment?: ItemRuleAssessment
+  originalRuleAssessment?: ItemRuleAssessment
   profileValidFrom?: string
   profileValidUntil?: string
   fiscalProfileName?: string
@@ -274,11 +308,22 @@ export interface FiscalDocumentSummary {
   items: readonly FiscalItemSummary[]
 }
 
+export interface RuleAssessmentRunSummary {
+  id: string
+  number: number
+  packId: string
+  packVersion: number
+  assessedAt: string
+  itemCount: number
+}
+
 export interface BatchDetail {
   batch: BatchListItem
   occurrences: readonly BatchOccurrenceSummary[]
   diagnostics: readonly BatchDiagnosticSummary[]
   documents: readonly FiscalDocumentSummary[]
+  ruleAssessmentRuns: readonly RuleAssessmentRunSummary[]
+  originalAssessmentPack?: { id: string; version: number }
 }
 
 export interface DesktopApi {
@@ -298,5 +343,6 @@ export interface DesktopApi {
   cancelBatchOperation(operationId: string): Promise<boolean>
   onBatchProgress(listener: (progress: BatchOperationProgress) => void): () => void
   listBatches(): Promise<readonly BatchListItem[]>
-  getBatchDetail(batchId: string): Promise<BatchDetail>
+  getBatchDetail(batchId: string, runId?: string): Promise<BatchDetail>
+  reassessBatchRules(batchId: string): Promise<RuleAssessmentRunSummary>
 }

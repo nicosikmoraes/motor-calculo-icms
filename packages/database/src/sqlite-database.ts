@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { resolve } from 'node:path'
 import { stat } from 'node:fs/promises'
 import { DatabaseSync, backup, type SQLInputValue } from 'node:sqlite'
@@ -14,7 +15,7 @@ export class SqliteDatabase {
   constructor(path: string, options: SqliteDatabaseOptions = {}) {
     const timeout = options.timeoutMilliseconds ?? 5_000
     if (!Number.isSafeInteger(timeout) || timeout < 0) {
-      throw new Error('timeoutMilliseconds deve ser um inteiro não negativo.')
+      throw new AppError(AppErrorCode.INVALID_SQLITE_TIMEOUT)
     }
 
     this.#connection = new DatabaseSync(path, {
@@ -37,7 +38,7 @@ export class SqliteDatabase {
     if (foreignKeys?.foreign_keys !== 1) {
       this.#connection.close()
       this.#closed = true
-      throw new Error('Não foi possível habilitar as chaves estrangeiras do SQLite.')
+      throw new AppError(AppErrorCode.FOREIGN_KEYS_DISABLED)
     }
   }
 
@@ -74,7 +75,7 @@ export class SqliteDatabase {
   transaction<T>(operation: () => T): T {
     this.#assertOpen()
     if (this.#connection.isTransaction) {
-      throw new Error('Transações aninhadas não são permitidas.')
+      throw new AppError(AppErrorCode.NESTED_TRANSACTION)
     }
 
     this.#connection.exec('BEGIN IMMEDIATE')
@@ -91,14 +92,14 @@ export class SqliteDatabase {
   async backupTo(destinationPath: string): Promise<void> {
     this.#assertOpen()
     const sourcePath = this.#connection.location()
-    if (!sourcePath) throw new Error('Banco em memória não pode gerar backup persistente.')
+    if (!sourcePath) throw new AppError(AppErrorCode.MEMORY_BACKUP_UNSUPPORTED)
     if (resolve(sourcePath) === resolve(destinationPath)) {
-      throw new Error('O backup não pode sobrescrever o banco de origem.')
+      throw new AppError(AppErrorCode.BACKUP_SAME_PATH)
     }
 
     try {
       await stat(destinationPath)
-      throw new Error('O destino do backup já existe e não será sobrescrito.')
+      throw new AppError(AppErrorCode.BACKUP_DEST_EXISTS)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
@@ -111,7 +112,7 @@ export class SqliteDatabase {
         | { integrity_check?: unknown }
         | undefined
       if (row?.integrity_check !== 'ok') {
-        throw new Error('O backup SQLite criado não passou na verificação de integridade.')
+        throw new AppError(AppErrorCode.BACKUP_INTEGRITY_FAILED)
       }
     } finally {
       validation.close()
@@ -126,6 +127,6 @@ export class SqliteDatabase {
   }
 
   #assertOpen(): void {
-    if (this.#closed) throw new Error('A conexão SQLite está fechada.')
+    if (this.#closed) throw new AppError(AppErrorCode.SQLITE_CONNECTION_CLOSED)
   }
 }

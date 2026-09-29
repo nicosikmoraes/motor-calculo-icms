@@ -1,3 +1,4 @@
+import { FiscalRuleStatusCode } from './rule-selector'
 import type { FiscalRule } from './rule-selector'
 
 /**
@@ -13,7 +14,7 @@ export const BUILTIN_ICMS_OWN_PACK = {
       id: 'pr-interna-cfop-5102-cst-00',
       version: 1,
       name: 'PR interna · revenda comum · proposta',
-      status: 'DRAFT',
+      status: FiscalRuleStatusCode.DRAFT,
       reviewStage: 'CONDITIONS_AND_RATE_APPROVED',
       reviewedOn: '2026-09-25',
       level: 'DEFAULT_OPERATION',
@@ -33,7 +34,7 @@ export const BUILTIN_ICMS_OWN_PACK = {
       id: 'pr-sp-cfop-6102-cst-00',
       version: 1,
       name: 'PR → SP · revenda comum · proposta',
-      status: 'DRAFT',
+      status: FiscalRuleStatusCode.DRAFT,
       reviewStage: 'CONDITIONS_AND_RATE_APPROVED',
       reviewedOn: '2026-09-25',
       level: 'DEFAULT_OPERATION',
@@ -53,7 +54,7 @@ export const BUILTIN_ICMS_OWN_PACK = {
       id: 'pr-ba-cfop-6102-cst-00',
       version: 1,
       name: 'PR → BA · revenda comum · proposta',
-      status: 'DRAFT',
+      status: FiscalRuleStatusCode.DRAFT,
       reviewStage: 'CONDITIONS_AND_RATE_APPROVED',
       reviewedOn: '2026-09-25',
       level: 'DEFAULT_OPERATION',

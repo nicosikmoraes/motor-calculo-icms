@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { onMounted, ref } from 'vue'
 import type { BuiltinRulePackSummary } from '@motor/contracts'
 
@@ -15,7 +16,7 @@ onMounted(async () => {
   try {
     pack.value = await window.desktopApi.getBuiltinRulePack()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar o pacote de regras.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.RULE_PACK_LOAD
   }
 })
 </script>

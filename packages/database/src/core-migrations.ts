@@ -6,6 +6,8 @@ import ingestionEligibilitySql from '../migrations/0005_elegibilidade_ingestao.s
 import companyPerDocumentSql from '../migrations/0006_empresa_por_documento.sql?raw'
 import supplierProfilesSql from '../migrations/0007_perfis_produtos_fornecedor.sql?raw'
 import calculationRunsSql from '../migrations/0008_execucoes_calculo.sql?raw'
+import historicalRuleAssessmentSql from '../migrations/0009_avaliacao_regras_historica.sql?raw'
+import ruleAssessmentRunsSql from '../migrations/0010_execucoes_avaliacao_regras.sql?raw'
 import { createSqlMigration, type SqlMigration } from './migrations'
 
 export const CORE_MIGRATIONS: readonly SqlMigration[] = [
@@ -56,5 +58,17 @@ export const CORE_MIGRATIONS: readonly SqlMigration[] = [
     name: 'execucoes_calculo',
     fileName: '0008_execucoes_calculo.sql',
     sql: calculationRunsSql,
+  }),
+  createSqlMigration({
+    version: 9,
+    name: 'avaliacao_regras_historica',
+    fileName: '0009_avaliacao_regras_historica.sql',
+    sql: historicalRuleAssessmentSql,
+  }),
+  createSqlMigration({
+    version: 10,
+    name: 'execucoes_avaliacao_regras',
+    fileName: '0010_execucoes_avaliacao_regras.sql',
+    sql: ruleAssessmentRunsSql,
   }),
 ]

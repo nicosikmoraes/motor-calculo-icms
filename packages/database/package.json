@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@motor/domain": "workspace:*",
+    "@motor/contracts": "workspace:*",
     "@motor/tax-engine": "workspace:*"
   },
   "scripts": {

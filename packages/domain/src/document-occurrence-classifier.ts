@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from './app-error'
 export interface DocumentOccurrenceIdentity {
   occurrenceId: string
   batchId: string
@@ -6,17 +7,24 @@ export interface DocumentOccurrenceIdentity {
   contentHash: string
 }
 
-export type RepetitionClassification = 'ORIGINAL' | 'REPETIDA' | 'NAO_CLASSIFICAVEL'
-export type ContentConflictClassification =
-  | 'SEM_CONFLITO'
-  | 'CONFLITO_CONTEUDO'
-  | 'NAO_CLASSIFICAVEL'
-
-export type OccurrencePolicyExclusionReason =
-  | 'REPETIDA'
-  | 'CONFLITO_CONTEUDO'
-  | 'CHAVE_ACESSO_AUSENTE'
-
+export enum RepetitionClassificationCode {
+  ORIGINAL = 'ORIGINAL',
+  REPETIDA = 'REPETIDA',
+  NAO_CLASSIFICAVEL = 'NAO_CLASSIFICAVEL',
+}
+export type RepetitionClassification = `${RepetitionClassificationCode}`
+export enum ContentConflictClassificationCode {
+  SEM_CONFLITO = 'SEM_CONFLITO',
+  CONFLITO_CONTEUDO = 'CONFLITO_CONTEUDO',
+  NAO_CLASSIFICAVEL = 'NAO_CLASSIFICAVEL',
+}
+export type ContentConflictClassification = `${ContentConflictClassificationCode}`
+export enum OccurrencePolicyExclusionReasonCode {
+  REPETIDA = 'REPETIDA',
+  CONFLITO_CONTEUDO = 'CONFLITO_CONTEUDO',
+  CHAVE_ACESSO_AUSENTE = 'CHAVE_ACESSO_AUSENTE',
+}
+export type OccurrencePolicyExclusionReason = `${OccurrencePolicyExclusionReasonCode}`
 export interface ClassifiedDocumentOccurrence extends DocumentOccurrenceIdentity {
   repetition: RepetitionClassification
   contentConflict: ContentConflictClassification
@@ -45,14 +53,14 @@ function compareOccurrences(left: PreparedOccurrence, right: PreparedOccurrence)
 
 function requiredText(value: string, field: string): string {
   const normalized = value.trim()
-  if (!normalized) throw new Error(`${field} deve ser informado.`)
+  if (!normalized) throw new AppError(AppErrorCode.REQUIRED_FIELD, { field })
   return normalized
 }
 
 function normalizeHash(value: string): string {
   const normalized = requiredText(value, 'contentHash').toLowerCase()
   if (!/^[a-f0-9]{64}$/.test(normalized)) {
-    throw new Error('contentHash deve ser um SHA-256 hexadecimal com 64 caracteres.')
+    throw new AppError(AppErrorCode.INVALID_CONTENT_HASH)
   }
   return normalized
 }
@@ -65,12 +73,12 @@ function prepare(
   return occurrences.map((occurrence) => {
     const occurrenceId = requiredText(occurrence.occurrenceId, 'occurrenceId')
     if (ids.has(occurrenceId)) {
-      throw new Error(`occurrenceId repetido no classificador: ${occurrenceId}.`)
+      throw new AppError(AppErrorCode.DUPLICATE_OCCURRENCE_ID, { id: occurrenceId })
     }
     ids.add(occurrenceId)
 
     if (!Number.isSafeInteger(occurrence.order) || occurrence.order < 1) {
-      throw new Error(`order inválida para a ocorrência ${occurrenceId}.`)
+      throw new AppError(AppErrorCode.INVALID_OCCURRENCE_ORDER, { id: occurrenceId })
     }
 
     const normalizedAccessKey = occurrence.accessKey?.trim()
@@ -167,7 +175,7 @@ export function classifyDocumentOccurrences(
 
   return prepared.map((occurrence) => {
     const classified = result.get(occurrence.occurrenceId)
-    if (!classified) throw new Error(`Ocorrência não classificada: ${occurrence.occurrenceId}.`)
+    if (!classified) throw new AppError(AppErrorCode.UNCLASSIFIED_OCCURRENCE, { id: occurrence.occurrenceId })
     return classified
   })
 }

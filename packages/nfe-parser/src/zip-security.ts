@@ -1,3 +1,4 @@
+import { AppErrorCode, AppErrorMessage, AppTypeError } from '@motor/domain'
 import { stat } from 'node:fs/promises'
 import type { Readable } from 'node:stream'
 import { crc32 } from 'node:zlib'
@@ -22,21 +23,46 @@ export const PRODUCTION_ZIP_SECURITY_POLICY: Readonly<ZipSecurityPolicy> = Objec
   maxPathDepth: 20,
 })
 
-export type ZipSecurityErrorCode =
-  | 'ZIP_INVALID'
-  | 'ZIP_CRC_MISMATCH'
-  | 'ZIP_ARCHIVE_TOO_LARGE'
-  | 'ZIP_TOO_MANY_ENTRIES'
-  | 'ZIP_ENTRY_TOO_LARGE'
-  | 'ZIP_EXPANDED_CONTENT_TOO_LARGE'
-  | 'ZIP_COMPRESSION_RATIO_EXCEEDED'
-  | 'ZIP_PATH_UNSAFE'
-  | 'ZIP_ENCRYPTED'
-  | 'ZIP_SYMBOLIC_LINK'
+/** Códigos estáveis de rejeição do arquivo e de suas entradas. */
+export enum ZipSecurityErrorCode {
+  ZIP_INVALID = 'ZIP_INVALID',
+  ZIP_CRC_MISMATCH = 'ZIP_CRC_MISMATCH',
+  ZIP_ARCHIVE_TOO_LARGE = 'ZIP_ARCHIVE_TOO_LARGE',
+  ZIP_TOO_MANY_ENTRIES = 'ZIP_TOO_MANY_ENTRIES',
+  ZIP_ENTRY_TOO_LARGE = 'ZIP_ENTRY_TOO_LARGE',
+  ZIP_EXPANDED_CONTENT_TOO_LARGE = 'ZIP_EXPANDED_CONTENT_TOO_LARGE',
+  ZIP_COMPRESSION_RATIO_EXCEEDED = 'ZIP_COMPRESSION_RATIO_EXCEEDED',
+  ZIP_PATH_UNSAFE = 'ZIP_PATH_UNSAFE',
+  ZIP_ENCRYPTED = 'ZIP_ENCRYPTED',
+  ZIP_SYMBOLIC_LINK = 'ZIP_SYMBOLIC_LINK',
+}
+
+/** Textos exibidos para falhas de segurança e integridade do ZIP. */
+export enum ZipSecurityErrorMessage {
+  ENTRY_TOO_LARGE = 'Entrada ZIP excede o limite descomprimido: {fileName}.',
+  EXPANDED_TOO_LARGE = 'Conteúdo total descomprimido excede o limite do lote.',
+  CRC_MISMATCH = 'CRC-32 divergente na entrada: {fileName}.',
+  TOO_MANY_ENTRIES = 'ZIP excede o limite de {maxEntries} entradas.',
+  ENCRYPTED = 'Entrada ZIP criptografada não é aceita: {fileName}.',
+  SYMBOLIC_LINK = 'Link simbólico não é aceito no ZIP: {fileName}.',
+  PATH_UNSAFE = 'Caminho inseguro no ZIP: {fileName}.',
+  PATH_TOO_DEEP = 'Caminho excede a profundidade permitida no ZIP: {fileName}.',
+  COMPRESSION_RATIO = 'Taxa de compressão excessiva na entrada: {fileName}.',
+  ZIP_INVALID = 'ZIP inválido ou corrompido: {detail}',
+  ARCHIVE_TOO_LARGE = 'ZIP excede o limite de entrada.',
+  SOURCE_NOT_FILE = 'A origem não é um arquivo.',
+}
+
+function formatZipSecurityMessage(
+  message: ZipSecurityErrorMessage,
+  params: Readonly<Record<string, string | number>>,
+): string {
+  return message.replace(/\{(\w+)\}/g, (_, key: string) => String(params[key] ?? `{${key}}`))
+}
 
 export class ZipSecurityError extends Error {
   constructor(
-    readonly code: ZipSecurityErrorCode,
+    readonly code: `${ZipSecurityErrorCode}`,
     message: string,
     readonly entryName?: string,
   ) {
@@ -54,12 +80,12 @@ export interface InspectedZipEntry {
 }
 
 export type RejectedZipEntryCode =
-  | 'ZIP_CRC_MISMATCH'
-  | 'ZIP_ENTRY_TOO_LARGE'
-  | 'ZIP_COMPRESSION_RATIO_EXCEEDED'
-  | 'ZIP_PATH_UNSAFE'
-  | 'ZIP_ENCRYPTED'
-  | 'ZIP_SYMBOLIC_LINK'
+  | `${ZipSecurityErrorCode.ZIP_CRC_MISMATCH}`
+  | `${ZipSecurityErrorCode.ZIP_ENTRY_TOO_LARGE}`
+  | `${ZipSecurityErrorCode.ZIP_COMPRESSION_RATIO_EXCEEDED}`
+  | `${ZipSecurityErrorCode.ZIP_PATH_UNSAFE}`
+  | `${ZipSecurityErrorCode.ZIP_ENCRYPTED}`
+  | `${ZipSecurityErrorCode.ZIP_SYMBOLIC_LINK}`
 
 export interface RejectedZipEntry {
   entryName: string
@@ -91,8 +117,10 @@ export interface ZipVisitOptions {
 }
 
 export class ZipVisitCancelledError extends Error {
+  readonly code: AppErrorCode
   constructor() {
-    super('Leitura do ZIP cancelada.')
+    super(AppErrorMessage.ZIP_READ_CANCELLED)
+    this.code = AppErrorCode.ZIP_READ_CANCELLED
     this.name = 'ZipVisitCancelledError'
   }
 }
@@ -107,13 +135,11 @@ function assertPositivePolicy(policy: ZipSecurityPolicy): void {
   }
   for (const [name, value] of Object.entries(integerLimits)) {
     if (!Number.isSafeInteger(value) || value <= 0) {
-      throw new TypeError(`Limite ZIP inválido em ${name}: ${value}.`)
+      throw new AppTypeError(AppErrorCode.INVALID_ZIP_LIMIT, { name, value })
     }
   }
   if (!Number.isFinite(policy.maxCompressionRatio) || policy.maxCompressionRatio <= 0) {
-    throw new TypeError(
-      `Limite ZIP inválido em maxCompressionRatio: ${policy.maxCompressionRatio}.`,
-    )
+    throw new AppTypeError(AppErrorCode.INVALID_ZIP_LIMIT, { name: 'maxCompressionRatio', value: policy.maxCompressionRatio })
   }
 }
 
@@ -223,16 +249,16 @@ async function verifyEntryContents(
     if (actualEntryBytes > policy.maxEntryUncompressedBytes) {
       stream.destroy()
       throw new ZipSecurityError(
-        'ZIP_ENTRY_TOO_LARGE',
-        `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
+        ZipSecurityErrorCode.ZIP_ENTRY_TOO_LARGE,
+        formatZipSecurityMessage(ZipSecurityErrorMessage.ENTRY_TOO_LARGE, { fileName }),
         fileName,
       )
     }
     if (currentTotal + actualEntryBytes > policy.maxTotalUncompressedBytes) {
       stream.destroy()
       throw new ZipSecurityError(
-        'ZIP_EXPANDED_CONTENT_TOO_LARGE',
-        'Conteúdo total descomprimido excede o limite do lote.',
+        ZipSecurityErrorCode.ZIP_EXPANDED_CONTENT_TOO_LARGE,
+        ZipSecurityErrorMessage.EXPANDED_TOO_LARGE,
         fileName,
       )
     }
@@ -240,8 +266,8 @@ async function verifyEntryContents(
 
   if (actualCrc32 !== entry.crc32) {
     throw new ZipSecurityError(
-      'ZIP_CRC_MISMATCH',
-      `CRC-32 divergente na entrada: ${fileName}.`,
+      ZipSecurityErrorCode.ZIP_CRC_MISMATCH,
+      formatZipSecurityMessage(ZipSecurityErrorMessage.CRC_MISMATCH, { fileName }),
       fileName,
     )
   }
@@ -287,32 +313,32 @@ async function inspectOpenedZip(
       try {
         if (totalEntries > policy.maxEntries) {
           throw new ZipSecurityError(
-            'ZIP_TOO_MANY_ENTRIES',
-            `ZIP excede o limite de ${policy.maxEntries} entradas.`,
+            ZipSecurityErrorCode.ZIP_TOO_MANY_ENTRIES,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.TOO_MANY_ENTRIES, { maxEntries: policy.maxEntries }),
           )
         }
         const fileName = entryFileName(entry)
         totalUncompressedBytes += entry.uncompressedSize
         if (totalUncompressedBytes > policy.maxTotalUncompressedBytes) {
           throw new ZipSecurityError(
-            'ZIP_EXPANDED_CONTENT_TOO_LARGE',
-            'Conteúdo total descomprimido excede o limite do lote.',
+            ZipSecurityErrorCode.ZIP_EXPANDED_CONTENT_TOO_LARGE,
+            ZipSecurityErrorMessage.EXPANDED_TOO_LARGE,
             fileName,
           )
         }
         if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
           rejectEntry(
             fileName,
-            'ZIP_ENCRYPTED',
-            `Entrada ZIP criptografada não é aceita: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_ENCRYPTED,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.ENCRYPTED, { fileName }),
           )
           continue
         }
         if (isSymbolicLink(entry)) {
           rejectEntry(
             fileName,
-            'ZIP_SYMBOLIC_LINK',
-            `Link simbólico não é aceito no ZIP: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_SYMBOLIC_LINK,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.SYMBOLIC_LINK, { fileName }),
           )
           continue
         }
@@ -323,16 +349,16 @@ async function inspectOpenedZip(
         } catch {
           rejectEntry(
             fileName,
-            'ZIP_PATH_UNSAFE',
-            `Caminho inseguro no ZIP: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_PATH_UNSAFE,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.PATH_UNSAFE, { fileName }),
           )
           continue
         }
         if (relativePath.split('/').length > policy.maxPathDepth) {
           rejectEntry(
             fileName,
-            'ZIP_PATH_UNSAFE',
-            `Caminho excede a profundidade permitida no ZIP: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_PATH_UNSAFE,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.PATH_TOO_DEEP, { fileName }),
           )
           continue
         }
@@ -342,16 +368,16 @@ async function inspectOpenedZip(
         if (entry.uncompressedSize > policy.maxEntryUncompressedBytes) {
           rejectEntry(
             fileName,
-            'ZIP_ENTRY_TOO_LARGE',
-            `Entrada ZIP excede o limite descomprimido: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_ENTRY_TOO_LARGE,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.ENTRY_TOO_LARGE, { fileName }),
           )
           continue
         }
         if (ratio > policy.maxCompressionRatio) {
           rejectEntry(
             fileName,
-            'ZIP_COMPRESSION_RATIO_EXCEEDED',
-            `Taxa de compressão excessiva na entrada: ${fileName}.`,
+            ZipSecurityErrorCode.ZIP_COMPRESSION_RATIO_EXCEEDED,
+            formatZipSecurityMessage(ZipSecurityErrorMessage.COMPRESSION_RATIO, { fileName }),
           )
           continue
         }
@@ -370,7 +396,7 @@ async function inspectOpenedZip(
         } catch (error) {
           if (
             error instanceof ZipSecurityError &&
-            (error.code === 'ZIP_CRC_MISMATCH' || error.code === 'ZIP_ENTRY_TOO_LARGE')
+            (error.code === ZipSecurityErrorCode.ZIP_CRC_MISMATCH || error.code === ZipSecurityErrorCode.ZIP_ENTRY_TOO_LARGE)
           ) {
             rejectEntry(fileName, error.code, error.message)
             continue
@@ -412,9 +438,9 @@ function wrapInvalidZip(error: unknown): never {
   if (error instanceof ZipSecurityError || error instanceof ZipVisitCancelledError) throw error
   const message = error instanceof Error ? error.message : String(error)
   if (/invalid relative path|absolute path|invalid characters in fileName/i.test(message)) {
-    throw new ZipSecurityError('ZIP_PATH_UNSAFE', `Caminho inseguro no ZIP: ${message}`)
+    throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_PATH_UNSAFE, formatZipSecurityMessage(ZipSecurityErrorMessage.PATH_UNSAFE, { fileName: message }))
   }
-  throw new ZipSecurityError('ZIP_INVALID', `ZIP inválido ou corrompido: ${message}`)
+  throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_INVALID, formatZipSecurityMessage(ZipSecurityErrorMessage.ZIP_INVALID, { detail: message }))
 }
 
 export async function inspectZipBuffer(
@@ -424,7 +450,7 @@ export async function inspectZipBuffer(
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   if (buffer.byteLength > policy.maxArchiveBytes) {
-    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+    throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_ARCHIVE_TOO_LARGE, ZipSecurityErrorMessage.ARCHIVE_TOO_LARGE)
   }
 
   try {
@@ -448,7 +474,7 @@ export async function visitSafeZipBufferEntries(
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   if (buffer.byteLength > policy.maxArchiveBytes) {
-    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+    throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_ARCHIVE_TOO_LARGE, ZipSecurityErrorMessage.ARCHIVE_TOO_LARGE)
   }
 
   try {
@@ -471,9 +497,9 @@ export async function inspectZipFile(
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   const metadata = await stat(path)
-  if (!metadata.isFile()) throw new ZipSecurityError('ZIP_INVALID', 'A origem não é um arquivo.')
+  if (!metadata.isFile()) throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_INVALID, ZipSecurityErrorMessage.SOURCE_NOT_FILE)
   if (metadata.size > policy.maxArchiveBytes) {
-    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+    throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_ARCHIVE_TOO_LARGE, ZipSecurityErrorMessage.ARCHIVE_TOO_LARGE)
   }
 
   try {
@@ -491,9 +517,9 @@ export async function visitSafeZipFileEntries(
 ): Promise<ZipInspectionResult> {
   assertPositivePolicy(policy)
   const metadata = await stat(path)
-  if (!metadata.isFile()) throw new ZipSecurityError('ZIP_INVALID', 'A origem não é um arquivo.')
+  if (!metadata.isFile()) throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_INVALID, ZipSecurityErrorMessage.SOURCE_NOT_FILE)
   if (metadata.size > policy.maxArchiveBytes) {
-    throw new ZipSecurityError('ZIP_ARCHIVE_TOO_LARGE', 'ZIP excede o limite de entrada.')
+    throw new ZipSecurityError(ZipSecurityErrorCode.ZIP_ARCHIVE_TOO_LARGE, ZipSecurityErrorMessage.ARCHIVE_TOO_LARGE)
   }
 
   try {

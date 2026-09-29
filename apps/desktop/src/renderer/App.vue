@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from './error-messages'
 import { onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import type { WorkspaceState } from '@motor/contracts'
@@ -13,7 +14,7 @@ async function loadWorkspace(): Promise<void> {
   try {
     workspace.value = await window.desktopApi.getWorkspace()
   } catch (cause) {
-    loadingError.value = cause instanceof Error ? cause.message : 'Falha ao abrir o espaço local.'
+    loadingError.value = cause instanceof Error ? cause.message : RendererErrorMessage.WORKSPACE_OPEN
   }
 }
 

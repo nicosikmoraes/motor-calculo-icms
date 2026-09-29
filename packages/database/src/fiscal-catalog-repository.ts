@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { randomUUID } from 'node:crypto'
 import { normalizeCnpj } from '@motor/domain'
 import type { SqliteDatabase } from './sqlite-database'
@@ -24,14 +25,14 @@ export interface SupplierProductRecord {
 
 function required(value: string, field: string): string {
   const text = value.trim()
-  if (!text) throw new Error(`${field} deve ser informado.`)
+  if (!text) throw new AppError(AppErrorCode.REQUIRED_FIELD, { field })
   return text
 }
 
 export function fiscalDate(value: string, field: string): string {
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null
   if (!parsed || !Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
-    throw new Error(`${field} deve ser uma data válida no formato AAAA-MM-DD.`)
+    throw new AppError(AppErrorCode.INVALID_DATE, { field })
   }
   return value
 }
@@ -42,7 +43,7 @@ export class SqliteFiscalCatalogRepository {
   createProfile(input: Omit<FiscalProfileRecord, 'id' | 'createdAt'>): FiscalProfileRecord {
     const validFrom = fiscalDate(input.validFrom, 'Início da vigência')
     const validUntil = input.validUntil ? fiscalDate(input.validUntil, 'Fim da vigência') : undefined
-    if (validUntil && validUntil < validFrom) throw new Error('Fim da vigência não pode ser anterior ao início.')
+    if (validUntil && validUntil < validFrom) throw new AppError(AppErrorCode.INVALID_VALIDITY_RANGE)
     const profile: FiscalProfileRecord = {
       id: randomUUID(),
       organizationId: required(input.organizationId, 'Organização'),
@@ -86,7 +87,7 @@ export class SqliteFiscalCatalogRepository {
     const profile = this.database.get<{ id: string }>(
       'SELECT id FROM perfis_fiscais WHERE id = ? AND empresa_id = ?', profileId, companyId,
     )
-    if (!profile) throw new Error('Perfil fiscal não pertence à empresa selecionada.')
+    if (!profile) throw new AppError(AppErrorCode.PROFILE_COMPANY_MISMATCH)
     const now = new Date().toISOString()
     this.database.run(
       `INSERT INTO produtos_fornecedor
@@ -104,7 +105,7 @@ export class SqliteFiscalCatalogRepository {
        FROM produtos_fornecedor WHERE empresa_id = ? AND fornecedor_cnpj = ? AND codigo_produto = ?`,
       companyId, supplierCnpj, productCode,
     )
-    if (!saved) throw new Error('Não foi possível consultar o produto vinculado.')
+    if (!saved) throw new AppError(AppErrorCode.LINKED_PRODUCT_NOT_FOUND)
     return {
       id: saved.id, companyId: saved.empresa_id, supplierCnpj: saved.fornecedor_cnpj,
       productCode: saved.codigo_produto, profileId: saved.perfil_fiscal_id,

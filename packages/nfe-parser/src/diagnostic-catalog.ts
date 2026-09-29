@@ -3,62 +3,107 @@ import type { XMLValidationError } from 'xmllint-wasm'
 import { NfeParseError } from './nfe-parser'
 import { XmlSecurityError } from './xml-security'
 
-export type DiagnosticSeverity = 'AVISO' | 'INFORMACAO_FALTANTE' | 'ERRO_IMPEDITIVO'
-export type ProcessingDecision = 'PROCESSAR' | 'PROCESSAR_PARCIALMENTE' | 'REJEITAR'
+export enum DiagnosticSeverityCode {
+  AVISO = 'AVISO',
+  INFORMACAO_FALTANTE = 'INFORMACAO_FALTANTE',
+  ERRO_IMPEDITIVO = 'ERRO_IMPEDITIVO',
+}
+
+export enum ProcessingDecisionCode {
+  PROCESSAR = 'PROCESSAR',
+  PROCESSAR_PARCIALMENTE = 'PROCESSAR_PARCIALMENTE',
+  REJEITAR = 'REJEITAR',
+}
+
+export enum IngestionDiagnosticCode {
+  ASSINATURA_NAO_VERIFICADA = 'ASSINATURA_NAO_VERIFICADA',
+  XSD_INCOMPATIBILIDADE = 'XSD_INCOMPATIBILIDADE',
+  XSD_CAMPO_OBRIGATORIO_AUSENTE = 'XSD_CAMPO_OBRIGATORIO_AUSENTE',
+  XSD_VALOR_INVALIDO = 'XSD_VALOR_INVALIDO',
+  INFORMACOES_FALTANTES = 'INFORMACOES_FALTANTES',
+  XML_CONTEUDO_INSEGURO = 'XML_CONTEUDO_INSEGURO',
+  XML_MALFORMADO = 'XML_MALFORMADO',
+  TIPO_XML_NAO_SUPORTADO = 'TIPO_XML_NAO_SUPORTADO',
+  VERSAO_NAO_SUPORTADA = 'VERSAO_NAO_SUPORTADA',
+  MODELO_NAO_SUPORTADO = 'MODELO_NAO_SUPORTADO',
+}
+
+export enum DiagnosticSourceCode {
+  SECURITY = 'SECURITY',
+  XML = 'XML',
+  XSD = 'XSD',
+  POLICY = 'POLICY',
+}
+
+export type DiagnosticSeverity = `${DiagnosticSeverityCode}`
+export type ProcessingDecision = `${ProcessingDecisionCode}`
+
+/** Textos padrão do catálogo de diagnósticos. */
+export enum IngestionDiagnosticMessage {
+  ASSINATURA_NAO_VERIFICADA = 'A assinatura digital não é validada pelo MVP.',
+  XSD_INCOMPATIBILIDADE = 'O XML diverge do schema, mas os dados reconhecidos podem ser processados.',
+  XSD_CAMPO_OBRIGATORIO_AUSENTE = 'Um elemento ou atributo obrigatório não foi informado.',
+  XSD_VALOR_INVALIDO = 'Um valor obrigatório não pode ser usado porque não respeita o schema.',
+  INFORMACOES_FALTANTES = 'Não há dados suficientes para concluir todo o cálculo.',
+  XML_CONTEUDO_INSEGURO = 'O XML contém construção proibida por segurança.',
+  XML_MALFORMADO = 'O conteúdo não é um XML bem formado.',
+  TIPO_XML_NAO_SUPORTADO = 'O arquivo não contém uma NF-e ou NFC-e reconhecida.',
+  VERSAO_NAO_SUPORTADA = 'O leiaute identificado não é suportado por esta versão do aplicativo.',
+  MODELO_NAO_SUPORTADO = 'O modelo fiscal identificado está fora do escopo do MVP.',
+  MISSING_FIELD = 'Campo necessário não encontrado: {path}.',
+}
 
 export const INGESTION_DIAGNOSTIC_CATALOG = {
   ASSINATURA_NAO_VERIFICADA: {
-    severity: 'AVISO',
-    description: 'A assinatura digital não é validada pelo MVP.',
+    severity: DiagnosticSeverityCode.AVISO,
+    description: IngestionDiagnosticMessage.ASSINATURA_NAO_VERIFICADA,
   },
   XSD_INCOMPATIBILIDADE: {
-    severity: 'AVISO',
-    description: 'O XML diverge do schema, mas os dados reconhecidos podem ser processados.',
+    severity: DiagnosticSeverityCode.AVISO,
+    description: IngestionDiagnosticMessage.XSD_INCOMPATIBILIDADE,
   },
   XSD_CAMPO_OBRIGATORIO_AUSENTE: {
-    severity: 'INFORMACAO_FALTANTE',
-    description: 'Um elemento ou atributo obrigatório não foi informado.',
+    severity: DiagnosticSeverityCode.INFORMACAO_FALTANTE,
+    description: IngestionDiagnosticMessage.XSD_CAMPO_OBRIGATORIO_AUSENTE,
   },
   XSD_VALOR_INVALIDO: {
-    severity: 'INFORMACAO_FALTANTE',
-    description: 'Um valor obrigatório não pode ser usado porque não respeita o schema.',
+    severity: DiagnosticSeverityCode.INFORMACAO_FALTANTE,
+    description: IngestionDiagnosticMessage.XSD_VALOR_INVALIDO,
   },
   INFORMACOES_FALTANTES: {
-    severity: 'INFORMACAO_FALTANTE',
-    description: 'Não há dados suficientes para concluir todo o cálculo.',
+    severity: DiagnosticSeverityCode.INFORMACAO_FALTANTE,
+    description: IngestionDiagnosticMessage.INFORMACOES_FALTANTES,
   },
   XML_CONTEUDO_INSEGURO: {
-    severity: 'ERRO_IMPEDITIVO',
-    description: 'O XML contém construção proibida por segurança.',
+    severity: DiagnosticSeverityCode.ERRO_IMPEDITIVO,
+    description: IngestionDiagnosticMessage.XML_CONTEUDO_INSEGURO,
   },
   XML_MALFORMADO: {
-    severity: 'ERRO_IMPEDITIVO',
-    description: 'O conteúdo não é um XML bem formado.',
+    severity: DiagnosticSeverityCode.ERRO_IMPEDITIVO,
+    description: IngestionDiagnosticMessage.XML_MALFORMADO,
   },
   TIPO_XML_NAO_SUPORTADO: {
-    severity: 'ERRO_IMPEDITIVO',
-    description: 'O arquivo não contém uma NF-e ou NFC-e reconhecida.',
+    severity: DiagnosticSeverityCode.ERRO_IMPEDITIVO,
+    description: IngestionDiagnosticMessage.TIPO_XML_NAO_SUPORTADO,
   },
   VERSAO_NAO_SUPORTADA: {
-    severity: 'ERRO_IMPEDITIVO',
-    description: 'O leiaute identificado não é suportado por esta versão do aplicativo.',
+    severity: DiagnosticSeverityCode.ERRO_IMPEDITIVO,
+    description: IngestionDiagnosticMessage.VERSAO_NAO_SUPORTADA,
   },
   MODELO_NAO_SUPORTADO: {
-    severity: 'ERRO_IMPEDITIVO',
-    description: 'O modelo fiscal identificado está fora do escopo do MVP.',
+    severity: DiagnosticSeverityCode.ERRO_IMPEDITIVO,
+    description: IngestionDiagnosticMessage.MODELO_NAO_SUPORTADO,
   },
 } as const satisfies Record<
   string,
   { severity: DiagnosticSeverity; description: string }
 >
 
-export type IngestionDiagnosticCode = keyof typeof INGESTION_DIAGNOSTIC_CATALOG
-
 export interface IngestionDiagnostic {
   code: IngestionDiagnosticCode
   severity: DiagnosticSeverity
   message: string
-  source: 'SECURITY' | 'XML' | 'XSD' | 'POLICY'
+  source: DiagnosticSourceCode.SECURITY | DiagnosticSourceCode.XML | DiagnosticSourceCode.XSD | DiagnosticSourceCode.POLICY
   line?: number
 }
 
@@ -79,9 +124,9 @@ function diagnostic(
 
 export function signatureNotVerifiedDiagnostic(): IngestionDiagnostic {
   return diagnostic(
-    'ASSINATURA_NAO_VERIFICADA',
+    IngestionDiagnosticCode.ASSINATURA_NAO_VERIFICADA,
     INGESTION_DIAGNOSTIC_CATALOG.ASSINATURA_NAO_VERIFICADA.description,
-    'POLICY',
+    DiagnosticSourceCode.POLICY,
   )
 }
 
@@ -104,24 +149,24 @@ export function findNormalizedNfeDiagnostics(
   }
 
   return missing.map((path) =>
-    diagnostic('INFORMACOES_FALTANTES', `Campo necessário não encontrado: ${path}.`, 'XML'),
+    diagnostic(IngestionDiagnosticCode.INFORMACOES_FALTANTES, IngestionDiagnosticMessage.MISSING_FIELD.replace('{path}', path), DiagnosticSourceCode.XML),
   )
 }
 
 export function classifyParseError(error: NfeParseError | XmlSecurityError): IngestionDiagnostic {
   if (error instanceof XmlSecurityError) {
-    return diagnostic('XML_CONTEUDO_INSEGURO', error.message, 'SECURITY')
+    return diagnostic(IngestionDiagnosticCode.XML_CONTEUDO_INSEGURO, error.message, DiagnosticSourceCode.SECURITY)
   }
 
   const codeByParseError = {
-    XML_NOT_WELL_FORMED: 'XML_MALFORMADO',
-    UNSUPPORTED_XML_ROOT: 'TIPO_XML_NAO_SUPORTADO',
-    UNSUPPORTED_LAYOUT_VERSION: 'VERSAO_NAO_SUPORTADA',
-    MISSING_NFE_INFO: 'INFORMACOES_FALTANTES',
-    UNSUPPORTED_DOCUMENT_MODEL: 'MODELO_NAO_SUPORTADO',
+    XML_NOT_WELL_FORMED: IngestionDiagnosticCode.XML_MALFORMADO,
+    UNSUPPORTED_XML_ROOT: IngestionDiagnosticCode.TIPO_XML_NAO_SUPORTADO,
+    UNSUPPORTED_LAYOUT_VERSION: IngestionDiagnosticCode.VERSAO_NAO_SUPORTADA,
+    MISSING_NFE_INFO: IngestionDiagnosticCode.INFORMACOES_FALTANTES,
+    UNSUPPORTED_DOCUMENT_MODEL: IngestionDiagnosticCode.MODELO_NAO_SUPORTADO,
   } as const satisfies Record<NfeParseError['code'], IngestionDiagnosticCode>
 
-  return diagnostic(codeByParseError[error.code], error.message, 'XML')
+  return diagnostic(codeByParseError[error.code], error.message, DiagnosticSourceCode.XML)
 }
 
 export function classifySchemaError(error: XMLValidationError): IngestionDiagnostic {
@@ -129,22 +174,22 @@ export function classifySchemaError(error: XMLValidationError): IngestionDiagnos
   const line = error.loc?.lineNumber
 
   if (/Missing child element|attribute .* is required but missing/i.test(message)) {
-    return diagnostic('XSD_CAMPO_OBRIGATORIO_AUSENTE', message, 'XSD', line)
+    return diagnostic(IngestionDiagnosticCode.XSD_CAMPO_OBRIGATORIO_AUSENTE, message, DiagnosticSourceCode.XSD, line)
   }
 
   if (/facet|not a valid value|not accepted by the pattern|is not a valid value/i.test(message)) {
-    return diagnostic('XSD_VALOR_INVALIDO', message, 'XSD', line)
+    return diagnostic(IngestionDiagnosticCode.XSD_VALOR_INVALIDO, message, DiagnosticSourceCode.XSD, line)
   }
 
-  return diagnostic('XSD_INCOMPATIBILIDADE', message, 'XSD', line)
+  return diagnostic(IngestionDiagnosticCode.XSD_INCOMPATIBILIDADE, message, DiagnosticSourceCode.XSD, line)
 }
 
 export function decideProcessing(
   diagnostics: readonly IngestionDiagnostic[],
 ): ProcessingDecision {
-  if (diagnostics.some(({ severity }) => severity === 'ERRO_IMPEDITIVO')) return 'REJEITAR'
-  if (diagnostics.some(({ severity }) => severity === 'INFORMACAO_FALTANTE')) {
-    return 'PROCESSAR_PARCIALMENTE'
+  if (diagnostics.some(({ severity }) => severity === DiagnosticSeverityCode.ERRO_IMPEDITIVO)) return ProcessingDecisionCode.REJEITAR
+  if (diagnostics.some(({ severity }) => severity === DiagnosticSeverityCode.INFORMACAO_FALTANTE)) {
+    return ProcessingDecisionCode.PROCESSAR_PARCIALMENTE
   }
-  return 'PROCESSAR'
+  return ProcessingDecisionCode.PROCESSAR
 }

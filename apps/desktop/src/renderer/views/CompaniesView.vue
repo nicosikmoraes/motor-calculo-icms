@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { onMounted, ref } from 'vue'
 import type { CompanySummary, WorkspaceState } from '@motor/contracts'
 
@@ -36,7 +37,7 @@ async function saveOffice(): Promise<void> {
     await load()
     success.value = 'Nome do escritório atualizado.'
   } catch (cause) {
-    error.value = message(cause, 'Não foi possível atualizar o escritório.')
+    error.value = message(cause, RendererErrorMessage.OFFICE_UPDATE)
   } finally {
     savingOffice.value = false
   }
@@ -60,14 +61,14 @@ async function createCompany(): Promise<void> {
     await load()
     success.value = `${created.legalName} foi cadastrada.`
   } catch (cause) {
-    error.value = message(cause, 'Não foi possível cadastrar a empresa.')
+    error.value = message(cause, RendererErrorMessage.COMPANY_CREATE)
   } finally {
     savingCompany.value = false
   }
 }
 
 onMounted(() => void load().catch((cause) => {
-  error.value = message(cause, 'Não foi possível carregar os cadastros.')
+  error.value = message(cause, RendererErrorMessage.REGISTRATIONS_LOAD)
 }))
 </script>
 

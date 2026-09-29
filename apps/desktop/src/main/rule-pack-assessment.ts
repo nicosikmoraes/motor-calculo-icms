@@ -1,9 +1,9 @@
-import type { ItemRuleAssessment } from '@motor/contracts'
+import { RuleAssessmentKindCode, type ItemRuleAssessment } from '@motor/contracts'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
-import { BUILTIN_ICMS_OWN_PACK, selectFiscalRule, type RuleContext } from '@motor/tax-engine'
+import { BUILTIN_ICMS_OWN_PACK, FiscalRuleStatusCode, RuleExclusionReasonCode, RuleSelectionKindCode, selectFiscalRule, type RuleContext } from '@motor/tax-engine'
 
 /** Avalia as propostas embarcadas; DRAFT nunca vira regra selecionada para cálculo. */
-export function assessBuiltinRules(note: NormalizedNfe, item: NormalizedNfeItem): ItemRuleAssessment {
+export function assessBuiltinRules(note: NormalizedNfe, item: NormalizedNfeItem, assessedAt = new Date().toISOString()): ItemRuleAssessment {
   const context: RuleContext = {
     emissionDate: note.issuedAt?.slice(0, 10) ?? '',
     ...(note.issuer.state ? { originState: note.issuer.state } : {}),
@@ -28,16 +28,18 @@ export function assessBuiltinRules(note: NormalizedNfe, item: NormalizedNfeItem)
     mismatchedConditions: candidate.mismatchedConditions,
   }))
   const matchingDrafts = evaluated.filter((candidate) =>
-    candidate.status === 'DRAFT'
-    && candidate.exclusionReasons.every((reason) => reason === 'NOT_APPROVED'),
+    candidate.status === FiscalRuleStatusCode.DRAFT
+    && candidate.exclusionReasons.every((reason) => reason === RuleExclusionReasonCode.NOT_APPROVED),
   )
   return {
     packId: BUILTIN_ICMS_OWN_PACK.id,
     packVersion: BUILTIN_ICMS_OWN_PACK.version,
-    kind: selection.kind === 'NOT_FOUND'
-      ? matchingDrafts.length > 0 ? 'DRAFT_MATCH' : 'NO_MATCH'
+    assessedAt,
+    context: { ...context },
+    kind: selection.kind === RuleSelectionKindCode.NOT_FOUND
+      ? matchingDrafts.length > 0 ? RuleAssessmentKindCode.DRAFT_MATCH : RuleAssessmentKindCode.NO_MATCH
       : selection.kind,
-    ...(selection.kind === 'SELECTED' ? { selectedRuleId: selection.selected.rule.id } : {}),
+    ...(selection.kind === RuleSelectionKindCode.SELECTED ? { selectedRuleId: selection.selected.rule.id } : {}),
     evaluated,
   }
 }

@@ -1,13 +1,32 @@
-export const RULE_LEVELS = [
-  'DEFAULT_OPERATION',
-  'NCM',
-  'NCM_CEST',
-  'FISCAL_PROFILE',
-  'COMPANY',
-  'PRODUCT_COMPANY_EXCEPTION',
-] as const
+export enum RuleLevelCode {
+  DEFAULT_OPERATION = 'DEFAULT_OPERATION',
+  NCM = 'NCM',
+  NCM_CEST = 'NCM_CEST',
+  FISCAL_PROFILE = 'FISCAL_PROFILE',
+  COMPANY = 'COMPANY',
+  PRODUCT_COMPANY_EXCEPTION = 'PRODUCT_COMPANY_EXCEPTION',
+}
+export const RULE_LEVELS: readonly RuleLevel[] = Object.values(RuleLevelCode)
+export type RuleLevel = `${RuleLevelCode}`
 
-export type RuleLevel = (typeof RULE_LEVELS)[number]
+export enum FiscalRuleStatusCode {
+  DRAFT = 'DRAFT',
+  APPROVED = 'APPROVED',
+  REVOKED = 'REVOKED',
+}
+
+export enum RuleSelectionKindCode {
+  NOT_FOUND = 'NOT_FOUND',
+  SELECTED = 'SELECTED',
+  AMBIGUOUS = 'AMBIGUOUS',
+}
+
+export enum RuleExclusionReasonCode {
+  NOT_APPROVED = 'NOT_APPROVED',
+  NOT_YET_VALID = 'NOT_YET_VALID',
+  EXPIRED = 'EXPIRED',
+  CONDITION_MISMATCH = 'CONDITION_MISMATCH',
+}
 
 export interface RuleContext {
   emissionDate: string
@@ -35,7 +54,7 @@ export interface FiscalRule {
   id: string
   version: number
   name: string
-  status: 'DRAFT' | 'APPROVED' | 'REVOKED'
+  status: `${FiscalRuleStatusCode}`
   level: RuleLevel
   priority: number
   validFrom: string
@@ -50,11 +69,7 @@ export interface RankedRule {
   levelRank: number
 }
 
-export type RuleExclusionReason =
-  | 'NOT_APPROVED'
-  | 'NOT_YET_VALID'
-  | 'EXPIRED'
-  | 'CONDITION_MISMATCH'
+export type RuleExclusionReason = `${RuleExclusionReasonCode}`
 
 export interface RuleEvaluation {
   rule: FiscalRule
@@ -64,15 +79,15 @@ export interface RuleEvaluation {
 }
 
 export type RuleSelection =
-  | { kind: 'NOT_FOUND'; considered: readonly RankedRule[]; evaluated: readonly RuleEvaluation[] }
+  | { kind: RuleSelectionKindCode.NOT_FOUND; considered: readonly RankedRule[]; evaluated: readonly RuleEvaluation[] }
   | {
-      kind: 'SELECTED'
+      kind: RuleSelectionKindCode.SELECTED
       selected: RankedRule
       considered: readonly RankedRule[]
       evaluated: readonly RuleEvaluation[]
     }
   | {
-      kind: 'AMBIGUOUS'
+      kind: RuleSelectionKindCode.AMBIGUOUS
       tied: readonly RankedRule[]
       considered: readonly RankedRule[]
       evaluated: readonly RuleEvaluation[]
@@ -80,9 +95,9 @@ export type RuleSelection =
 
 function evaluate(rule: FiscalRule, context: RuleContext): RuleEvaluation {
   const exclusionReasons: RuleExclusionReason[] = []
-  if (rule.status !== 'APPROVED') exclusionReasons.push('NOT_APPROVED')
-  if (rule.validFrom > context.emissionDate) exclusionReasons.push('NOT_YET_VALID')
-  if (rule.validUntil && rule.validUntil < context.emissionDate) exclusionReasons.push('EXPIRED')
+  if (rule.status !== 'APPROVED') exclusionReasons.push(RuleExclusionReasonCode.NOT_APPROVED)
+  if (rule.validFrom > context.emissionDate) exclusionReasons.push(RuleExclusionReasonCode.NOT_YET_VALID)
+  if (rule.validUntil && rule.validUntil < context.emissionDate) exclusionReasons.push(RuleExclusionReasonCode.EXPIRED)
 
   const mismatchedConditions = (Object.keys(rule.conditions) as ConditionKey[])
     .filter((key) => {
@@ -90,7 +105,7 @@ function evaluate(rule: FiscalRule, context: RuleContext): RuleEvaluation {
       return expected !== undefined && expected !== '' && context[key] !== expected
     })
     .sort()
-  if (mismatchedConditions.length > 0) exclusionReasons.push('CONDITION_MISMATCH')
+  if (mismatchedConditions.length > 0) exclusionReasons.push(RuleExclusionReasonCode.CONDITION_MISMATCH)
 
   return {
     rule,
@@ -131,7 +146,7 @@ export function selectFiscalRule(
     .sort(compare)
 
   const first = considered[0]
-  if (!first) return { kind: 'NOT_FOUND', considered, evaluated }
+  if (!first) return { kind: RuleSelectionKindCode.NOT_FOUND, considered, evaluated }
 
   const tied = considered.filter(
     (candidate) =>
@@ -140,7 +155,7 @@ export function selectFiscalRule(
       candidate.rule.priority === first.rule.priority,
   )
 
-  if (tied.length > 1) return { kind: 'AMBIGUOUS', tied, considered, evaluated }
+  if (tied.length > 1) return { kind: RuleSelectionKindCode.AMBIGUOUS, tied, considered, evaluated }
 
-  return { kind: 'SELECTED', selected: first, considered, evaluated }
+  return { kind: RuleSelectionKindCode.SELECTED, selected: first, considered, evaluated }
 }

@@ -1,3 +1,4 @@
+import { AppError, AppErrorCode } from '@motor/domain'
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -47,7 +48,7 @@ interface MigrationRow extends Record<string, unknown> {
 
 function requiredText(value: string, field: string): string {
   const normalized = value.trim()
-  if (!normalized) throw new Error(`${field} deve ser informado.`)
+  if (!normalized) throw new AppError(AppErrorCode.REQUIRED_FIELD, { field })
   return normalized
 }
 
@@ -62,7 +63,7 @@ export function createSqlMigration(values: {
   fileName?: string
 }): SqlMigration {
   if (!Number.isSafeInteger(values.version) || values.version < 1) {
-    throw new Error('A versão da migration deve ser um inteiro positivo.')
+    throw new AppError(AppErrorCode.INVALID_MIGRATION_VERSION_POSITIVE)
   }
 
   const name = requiredText(values.name, 'name')
@@ -88,26 +89,22 @@ function validateMigrationSet(migrations: readonly SqlMigration[]): readonly Sql
 
   for (const [index, migration] of sorted.entries()) {
     if (!Number.isSafeInteger(migration.version) || migration.version < 1) {
-      throw new Error(`Versão inválida na migration ${migration.fileName}.`)
+      throw new AppError(AppErrorCode.INVALID_MIGRATION_VERSION, { file: migration.fileName })
     }
     if (versions.has(migration.version)) {
-      throw new Error(`Versão de migration duplicada: ${migration.version}.`)
+      throw new AppError(AppErrorCode.DUPLICATE_MIGRATION_VERSION, { version: migration.version })
     }
     if (names.has(migration.name)) {
-      throw new Error(`Nome de migration duplicado: ${migration.name}.`)
+      throw new AppError(AppErrorCode.DUPLICATE_MIGRATION_NAME, { name: migration.name })
     }
     if (migration.version !== index + 1) {
-      throw new Error(
-        `Sequência de migrations inválida: esperada versão ${index + 1}, encontrada ${migration.version}.`,
-      )
+      throw new AppError(AppErrorCode.MIGRATION_SEQUENCE_GAP, { expected: index + 1, actual: migration.version })
     }
     if (!CHECKSUM_PATTERN.test(migration.checksum) || migration.checksum !== checksum(migration.sql)) {
-      throw new Error(`Checksum inválido na migration ${migration.fileName}.`)
+      throw new AppError(AppErrorCode.INVALID_MIGRATION_CHECKSUM, { file: migration.fileName })
     }
     if (TRANSACTION_CONTROL_PATTERN.test(migration.sql)) {
-      throw new Error(
-        `A migration ${migration.fileName} contém controle de transação; o executor controla BEGIN e COMMIT.`,
-      )
+      throw new AppError(AppErrorCode.MIGRATION_TRANSACTION_CONTROL, { file: migration.fileName })
     }
     versions.add(migration.version)
     names.add(migration.name)
@@ -125,13 +122,11 @@ export async function discoverSqlMigrations(directory: string): Promise<readonly
       sqlFiles.map(async ({ name: fileName }) => {
         const match = MIGRATION_FILE_PATTERN.exec(fileName)
         if (!match) {
-          throw new Error(
-            `Nome de migration inválido: ${fileName}. Use o formato 0001_nome.sql.`,
-          )
+          throw new AppError(AppErrorCode.INVALID_MIGRATION_FILENAME_FORMAT, { file: fileName })
         }
 
         const [, versionText, name] = match
-        if (!versionText || !name) throw new Error(`Nome de migration inválido: ${fileName}.`)
+        if (!versionText || !name) throw new AppError(AppErrorCode.INVALID_MIGRATION_FILENAME, { file: fileName })
         const sql = await readFile(join(directory, fileName), 'utf8')
         return createSqlMigration({ version: Number(versionText), name, sql, fileName })
       }),
@@ -198,14 +193,10 @@ function assertAppliedMigrationsMatch(
   for (const existing of applied) {
     const migration = availableByVersion.get(existing.version)
     if (!migration) {
-      throw new Error(
-        `A migration aplicada ${existing.version} (${existing.name}) não existe nesta versão do aplicativo.`,
-      )
+      throw new AppError(AppErrorCode.APPLIED_MIGRATION_MISSING, { version: existing.version, name: existing.name })
     }
     if (migration.name !== existing.name || migration.checksum !== existing.checksum) {
-      throw new Error(
-        `A migration aplicada ${existing.version} (${existing.name}) foi alterada.`,
-      )
+      throw new AppError(AppErrorCode.APPLIED_MIGRATION_CHANGED, { version: existing.version, name: existing.name })
     }
   }
 }

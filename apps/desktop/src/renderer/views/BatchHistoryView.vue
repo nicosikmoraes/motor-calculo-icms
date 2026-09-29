@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RendererErrorMessage } from '../error-messages'
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { BatchListItem } from '@motor/contracts'
@@ -19,7 +20,7 @@ onMounted(async () => {
   try {
     batches.value = await window.desktopApi.listBatches()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar os lotes.'
+    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LIST_LOAD
   } finally {
     loading.value = false
   }
