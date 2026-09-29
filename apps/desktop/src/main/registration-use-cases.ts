@@ -1,15 +1,18 @@
 import type {
   CompanySummary, CreateCompanyInput, CreateFiscalProfileInput, CreateOrganizationInput,
+  CreateSuggestedFiscalProfileInput, CreateSuggestedFiscalProfileResult, FiscalProfileSuggestion,
   FiscalProfileSummary, OrganizationSummary, RenameOrganizationInput,
   SaveSupplierProductInput, SupplierProductSummary, WorkspaceState,
 } from '@motor/contracts'
 import {
   AppError, AppErrorCode, normalizeBrazilianState, normalizeCnpj,
-  type Company, type Organization,
+  type Company, type Organization, type FiscalProfileEvidence,
 } from '@motor/domain'
+import { buildFiscalProfileSuggestions } from './profile-suggestions'
 
 /** Portas de persistência: os casos de uso não conhecem a conexão SQLite. */
 export interface RegistrationRepositories {
+  transaction<T>(operation: () => T): T
   organizations: {
     findSingle(): Organization | undefined
     findById(id: string): Organization | undefined
@@ -23,6 +26,7 @@ export interface RegistrationRepositories {
   }
   catalog: {
     listProfiles(companyId: string): readonly FiscalProfileSummary[]
+    listProfileSuggestionEvidence(companyId: string): readonly FiscalProfileEvidence[]
     createProfile(input: {
       organizationId: string; companyId: string; name: string;
       validFrom: string; validUntil?: string
@@ -129,6 +133,37 @@ export class RegistrationUseCases {
       validFrom: profile.validFrom,
       ...(profile.validUntil ? { validUntil: profile.validUntil } : {}),
     }))
+  }
+
+  listFiscalProfileSuggestions(companyId: unknown): readonly FiscalProfileSuggestion[] {
+    const { company } = this.activeCompany(companyId)
+    return buildFiscalProfileSuggestions(this.repositories.catalog.listProfileSuggestionEvidence(company.id))
+  }
+
+  createSuggestedFiscalProfile(input: CreateSuggestedFiscalProfileInput): CreateSuggestedFiscalProfileResult {
+    const { organization, company } = this.activeCompany(input.companyId)
+    return this.repositories.transaction(() => {
+      // Recalcula dentro da transação: proposta antiga ou já vinculada não é aplicada.
+      const suggestion = buildFiscalProfileSuggestions(
+        this.repositories.catalog.listProfileSuggestionEvidence(company.id),
+      ).find((candidate) => candidate.key === input.suggestionKey)
+      if (!suggestion) throw new AppError(AppErrorCode.PROFILE_SUGGESTION_STALE)
+      const profile = this.repositories.catalog.createProfile({
+        organizationId: organization.id, companyId: company.id,
+        name: suggestion.name, validFrom: suggestion.validFrom,
+      })
+      for (const product of suggestion.products) {
+        this.repositories.catalog.upsertSupplierProduct({
+          companyId: company.id, supplierCnpj: product.supplierCnpj,
+          productCode: product.productCode, profileId: profile.id,
+        })
+      }
+      return {
+        profile: { id: profile.id, companyId: profile.companyId, name: profile.name,
+          validFrom: profile.validFrom },
+        linkedProducts: suggestion.products.length,
+      }
+    })
   }
 
   createFiscalProfile(input: CreateFiscalProfileInput): FiscalProfileSummary {

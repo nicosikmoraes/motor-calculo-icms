@@ -3,6 +3,7 @@ import { app, ipcMain } from 'electron'
 import {
   IPC_CHANNELS, type BuiltinRulePackSummary, type CreateCompanyInput,
   type CreateFiscalProfileInput, type CreateOrganizationInput,
+  type CreateSuggestedFiscalProfileInput,
   type RenameOrganizationInput, type SaveSupplierProductInput,
 } from '@motor/contracts'
 import {
@@ -16,6 +17,7 @@ import { RegistrationUseCases } from './registration-use-cases'
 function registrationUseCases(): RegistrationUseCases {
   const connection = activeDatabase()
   return new RegistrationUseCases({
+    transaction: (operation) => connection.transaction(operation),
     organizations: new SqliteOrganizationRepository(connection),
     companies: new SqliteCompanyRepository(connection),
     catalog: new SqliteFiscalCatalogRepository(connection),
@@ -34,6 +36,11 @@ export function registerCatalogHandlers(): void {
     registrationUseCases().createCompany(inputRecord(rawInput) as unknown as CreateCompanyInput))
   ipcMain.handle(IPC_CHANNELS.LIST_FISCAL_PROFILES, (_event, companyId: unknown) =>
     registrationUseCases().listFiscalProfiles(companyId))
+  ipcMain.handle(IPC_CHANNELS.LIST_FISCAL_PROFILE_SUGGESTIONS, (_event, companyId: unknown) =>
+    registrationUseCases().listFiscalProfileSuggestions(companyId))
+  ipcMain.handle(IPC_CHANNELS.CREATE_SUGGESTED_FISCAL_PROFILE, (_event, rawInput: unknown) =>
+    registrationUseCases().createSuggestedFiscalProfile(
+      inputRecord(rawInput) as unknown as CreateSuggestedFiscalProfileInput))
   ipcMain.handle(IPC_CHANNELS.CREATE_FISCAL_PROFILE, (_event, rawInput: unknown) =>
     registrationUseCases().createFiscalProfile(inputRecord(rawInput) as unknown as CreateFiscalProfileInput))
   ipcMain.handle(IPC_CHANNELS.LIST_SUPPLIER_PRODUCTS, (_event, companyId: unknown) =>

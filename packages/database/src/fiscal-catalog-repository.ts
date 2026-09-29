@@ -1,4 +1,4 @@
-import { AppError, AppErrorCode } from '@motor/domain'
+import { AppError, AppErrorCode, type FiscalProfileEvidence } from '@motor/domain'
 import { randomUUID } from 'node:crypto'
 import { normalizeCnpj } from '@motor/domain'
 import type { SqliteDatabase } from './sqlite-database'
@@ -76,6 +76,39 @@ export class SqliteFiscalCatalogRepository {
       name: row.nome, validFrom: row.vigente_de,
       ...(row.vigente_ate ? { validUntil: row.vigente_ate } : {}),
       createdAt: row.criado_em,
+    }))
+  }
+
+  /** Lê somente campos cadastrais de itens elegíveis ainda sem vínculo. */
+  listProfileSuggestionEvidence(companyId: string): readonly FiscalProfileEvidence[] {
+    return this.database.all<{
+      documento_id: string; emissao_original: string | null; emitente_cnpj: string | null;
+      codigo_produto_fornecedor: string | null; descricao: string | null;
+      ncm: string | null; cest: string | null; origem: string | null
+    }>(
+      `SELECT d.id AS documento_id, d.emissao_original, d.emitente_cnpj,
+              i.codigo_produto_fornecedor, i.descricao, i.ncm, i.cest,
+              json_extract(i.dados_normalizados_json, '$.declaredIcms.originCode') AS origem
+       FROM documentos_fiscais d
+       JOIN itens_documento i ON i.documento_id = d.id
+       WHERE d.empresa_id = ? AND d.elegivel_processamento = 1
+         AND d.emitente_cnpj IS NOT NULL AND i.codigo_produto_fornecedor IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM produtos_fornecedor p
+           WHERE p.empresa_id = d.empresa_id AND p.fornecedor_cnpj = d.emitente_cnpj
+             AND p.codigo_produto = i.codigo_produto_fornecedor
+         )
+       ORDER BY d.id, i.numero_item`,
+      companyId,
+    ).map((row) => ({
+      documentId: row.documento_id,
+      ...(row.emissao_original ? { issuedAt: row.emissao_original } : {}),
+      ...(row.emitente_cnpj ? { supplierCnpj: row.emitente_cnpj } : {}),
+      ...(row.codigo_produto_fornecedor ? { productCode: row.codigo_produto_fornecedor } : {}),
+      ...(row.descricao ? { description: row.descricao } : {}),
+      ...(row.ncm ? { ncm: row.ncm } : {}),
+      ...(row.cest ? { cest: row.cest } : {}),
+      ...(row.origem ? { originCode: row.origem } : {}),
     }))
   }
 
