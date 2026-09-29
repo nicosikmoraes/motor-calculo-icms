@@ -16,6 +16,7 @@ import {
   type OrganizationSummary,
   type SelectedSource,
   type WorkspaceState,
+  type RegistrationAuditEvent,
 } from '@motor/contracts'
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
@@ -23,6 +24,8 @@ const api: DesktopApi = {
   getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
   getWorkspace: () =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_WORKSPACE) as Promise<WorkspaceState>,
+  listRegistrationAudit: (filter) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_REGISTRATION_AUDIT, filter ?? {}) as Promise<readonly RegistrationAuditEvent[]>,
   createOrganization: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_ORGANIZATION, input) as Promise<OrganizationSummary>,
   renameOrganization: (input) =>

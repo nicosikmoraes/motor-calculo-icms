@@ -87,7 +87,11 @@ async function linkItem(document: FiscalDocumentSummary, item: FiscalItemSummary
   notice.value = ''
   saving.value = true
   try {
+    const existingProducts = await window.desktopApi.listSupplierProducts(document.companyId)
+    const existing = existingProducts.find((product) => product.supplierCnpj === document.issuerTaxId?.replace(/\D/g, '')
+      && product.productCode === item.supplierProductCode)
     await window.desktopApi.saveSupplierProduct({
+      ...(existing ? { expectedRevision: existing.revision } : {}),
       companyId: document.companyId,
       supplierCnpj: document.issuerTaxId,
       productCode: item.supplierProductCode,

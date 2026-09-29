@@ -13,6 +13,7 @@ const savingCompany = ref(false)
 const savingOffice = ref(false)
 const error = ref('')
 const success = ref('')
+const revisionConflict = ref(false)
 
 const states = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
@@ -32,12 +33,15 @@ async function saveOffice(): Promise<void> {
   error.value = ''
   success.value = ''
   savingOffice.value = true
+  revisionConflict.value = false
   try {
-    await window.desktopApi.renameOrganization({ name: officeName.value })
+    await window.desktopApi.renameOrganization({ name: officeName.value,
+      expectedRevision: workspace.value.organization?.revision ?? 1 })
     await load()
     success.value = 'Nome do escritório atualizado.'
   } catch (cause) {
     error.value = message(cause, RendererErrorMessage.OFFICE_UPDATE)
+    revisionConflict.value = error.value.includes('Recarregue os dados')
   } finally {
     savingOffice.value = false
   }
@@ -82,7 +86,9 @@ onMounted(() => void load().catch((cause) => {
       </div>
     </header>
 
-    <p v-if="error" class="form-error notice" role="alert">{{ error }}</p>
+    <p v-if="error" class="form-error notice" role="alert">{{ error }}
+      <button v-if="revisionConflict" class="button secondary" type="button" @click="load">Recarregar dados</button>
+    </p>
     <p v-if="success" class="form-success notice" role="status">{{ success }}</p>
 
     <div class="settings-grid">

@@ -33,6 +33,7 @@ export type BrazilianState = (typeof BRAZILIAN_STATES)[number]
 
 export interface Organization {
   id: string
+  revision?: number
   name: string
   active: boolean
   createdAt: string
@@ -41,6 +42,7 @@ export interface Organization {
 
 export interface Company {
   id: string
+  revision?: number
   organizationId: string
   legalName: string
   tradeName?: string

@@ -98,11 +98,15 @@ async function saveProduct(): Promise<void> {
   success.value = ''
   busy.value = true
   try {
+    const existing = products.value.find((product) =>
+      product.supplierCnpj === supplierCnpj.value.replace(/\D/g, '')
+      && product.productCode === productCode.value.trim())
     await window.desktopApi.saveSupplierProduct({
       companyId: companyId.value,
       supplierCnpj: supplierCnpj.value,
       productCode: productCode.value,
       profileId: selectedProfileId.value,
+      ...(existing ? { expectedRevision: existing.revision } : {}),
     })
     supplierCnpj.value = ''
     productCode.value = ''
@@ -147,7 +151,9 @@ onMounted(async () => {
       </div>
     </header>
 
-    <p v-if="error" class="form-error catalog-message" role="alert">{{ error }}</p>
+    <p v-if="error" class="form-error catalog-message" role="alert">{{ error }}
+      <button v-if="error.includes('Recarregue os dados')" class="button secondary" type="button" @click="loadCatalog">Recarregar dados</button>
+    </p>
     <p v-if="success" class="form-success catalog-message" role="status">{{ success }}</p>
 
     <section class="company-panel card" aria-labelledby="company-title">

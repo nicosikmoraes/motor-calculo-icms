@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { IPC_CHANNELS, type SelectedSource } from '@motor/contracts'
 import { AppError, AppErrorCode } from '@motor/domain'
-import { CORE_MIGRATIONS, SqliteDatabase, runSqlMigrationsWithBackup } from '@motor/database'
+import { CORE_MIGRATIONS, SqliteDatabase, SqliteRegistrationAuditRepository,
+  auditRetentionCutoff, runSqlMigrationsWithBackup } from '@motor/database'
 import { BatchOperationCancelledError, BatchOperationRegistry, type BatchOperationSession } from './batch-operation'
 import { ZipVisitCancelledError } from '@motor/nfe-parser'
 
@@ -13,6 +14,8 @@ import { ZipVisitCancelledError } from '@motor/nfe-parser'
 export const approvedSourcePaths = new Set<string>()
 export const batchOperations = new BatchOperationRegistry()
 let database: SqliteDatabase | undefined
+let retentionTimer: ReturnType<typeof setInterval> | undefined
+let lastRetentionDate: string | undefined
 
 /** Controla progresso, cancelamento e limpeza de uma operação longa iniciada pela interface. */
 export async function runBatchOperation<T>(
@@ -83,6 +86,22 @@ export async function hashFile(path: string, session?: BatchOperationSession): P
   return hash.digest('hex')
 }
 
+/** Limpa eventos vencidos; erro gera diagnóstico e a próxima chamada tenta novamente. */
+export function runAuditRetention(): void {
+  if (!database) return
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10)
+  if (lastRetentionDate === date) return
+  try {
+    const removed = new SqliteRegistrationAuditRepository(database)
+      .purgeBefore(auditRetentionCutoff(now), now.toISOString())
+    lastRetentionDate = date
+    console.info(`Retenção da auditoria: ${removed} evento(s) removido(s) em ${now.toISOString()}`)
+  } catch (error) {
+    console.error('Falha na retenção da auditoria; nova tentativa programada.', error)
+  }
+}
+
 /** Abre o banco local e cria um backup antes de aplicar migrations pendentes. */
 export async function openDatabase(): Promise<void> {
   const dataDirectory = app.getPath('userData')
@@ -100,10 +119,14 @@ export async function openDatabase(): Promise<void> {
     database = undefined
     throw error
   }
+  runAuditRetention()
+  retentionTimer = setInterval(runAuditRetention, 60 * 60 * 1000)
 }
 
 /** Fecha a conexão quando o Electron termina. */
 export function closeDatabase(): void {
+  if (retentionTimer) clearInterval(retentionTimer)
+  retentionTimer = undefined
   database?.close()
   database = undefined
 }

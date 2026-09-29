@@ -298,7 +298,7 @@ describe('SQLite e migrations', () => {
         batchId,
       )
 
-      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10])
+      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
       expect(database.get<{ status: string }>('SELECT status FROM lotes WHERE id = ?', batchId))
         .toEqual({ status: 'CANCELADO' })
       expect(
@@ -313,6 +313,20 @@ describe('SQLite e migrations', () => {
     } finally {
       database.close()
     }
+  })
+
+  it('preserva eventos de auditoria contra edição e exclusão', () => {
+    const database = new SqliteDatabase(':memory:')
+    try {
+      runSqlMigrations(database, CORE_MIGRATIONS, migrationOptions)
+      database.run(`INSERT INTO eventos_auditoria_cadastro
+        (id, entidade, entidade_id, operacao, revisao, alteracoes_json, computador, usuario_sistema, criado_em)
+        VALUES ('e1', 'ORGANIZATION', 'o1', 'CREATE', 1, '{}', 'pc', 'user', '2026-09-21T18:00:00.000Z')`)
+      expect(() => database.run("UPDATE eventos_auditoria_cadastro SET computador = 'outro' WHERE id = 'e1'"))
+        .toThrow(/imutáveis/)
+      expect(() => database.run("DELETE FROM eventos_auditoria_cadastro WHERE id = 'e1'"))
+        .toThrow(/imutáveis/)
+    } finally { database.close() }
   })
 
   it('cria e valida backup antes de migrar um banco existente', async () => {

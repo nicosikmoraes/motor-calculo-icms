@@ -33,6 +33,7 @@ function organization() {
   return {
     id: organizationId,
     name: "Escritório sintético",
+    revision: 1,
     active: true,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -128,10 +129,13 @@ describe("migrations e repositórios centrais", () => {
       .map(({ name }) => name);
 
     expect(tables).toEqual([
+      "auditoria_retencao_controle",
+      "auditoria_retencao_execucoes",
       "avaliacoes_regras_itens",
       "diagnosticos_ingestao",
       "documentos_fiscais",
       "empresas",
+      "eventos_auditoria_cadastro",
       "execucoes_avaliacao_regras",
       "execucoes_calculo",
       "itens_documento",
