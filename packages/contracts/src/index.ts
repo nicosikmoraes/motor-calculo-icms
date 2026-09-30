@@ -398,8 +398,16 @@ export interface RuleEvaluationSummary {
   ruleId: string
   ruleName: string
   status: BuiltinRuleSummary['status']
-  proposedRate: string
-  reviewStage: BuiltinRuleSummary['reviewStage']
+  proposedRate?: string
+  reviewStage?: BuiltinRuleSummary['reviewStage']
+  source?: 'BUILTIN' | 'LOCAL'
+  familyId?: string
+  version?: number
+  level?: string
+  priority?: number
+  legalBasis?: string
+  conditions?: Readonly<Record<string, string>>
+  selectionRank?: number
   exclusionReasons: readonly string[]
   mismatchedConditions: readonly string[]
 }
@@ -411,6 +419,8 @@ export interface ItemRuleAssessment {
   context: Readonly<Record<string, string>>
   kind: `${RuleAssessmentKindCode}`
   selectedRuleId?: string
+  selectedRuleVersion?: number
+  tiedRuleIds?: readonly string[]
   evaluated: readonly RuleEvaluationSummary[]
 }
 

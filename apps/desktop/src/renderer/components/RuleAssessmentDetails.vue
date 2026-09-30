@@ -9,6 +9,8 @@ const fieldLabels: Record<string, string> = {
   originState: 'UF de origem', destinationState: 'UF de destino', cfop: 'CFOP',
   issuerRegime: 'CRT', cst: 'CST', merchandiseOrigin: 'origem da mercadoria',
   operationType: 'direção da operação', purpose: 'finalidade',
+  companyId: 'empresa', supplierProductId: 'produto vinculado', fiscalProfileId: 'perfil fiscal',
+  ncm: 'NCM', cest: 'CEST', finalConsumer: 'consumidor final',
 }
 const matchingDrafts = computed(() => (props.assessment?.evaluated ?? []).filter((rule) =>
   rule.status === 'DRAFT' && rule.exclusionReasons.every((reason) => reason === 'NOT_APPROVED'),
@@ -18,8 +20,10 @@ const assessedContext = computed(() => Object.entries(props.assessment?.context 
 const changedFromOriginal = computed(() => {
   if (!props.assessment || !props.originalAssessment) return false
   return JSON.stringify({ kind: props.assessment.kind, selectedRuleId: props.assessment.selectedRuleId,
+    selectedRuleVersion: props.assessment.selectedRuleVersion, tiedRuleIds: props.assessment.tiedRuleIds,
     evaluated: props.assessment.evaluated }) !== JSON.stringify({
     kind: props.originalAssessment.kind, selectedRuleId: props.originalAssessment.selectedRuleId,
+    selectedRuleVersion: props.originalAssessment.selectedRuleVersion, tiedRuleIds: props.originalAssessment.tiedRuleIds,
     evaluated: props.originalAssessment.evaluated,
   })
 })
@@ -28,7 +32,7 @@ const heading = computed(() => {
   if (props.assessment.kind === 'DRAFT_MATCH') return `${matchingDrafts.value.length} regra(s) compatível(is), cálculo pendente`
   if (props.assessment.kind === 'SELECTED') return 'Regra aprovada selecionada'
   if (props.assessment.kind === 'AMBIGUOUS') return 'Regras empatadas: revisão necessária'
-  return 'Nenhuma proposta corresponde a este item'
+  return 'Nenhuma regra aprovada corresponde a este item'
 })
 </script>
 
@@ -41,16 +45,19 @@ const heading = computed(() => {
       <p v-if="assessedContext">Dados usados: {{ assessedContext }}.</p>
       <ul>
         <li v-for="rule in assessment.evaluated" :key="rule.ruleId">
-          <strong>{{ rule.ruleName }}</strong>
-          <span v-if="rule.mismatchedConditions.length">Não corresponde: {{ rule.mismatchedConditions.map((field) => fieldLabels[field] || field).join(', ') }}.</span>
-          <span v-else-if="rule.status === 'REVOKED'">Regra revogada.</span>
-          <span v-else-if="rule.status === 'DRAFT'">Condições correspondem; alíquota de {{ rule.proposedRate }}% revisada. Cálculo aguarda base, exceções e arredondamento.</span>
-          <span v-else-if="rule.exclusionReasons.includes('EXPIRED')">Fora da vigência.</span>
+          <strong>{{ rule.ruleName }} <small>v{{ rule.version ?? 1 }} · {{ rule.source === 'LOCAL' ? 'catálogo local' : 'proposta embarcada' }}</small></strong>
+          <span v-if="rule.exclusionReasons.includes('SUPERSEDED')">Versão substituída por uma versão mais nova desta família.</span>
+          <span v-else-if="rule.status === 'REVOKED'">Versão revogada; não participa da seleção.</span>
           <span v-else-if="rule.exclusionReasons.includes('NOT_YET_VALID')">Ainda não vigente.</span>
-          <span v-else>Condições correspondem à regra aprovada.</span>
+          <span v-else-if="rule.exclusionReasons.includes('EXPIRED')">Fora da vigência.</span>
+          <span v-else-if="rule.mismatchedConditions.length">Não corresponde: {{ rule.mismatchedConditions.map((field) => fieldLabels[field] || field).join(', ') }}.</span>
+          <span v-else-if="rule.status === 'DRAFT'">Condições correspondem, mas a versão é rascunho. {{ rule.proposedRate ? 'Alíquota proposta de ' + rule.proposedRate + '%. ' : '' }}Nenhum cálculo é liberado.</span>
+          <span v-else-if="assessment.selectedRuleId === rule.ruleId">Selecionada pela precedência: nível {{ rule.level }}, {{ Object.keys(rule.conditions ?? {}).length }} condição(ões), prioridade {{ rule.priority }}.</span>
+          <span v-else-if="assessment.tiedRuleIds?.includes(rule.ruleId)">Empatada na maior precedência; seleção pendente.</span>
+          <span v-else>Compatível, mas com precedência inferior à selecionada.</span>
         </li>
       </ul>
-      <RouterLink to="/regras">Ver pacote atual de propostas</RouterLink>
+      <RouterLink to="/regras">Ver catálogo de regras</RouterLink>
     </div>
     <p v-else class="rule-assessment-body">Este lote foi criado antes do registro das avaliações por item. O resultado original não pode ser reconstruído com segurança.</p>
   </details>

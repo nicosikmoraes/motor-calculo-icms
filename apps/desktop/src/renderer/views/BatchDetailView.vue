@@ -67,10 +67,9 @@ async function reassessRules(): Promise<void> {
   error.value = ''
   notice.value = ''
   try {
-    const pack = await window.desktopApi.getBuiltinRulePack()
     const original = detail.value.originalAssessmentPack
     const originalLabel = original ? `${original.id} v${original.version}` : 'indisponível'
-    const message = `Avaliação original: ${originalLabel}\nNova avaliação: ${pack.id} v${pack.version}\n\nA nova execução será salva separadamente. A original não será alterada. Continuará sem cálculo de ICMS. Deseja continuar?`
+    const message = `Avaliação original: ${originalLabel}\nNova avaliação: catálogo local atualizado e propostas embarcadas.\n\nA nova execução será salva separadamente. A original não será alterada. Continuará sem cálculo de ICMS. Deseja continuar?`
     if (!window.confirm(message)) return
     reassessing.value = true
     const run = await window.desktopApi.reassessBatchRules(detail.value.batch.id)

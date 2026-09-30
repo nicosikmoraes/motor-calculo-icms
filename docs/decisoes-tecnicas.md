@@ -568,6 +568,7 @@ nova tentativa sem impedir uso. O schema de regras versionadas virá em migratio
 separada depois dos casos de uso. Ver [plano da Fase 2](plano-fase-2-casos-de-uso.md)
 para sequência e critérios de conclusão. A política geral de proteção e backup
 continua em MD-09/MD-10.
+
 ## DT-034 — Versões locais de regras fiscais
 
 **Status:** ciclo de vida técnico aprovado em 29/09/2026; contratos tributários MD-05/MD-06 pendentes.
@@ -581,9 +582,26 @@ estruturadas compatíveis com o nível; prioridade manual exige justificativa.
 A migration `0013` separa família, versões, revogações e eventos imutáveis. Uma versão
 aprovada não é editada nem excluída; a revogação é um registro próprio, preservando
 seu conteúdo. Nova versão começa como rascunho. Os eventos são gravados na mesma
-transação das mudanças. O catálogo local ainda não alimenta as avaliações dos
-lotes nem produz cálculo fiscal: resultados tributários, sobreposição, homologação
-e ligação com o motor dependem de MD-05/MD-06 e dos casos aprovados pelo contador.
+transação das mudanças. O catálogo local alimenta as novas avaliações dos lotes,
+mas não produz cálculo fiscal: resultados tributários e homologação dependem de
+MD-05/MD-06 e dos casos aprovados pelo contador.
+
+## DT-035 — Substituição de versões nas avaliações
+
+**Status:** aprovado em 29/09/2026; seleção cadastral implementada.
+
+A versão aprovada mais nova de uma família substitui a anterior somente nas novas
+avaliações dos itens. Enquanto a nova versão é rascunho, a última aprovada segue
+selecionável. Revogar a versão mais nova não reativa uma versão antiga: é preciso
+criar e aprovar uma nova versão. Importação e reavaliação usam uma fotografia do
+catálogo local; avaliações e execuções já salvas permanecem imutáveis.
+
+A seleção considera versão aprovada, vigência, condições, nível, especificidade
+e prioridade conforme DT-006. O detalhe do lote guarda candidatas avaliadas,
+versão, fundamento, condições e motivos de exclusão. Sobreposições potenciais
+entre famílias do mesmo nível geram aviso; empates reais continuam pendentes,
+sem desempate silencioso. Esta avaliação identifica a regra aplicável, mas não
+calcula ICMS: resultados fiscais seguem dependentes de MD-05/MD-06.
 
 ## Fila de decisões
 

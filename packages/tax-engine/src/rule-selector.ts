@@ -26,6 +26,7 @@ export enum RuleExclusionReasonCode {
   NOT_YET_VALID = 'NOT_YET_VALID',
   EXPIRED = 'EXPIRED',
   CONDITION_MISMATCH = 'CONDITION_MISMATCH',
+  SUPERSEDED = 'SUPERSEDED',
 }
 
 export interface RuleContext {

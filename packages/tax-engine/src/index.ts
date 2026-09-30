@@ -1,5 +1,6 @@
 export * from './calculation-error'
 export * from './rule-selector'
+export * from './versioned-rule-selection'
 export * from './builtin-rule-pack'
 export * from './decimal'
 export * from './calculation-memory'
