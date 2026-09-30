@@ -110,6 +110,8 @@ RN-011 — Persistindo mais de uma candidata, vence a maior prioridade numérica
 
 RN-012 — Persistindo empate de nível, especificidade e prioridade, o item recebe `REGRA_AMBIGUA` e não é calculado.
 
+A avaliação de regras registra `REGRA_NAO_ENCONTRADA` quando não há regra aprovada compatível, inclusive quando somente rascunhos correspondem. Se o cadastro do produto também estiver incompleto, registra `PRODUTO_NAO_CLASSIFICADO`; se o vínculo ou perfil estiver inativo, ausente ou fora da vigência, registra `DIVERGENCIA_CADASTRAL` com o motivo cadastral específico. Esses motivos podem coexistir no snapshot da avaliação. Uma regra genérica aprovada pode ser selecionada mesmo sem vínculo de produto, sem criar pendência de seleção por esse vínculo. Avaliações anteriores permanecem imutáveis.
+
 RN-013 — A regra aplicada deve ser registrada com identificador, versão, nível, especificidade, prioridade e fundamento.
 
 RN-014 — Alterar uma regra cria nova versão; não altera cálculos históricos.
