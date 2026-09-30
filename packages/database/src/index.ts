@@ -1,5 +1,6 @@
 export * from './core-migrations'
 export * from './registration-audit-repository'
+export * from './versioned-rule-repository'
 export * from './fiscal-catalog-repository'
 export * from './calculation-repository'
 export * from './core-repositories'

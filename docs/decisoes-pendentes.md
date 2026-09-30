@@ -85,7 +85,7 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 1. Casos de teste aprovados por contador para cada módulo fiscal.
 2. Massa de XMLs anonimizada e resultados esperados.
 3. Testes de regressão por versão do motor e das regras.
-4. Processo de aprovação, publicação e revogação de regras.
+4. Evidência fiscal necessária antes de ligar versões aprovadas ao cálculo; a operação local de aprovação e revogação já foi definida na DT-034.
 5. Evidências mínimas para considerar uma versão pronta para uso.
 
 ## Prioridade 9 — instalação e atualização

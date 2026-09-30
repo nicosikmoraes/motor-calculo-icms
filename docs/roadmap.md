@@ -54,7 +54,7 @@ vigência e responsável pela revisão.
 | 10–13 | Rateio e centavo residual, escalas e arredondamento, tolerância por componente, zero/negativos/dados ausentes | MD-05; resultado definitivo, comparação e reconciliação da fase 5. A biblioteca `decimal.js` já foi escolhida; a política fiscal continua aberta |
 | 14–15 | Efeito de protocolo não verificado, conflitos e eventos posteriores no caráter do resultado e nos totais | MD-07; fase 7 e consolidação definitiva usada pelo relatório |
 | 16 e seção 6 | Casos fora da primeira versão e ordem dos módulos complementares | MD-06; divisão da US04 e sequência de ST, DIFAL, FCP e tratamentos especiais na fase 6 |
-| 17–18 | Evidência necessária na memória de cálculo e autoridade para aprovar, publicar e revogar regras | MD-05/MD-12; auditoria das fases 4 e 5. A estrutura técnica da memória já existe, mas ainda depende da validação fiscal |
+| 17–18 | Evidência necessária na memória de cálculo e liberação fiscal das regras | MD-05/MD-12; qualquer usuário local pode operar o ciclo de versões conforme DT-034, mas a liberação de regras tributárias reais ainda depende da validação fiscal |
 | Casos A–E | XMLs anonimizados, resultados independentes do declarado, fundamento, vigência e identificação do revisor | MD-12; testes de regressão e liberação fiscal da fase 5 e da fase 10 |
 
 **Pode avançar enquanto o contador responde:** terminar os itens técnicos das
@@ -114,7 +114,8 @@ exige decisões próprias sobre eventos e precedência documental.
   das entradas, regras, versão do motor e memória de cálculo, conforme DT-023;
 - [x] `node:sqlite` encapsulado no pacote `database`, sem ORM, conforme DT-027;
 - [x] schema físico inicial de organização, empresa, lote e ocorrência na migration `0001`;
-- [ ] completar schema, índices e restrições para regras versionadas e trilha de auditoria;
+- [x] completar schema, índices e restrições para versões de seleção de regras e trilha de auditoria;
+- [ ] completar os campos de resultado tributário das regras após MD-05/MD-06;
 - [x] inativação de cadastros utilizados, imutabilidade de regras publicadas e
   proibição de cascatas destrutivas sobre o histórico, conforme DT-028;
 - [x] decimais como texto canônico, UUIDs textuais e datas fiscais preservadas
@@ -251,7 +252,7 @@ exige decisões próprias sobre eventos e precedência documental.
 
 - casos aprovados por contador para cada módulo;
 - massa de XMLs anonimizada e resultados esperados;
-- processo de publicação e revogação de regras;
+- evidências fiscais para liberar regras tributárias reais; o ciclo local de versões e revogação está na DT-034;
 - regressão por versão do motor e da regra;
 - evidências mínimas para liberar uma versão.
 
@@ -375,11 +376,11 @@ ainda sem promessa de cálculo fiscal completo.
 
 **Já iniciado:** seleção por nível, especificidade, prioridade e ambiguidade;
 perfis fiscais e vínculos com produtos de fornecedor já estão persistidos.
-O próximo incremento é o ciclo de vida das regras e sua explicação por item.
+O ciclo de vida local das versões está implementado; o próximo incremento é ligar as regras elegíveis à avaliação dos itens com explicação por candidato, após definir os campos fiscais necessários.
 
 - [ ] implementar cadastro estruturado de condições e resultados;
-- [ ] implementar rascunho, aprovação, nova versão e revogação;
-- [ ] exigir fundamento legal e vigência para aprovação;
+- [x] implementar rascunho, aprovação para seleção, nova versão e revogação no catálogo local;
+- [x] exigir fundamento legal e vigência para aprovação da seleção;
 - [ ] detectar sobreposição potencial;
 - [x] vincular produto de fornecedor a perfil fiscal, por empresa e CNPJ do emitente;
 - [ ] registrar candidatas consideradas e explicação da seleção;

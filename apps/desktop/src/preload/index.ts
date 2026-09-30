@@ -9,7 +9,7 @@ import {
   type CompanySummary,
   type FiscalProfileSummary,
   type FiscalProfileSuggestion, type CreateSuggestedFiscalProfileResult,
-  type BuiltinRulePackSummary,
+  type BuiltinRulePackSummary, type VersionedRuleSummary, type RuleAuditSummary,
   type SupplierProductSummary,
   type CreatedBatchSummary,
   type DesktopApi,
@@ -46,6 +46,20 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_SUGGESTED_FISCAL_PROFILE, { ...input }) as Promise<CreateSuggestedFiscalProfileResult>,
   getBuiltinRulePack: () =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_BUILTIN_RULE_PACK) as Promise<BuiltinRulePackSummary>,
+  listVersionedRules: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_VERSIONED_RULES) as Promise<readonly VersionedRuleSummary[]>,
+  createRuleDraft: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_RULE_DRAFT, { ...input }) as Promise<VersionedRuleSummary>,
+  updateRuleDraft: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_RULE_DRAFT, { ...input }) as Promise<VersionedRuleSummary>,
+  createRuleVersion: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_RULE_VERSION, { ...input }) as Promise<VersionedRuleSummary>,
+  approveRule: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APPROVE_RULE, { ...input }) as Promise<VersionedRuleSummary>,
+  revokeRule: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.REVOKE_RULE, { ...input }) as Promise<VersionedRuleSummary>,
+  listRuleAudit: (versionId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_RULE_AUDIT, versionId) as Promise<readonly RuleAuditSummary[]>,
   createFiscalProfile: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_FISCAL_PROFILE, { ...input }) as Promise<FiscalProfileSummary>,
   updateFiscalProfile: (input) =>

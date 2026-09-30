@@ -12,6 +12,13 @@ export const IPC_CHANNELS = {
   LIST_FISCAL_PROFILE_SUGGESTIONS: 'fiscal-profiles:list-suggestions',
   CREATE_SUGGESTED_FISCAL_PROFILE: 'fiscal-profiles:create-suggestion',
   GET_BUILTIN_RULE_PACK: 'fiscal-rules:built-in-pack',
+  LIST_VERSIONED_RULES: 'fiscal-rules:list-versioned',
+  CREATE_RULE_DRAFT: 'fiscal-rules:create-draft',
+  UPDATE_RULE_DRAFT: 'fiscal-rules:update-draft',
+  CREATE_RULE_VERSION: 'fiscal-rules:new-version',
+  APPROVE_RULE: 'fiscal-rules:approve',
+  REVOKE_RULE: 'fiscal-rules:revoke',
+  LIST_RULE_AUDIT: 'fiscal-rules:list-audit',
   CREATE_FISCAL_PROFILE: 'fiscal-profiles:create',
   UPDATE_FISCAL_PROFILE: 'fiscal-profiles:update',
   INACTIVATE_FISCAL_PROFILE: 'fiscal-profiles:inactivate',
@@ -307,6 +314,51 @@ export enum FiscalRuleStatusCode {
   REVOKED = 'REVOKED',
 }
 
+export interface RuleDraftFields {
+  name: string
+  level: string
+  priority: number
+  priorityReason?: string
+  validFrom: string
+  validUntil?: string
+  legalBasis?: string
+  conditions: Readonly<Record<string, string>>
+}
+export interface CreateRuleDraftInput extends RuleDraftFields {}
+export interface UpdateRuleDraftInput extends RuleDraftFields {
+  id: string
+  expectedRevision: number
+}
+export interface RuleVersionMutationInput {
+  id: string
+  expectedRevision: number
+}
+export interface RevokeRuleInput extends RuleVersionMutationInput {
+  reason: string
+}
+export interface VersionedRuleSummary extends RuleDraftFields {
+  id: string
+  familyId: string
+  version: number
+  revision: number
+  status: `${FiscalRuleStatusCode}`
+  createdAt: string
+  updatedAt: string
+  approvedAt?: string
+  revokedAt?: string
+  revocationReason?: string
+}
+export interface RuleAuditSummary {
+  id: string
+  versionId: string
+  operation: 'CREATE_DRAFT' | 'UPDATE_DRAFT' | 'NEW_VERSION' | 'APPROVE' | 'REVOKE'
+  revision: number
+  changes: Readonly<Record<string, { before: string | number | null; after: string | number | null }>>
+  computer: string
+  systemUser: string
+  createdAt: string
+}
+
 export enum RuleAssessmentKindCode {
   SELECTED = 'SELECTED',
   AMBIGUOUS = 'AMBIGUOUS',
@@ -456,6 +508,13 @@ export interface DesktopApi {
   listFiscalProfileSuggestions(companyId: string): Promise<readonly FiscalProfileSuggestion[]>
   createSuggestedFiscalProfile(input: CreateSuggestedFiscalProfileInput): Promise<CreateSuggestedFiscalProfileResult>
   getBuiltinRulePack(): Promise<BuiltinRulePackSummary>
+  listVersionedRules(): Promise<readonly VersionedRuleSummary[]>
+  createRuleDraft(input: CreateRuleDraftInput): Promise<VersionedRuleSummary>
+  updateRuleDraft(input: UpdateRuleDraftInput): Promise<VersionedRuleSummary>
+  createRuleVersion(input: RuleVersionMutationInput): Promise<VersionedRuleSummary>
+  approveRule(input: RuleVersionMutationInput): Promise<VersionedRuleSummary>
+  revokeRule(input: RevokeRuleInput): Promise<VersionedRuleSummary>
+  listRuleAudit(versionId: string): Promise<readonly RuleAuditSummary[]>
   createFiscalProfile(input: CreateFiscalProfileInput): Promise<FiscalProfileSummary>
   updateFiscalProfile(input: UpdateFiscalProfileRegistrationInput): Promise<FiscalProfileSummary>
   inactivateFiscalProfile(input: RegistrationMutationInput): Promise<FiscalProfileSummary>

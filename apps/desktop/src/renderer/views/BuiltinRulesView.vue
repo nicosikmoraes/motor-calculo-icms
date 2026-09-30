@@ -2,6 +2,7 @@
 import { RendererErrorMessage } from '../error-messages'
 import { onMounted, ref } from 'vue'
 import type { BuiltinRulePackSummary } from '@motor/contracts'
+import VersionedRulesPanel from '../components/VersionedRulesPanel.vue'
 
 const pack = ref<BuiltinRulePackSummary | null>(null)
 const error = ref('')
@@ -23,6 +24,7 @@ onMounted(async () => {
 
 <template>
   <section class="rules-page">
+    <VersionedRulesPanel />
     <header class="rules-header">
       <p class="eyebrow">Pacote incluído no aplicativo</p>
       <h2>Regras fiscais propostas</h2>
