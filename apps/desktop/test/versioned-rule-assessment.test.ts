@@ -59,6 +59,14 @@ describe('avaliação com catálogo versionado', () => {
     expect(after.evaluated.find((entry) => entry.ruleId === 'v2')?.status).toBe('REVOKED')
   })
 
+  it('não restaura versão antiga quando a mais recente está fora da vigência', () => {
+    const latest = { ...rule, id: 'v2', version: 2, validFrom: '2027-01-01' }
+    const assessment = assessFiscalRules(note, item, [rule, latest], 'company')
+    expect(assessment).toMatchObject({ kind: 'NO_MATCH', pendingCodes: ['REGRA_NAO_ENCONTRADA', 'PRODUTO_NAO_CLASSIFICADO'] })
+    expect(assessment.evaluated.find((entry) => entry.ruleId === 'v1')?.exclusionReasons).toContain('SUPERSEDED')
+    expect(assessment.evaluated.find((entry) => entry.ruleId === 'v2')?.exclusionReasons).toContain('NOT_YET_VALID')
+  })
+
   it('registra empate de famílias diferentes e explica a precedência', () => {
     const other = { ...rule, id: 'other', familyId: 'family-b', name: 'Outro NCM' }
     const ambiguous = assessFiscalRules(note, item, [rule, other], 'company')

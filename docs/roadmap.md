@@ -387,7 +387,7 @@ implementados. Resultados tributários continuam aguardando MD-05/MD-06.
 - [x] registrar candidatas consideradas e explicação da seleção;
 - [x] gerar pendências `REGRA_NAO_ENCONTRADA`, `REGRA_AMBIGUA`,
   `PRODUTO_NAO_CLASSIFICADO` e `DIVERGENCIA_CADASTRAL`;
-- [ ] cobrir a precedência com testes de tabela.
+- [x] cobrir a precedência com testes de tabela.
 
 **DECISÃO NECESSÁRIA:** campos fiscais cujo significado depende dos contratos de
 cálculo podem ser cadastrados somente depois de MD-05 e MD-06.
