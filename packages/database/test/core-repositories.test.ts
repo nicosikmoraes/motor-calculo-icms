@@ -136,8 +136,10 @@ describe("migrations e repositórios centrais", () => {
       "documentos_fiscais",
       "empresas",
       "eventos_auditoria_cadastro",
+      "eventos_auditoria_regras",
       "execucoes_avaliacao_regras",
       "execucoes_calculo",
+      "familias_regras_fiscais",
       "itens_documento",
       "lotes",
       "ocorrencias_arquivo",
@@ -145,7 +147,9 @@ describe("migrations e repositórios centrais", () => {
       "perfis_fiscais",
       "produtos_fornecedor",
       "resultados_item_calculo",
+      "revogacoes_regras_fiscais",
       "schema_migrations",
+      "versoes_regras_fiscais",
     ]);
     expect(indexes).toContain("idx_ocorrencias_lote_chave");
     expect(indexes).toContain("idx_ocorrencias_lote_hash");
