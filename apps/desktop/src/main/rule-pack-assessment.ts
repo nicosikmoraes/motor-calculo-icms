@@ -1,4 +1,5 @@
-import { RuleAssessmentKindCode, type ItemRuleAssessment, type RuleEvaluationSummary } from '@motor/contracts'
+import { ItemClassificationReasonCode, RuleAssessmentKindCode, RuleAssessmentPendingCode, type ItemRuleAssessment, type RuleEvaluationSummary } from '@motor/contracts'
+import { classifyFiscalItem } from './fiscal-item-classification'
 import type { FiscalProfileRecord, SupplierProductRecord, VersionedRuleRecord } from '@motor/database'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
 import {
@@ -83,10 +84,34 @@ export function assessFiscalRules(note: NormalizedNfe, item: NormalizedNfeItem,
     ...superseded]
   const matchingDrafts = evaluated.filter((candidate) => candidate.status === FiscalRuleStatusCode.DRAFT
     && candidate.exclusionReasons.every((reason) => reason === RuleExclusionReasonCode.NOT_APPROVED))
+  // A falta de regra aprovada e a falha cadastral são fatos distintos: ambos ficam no snapshot.
+  const pendingCodes: RuleAssessmentPendingCode[] = []
+  if (selection.kind === RuleSelectionKindCode.AMBIGUOUS) {
+    pendingCodes.push(RuleAssessmentPendingCode.REGRA_AMBIGUA)
+  } else if (selection.kind === RuleSelectionKindCode.NOT_FOUND) {
+    pendingCodes.push(RuleAssessmentPendingCode.REGRA_NAO_ENCONTRADA)
+  }
+  const supplierCnpj = note.issuer.taxIdType === 'CNPJ' ? note.issuer.taxId?.replace(/\D/g, '') : undefined
+  const classification = classifyFiscalItem(companyId, supplierCnpj, item.supplierProductCode,
+    note.issuedAt, profiles, products)
+  if (selection.kind === RuleSelectionKindCode.NOT_FOUND) {
+    if (classification.classificationReason === ItemClassificationReasonCode.PRODUCT_CODE_MISSING
+      || classification.classificationReason === ItemClassificationReasonCode.PRODUCT_NOT_LINKED) {
+      pendingCodes.push(RuleAssessmentPendingCode.PRODUTO_NAO_CLASSIFICADO)
+    } else if (([
+      ItemClassificationReasonCode.PRODUCT_INACTIVE, ItemClassificationReasonCode.PROFILE_NOT_FOUND,
+      ItemClassificationReasonCode.PROFILE_INACTIVE, ItemClassificationReasonCode.PROFILE_NOT_YET_VALID,
+      ItemClassificationReasonCode.PROFILE_EXPIRED,
+    ] as readonly string[]).includes(classification.classificationReason)) {
+      pendingCodes.push(RuleAssessmentPendingCode.DIVERGENCIA_CADASTRAL)
+    }
+  }
   return {
     packId: versioned.length ? LOCAL_RULE_PACK_ID : BUILTIN_ICMS_OWN_PACK.id,
     packVersion: versioned.length ? LOCAL_RULE_PACK_VERSION : BUILTIN_ICMS_OWN_PACK.version,
     assessedAt, context: { ...context },
+    ...(pendingCodes.length ? { pendingCodes } : {}),
+    ...(pendingCodes.length > 1 ? { pendingDetail: classification.classificationReason } : {}),
     kind: selection.kind === RuleSelectionKindCode.NOT_FOUND
       ? matchingDrafts.length ? RuleAssessmentKindCode.DRAFT_MATCH : RuleAssessmentKindCode.NO_MATCH
       : selection.kind,

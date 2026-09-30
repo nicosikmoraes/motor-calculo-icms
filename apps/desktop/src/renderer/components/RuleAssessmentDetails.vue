@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { ItemRuleAssessment } from '@motor/contracts'
+import { ItemClassificationReasonCode, RuleAssessmentPendingCode, type ItemRuleAssessment } from '@motor/contracts'
 
 const props = defineProps<{ assessment: ItemRuleAssessment | undefined; originalAssessment?: ItemRuleAssessment | undefined }>()
 
@@ -12,6 +12,27 @@ const fieldLabels: Record<string, string> = {
   companyId: 'empresa', supplierProductId: 'produto vinculado', fiscalProfileId: 'perfil fiscal',
   ncm: 'NCM', cest: 'CEST', finalConsumer: 'consumidor final',
 }
+enum PendingMessage {
+  REGRA_NAO_ENCONTRADA = 'Nenhuma regra aprovada e vigente atende ao item. Revise o catálogo de regras.',
+  REGRA_AMBIGUA = 'Duas ou mais regras têm a mesma precedência. Revise as condições ou a prioridade.',
+  PRODUTO_NAO_CLASSIFICADO = 'O produto não está vinculado a um perfil fiscal ativo. Revise o cadastro do produto.',
+  DIVERGENCIA_CADASTRAL = 'O vínculo ou perfil fiscal do produto está inativo, ausente ou fora da vigência. Revise o cadastro.',
+}
+const pendingMessage: Record<RuleAssessmentPendingCode, PendingMessage> = {
+  [RuleAssessmentPendingCode.REGRA_NAO_ENCONTRADA]: PendingMessage.REGRA_NAO_ENCONTRADA,
+  [RuleAssessmentPendingCode.REGRA_AMBIGUA]: PendingMessage.REGRA_AMBIGUA,
+  [RuleAssessmentPendingCode.PRODUTO_NAO_CLASSIFICADO]: PendingMessage.PRODUTO_NAO_CLASSIFICADO,
+  [RuleAssessmentPendingCode.DIVERGENCIA_CADASTRAL]: PendingMessage.DIVERGENCIA_CADASTRAL,
+}
+const classificationDetail: Partial<Record<ItemClassificationReasonCode, string>> = {
+  [ItemClassificationReasonCode.PRODUCT_CODE_MISSING]: 'Código do produto ausente no XML.',
+  [ItemClassificationReasonCode.PRODUCT_NOT_LINKED]: 'Produto sem vínculo cadastrado para este fornecedor e empresa.',
+  [ItemClassificationReasonCode.PRODUCT_INACTIVE]: 'Vínculo do produto inativo.',
+  [ItemClassificationReasonCode.PROFILE_NOT_FOUND]: 'Perfil associado ao produto não encontrado.',
+  [ItemClassificationReasonCode.PROFILE_INACTIVE]: 'Perfil associado ao produto inativo.',
+  [ItemClassificationReasonCode.PROFILE_NOT_YET_VALID]: 'Perfil ainda não vigente na emissão da nota.',
+  [ItemClassificationReasonCode.PROFILE_EXPIRED]: 'Perfil vencido na emissão da nota.',
+}
 const matchingDrafts = computed(() => (props.assessment?.evaluated ?? []).filter((rule) =>
   rule.status === 'DRAFT' && rule.exclusionReasons.every((reason) => reason === 'NOT_APPROVED'),
 ))
@@ -21,9 +42,11 @@ const changedFromOriginal = computed(() => {
   if (!props.assessment || !props.originalAssessment) return false
   return JSON.stringify({ kind: props.assessment.kind, selectedRuleId: props.assessment.selectedRuleId,
     selectedRuleVersion: props.assessment.selectedRuleVersion, tiedRuleIds: props.assessment.tiedRuleIds,
+    pendingCodes: props.assessment.pendingCodes, pendingDetail: props.assessment.pendingDetail,
     evaluated: props.assessment.evaluated }) !== JSON.stringify({
     kind: props.originalAssessment.kind, selectedRuleId: props.originalAssessment.selectedRuleId,
     selectedRuleVersion: props.originalAssessment.selectedRuleVersion, tiedRuleIds: props.originalAssessment.tiedRuleIds,
+    pendingCodes: props.originalAssessment.pendingCodes, pendingDetail: props.originalAssessment.pendingDetail,
     evaluated: props.originalAssessment.evaluated,
   })
 })
@@ -43,6 +66,13 @@ const heading = computed(() => {
       <p>Avaliação registrada em {{ new Date(assessment.assessedAt).toLocaleString('pt-BR') }} · pacote {{ assessment.packId }} · versão {{ assessment.packVersion }}. Esta avaliação não calcula imposto.</p>
       <p v-if="originalAssessment">Comparação com a importação: {{ changedFromOriginal ? 'resultado alterado' : 'mesmo resultado' }} · pacote original {{ originalAssessment.packId }} v{{ originalAssessment.packVersion }}.</p>
       <p v-if="assessedContext">Dados usados: {{ assessedContext }}.</p>
+      <div v-if="assessment.pendingCodes?.length" class="pending-reasons">
+        <strong>Pendências desta avaliação</strong>
+        <ul>
+          <li v-for="code in assessment.pendingCodes" :key="code"><code>{{ code }}</code>: {{ pendingMessage[code] }}</li>
+        </ul>
+        <p v-if="assessment.pendingDetail && classificationDetail[assessment.pendingDetail]">{{ classificationDetail[assessment.pendingDetail] }}</p>
+      </div>
       <ul>
         <li v-for="rule in assessment.evaluated" :key="rule.ruleId">
           <strong>{{ rule.ruleName }} <small>v{{ rule.version ?? 1 }} · {{ rule.source === 'LOCAL' ? 'catálogo local' : 'proposta embarcada' }}</small></strong>
@@ -72,5 +102,8 @@ const heading = computed(() => {
 .rule-assessment-body li > * { display: block; }
 .rule-assessment-body li strong { color: #4b3b23; }
 .rule-assessment-body li span { color: #706550; }
+.pending-reasons { margin-bottom: 10px; padding: 8px; border-radius: 6px; background: #fff1d3; color: #5d431c; }
+.pending-reasons ul { margin: 5px 0; }
+.pending-reasons code { font-size: 10px; }
 .rule-assessment-body a { color: #3659a0; font-weight: 700; }
 </style>

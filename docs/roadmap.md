@@ -385,7 +385,7 @@ implementados. Resultados tributários continuam aguardando MD-05/MD-06.
 - [x] detectar sobreposição potencial e avisar sobre empates possíveis;
 - [x] vincular produto de fornecedor a perfil fiscal, por empresa e CNPJ do emitente;
 - [x] registrar candidatas consideradas e explicação da seleção;
-- [ ] gerar pendências `REGRA_NAO_ENCONTRADA`, `REGRA_AMBIGUA`,
+- [x] gerar pendências `REGRA_NAO_ENCONTRADA`, `REGRA_AMBIGUA`,
   `PRODUTO_NAO_CLASSIFICADO` e `DIVERGENCIA_CADASTRAL`;
 - [ ] cobrir a precedência com testes de tabela.
 

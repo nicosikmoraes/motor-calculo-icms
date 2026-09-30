@@ -23,10 +23,12 @@ const comparison = computed(() => {
     .filter((item) => item.originalRuleAssessment && item.ruleAssessment)
   const changed = comparable.filter((item) => JSON.stringify({
     kind: item.originalRuleAssessment?.kind,
+    pendingCodes: item.originalRuleAssessment?.pendingCodes, pendingDetail: item.originalRuleAssessment?.pendingDetail,
     selectedRuleId: item.originalRuleAssessment?.selectedRuleId,
     evaluated: item.originalRuleAssessment?.evaluated,
   }) !== JSON.stringify({
     kind: item.ruleAssessment?.kind,
+    pendingCodes: item.ruleAssessment?.pendingCodes, pendingDetail: item.ruleAssessment?.pendingDetail,
     selectedRuleId: item.ruleAssessment?.selectedRuleId,
     evaluated: item.ruleAssessment?.evaluated,
   })).length

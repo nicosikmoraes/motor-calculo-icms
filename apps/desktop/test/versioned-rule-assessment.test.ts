@@ -80,4 +80,36 @@ describe('avaliação com catálogo versionado', () => {
     expect(inactive.evaluated.find((entry) => entry.ruleId === 'v1')?.mismatchedConditions)
       .toContain('fiscalProfileId')
   })
+  it('registra regra ausente e produto sem vínculo como pendências distintas', () => {
+    const assessment = assessFiscalRules(note, item, [], 'company', [], [])
+    expect(assessment).toMatchObject({
+      kind: 'NO_MATCH',
+      pendingCodes: ['REGRA_NAO_ENCONTRADA', 'PRODUTO_NAO_CLASSIFICADO'],
+      pendingDetail: 'PRODUCT_NOT_LINKED',
+    })
+  })
+
+  it('mantém a pendência de regra quando só há rascunho compatível', () => {
+    const assessment = assessFiscalRules(note, item, [{ ...rule, status: 'DRAFT' }], 'company', [profile], [product])
+    expect(assessment).toMatchObject({ kind: 'DRAFT_MATCH', pendingCodes: ['REGRA_NAO_ENCONTRADA'] })
+  })
+
+  it('registra divergência cadastral quando o perfil vinculado está inativo', () => {
+    const byProfile = { ...rule, level: 'FISCAL_PROFILE', conditions: { fiscalProfileId: 'profile' } }
+    const assessment = assessFiscalRules(note, item, [byProfile], 'company', [{ ...profile, active: false }], [product])
+    expect(assessment).toMatchObject({
+      kind: 'NO_MATCH',
+      pendingCodes: ['REGRA_NAO_ENCONTRADA', 'DIVERGENCIA_CADASTRAL'],
+      pendingDetail: 'PROFILE_INACTIVE',
+    })
+  })
+
+  it('registra empate e não cria pendência quando uma regra aprovada é selecionada', () => {
+    const other = { ...rule, id: 'other', familyId: 'family-b' }
+    const ambiguous = assessFiscalRules(note, item, [rule, other], 'company', [], [])
+    expect(ambiguous.pendingCodes).toEqual(['REGRA_AMBIGUA'])
+    const selected = assessFiscalRules(note, item, [rule], 'company', [], [])
+    expect(selected.kind).toBe('SELECTED')
+    expect(selected.pendingCodes).toBeUndefined()
+  })
 })

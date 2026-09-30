@@ -366,6 +366,14 @@ export enum RuleAssessmentKindCode {
   NO_MATCH = 'NO_MATCH',
 }
 
+/** Motivos persistidos com a avaliação; podem coexistir no mesmo item. */
+export enum RuleAssessmentPendingCode {
+  REGRA_NAO_ENCONTRADA = 'REGRA_NAO_ENCONTRADA',
+  REGRA_AMBIGUA = 'REGRA_AMBIGUA',
+  PRODUTO_NAO_CLASSIFICADO = 'PRODUTO_NAO_CLASSIFICADO',
+  DIVERGENCIA_CADASTRAL = 'DIVERGENCIA_CADASTRAL',
+}
+
 export enum FiscalItemClassificationCode {
   CLASSIFICADO = 'CLASSIFICADO',
   PENDENTE = 'PENDENTE',
@@ -421,6 +429,8 @@ export interface ItemRuleAssessment {
   selectedRuleId?: string
   selectedRuleVersion?: number
   tiedRuleIds?: readonly string[]
+  pendingCodes?: readonly `${RuleAssessmentPendingCode}`[]
+  pendingDetail?: ItemClassificationReason
   evaluated: readonly RuleEvaluationSummary[]
 }
 
