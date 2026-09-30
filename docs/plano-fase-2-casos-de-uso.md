@@ -1,15 +1,15 @@
 # Fase 2 — Casos de uso e auditoria de cadastros
 
-Decisões de produto confirmadas em 28/09/2026. Este plano não define fórmula, alíquota ou resultado fiscal; MD-05 e a revisão do contador continuam pendentes.
+Decisões de produto confirmadas em 28/09/2026 e complementadas em 29/09/2026. Este plano não define fórmula, alíquota ou resultado fiscal; MD-05 e a revisão do contador continuam pendentes.
 
 ## Contrato aprovado
 
 - Concluir os casos de uso de organização, empresa, perfil fiscal e produto de fornecedor antes de criar o schema de regras versionadas.
-- Criação, edição, inativação e reativação bem-sucedidas geram auditoria. Tentativas falhas produzem diagnóstico técnico, não evento de alteração.
+- Criação e edição dos quatro cadastros, e inativação/reativação de empresa, perfil e produto, geram auditoria. Tentativas falhas produzem diagnóstico técnico, não evento de alteração.
 - Cada evento guarda entidade e identificador, horário UTC, operação e somente campos modificados com valores anterior e novo. Não guarda XML, arquivo nem segredo. CNPJ e dados cadastrais de produto podem aparecer.
 - A interface mostra a origem como **Seu computador**. O evento guarda também o nome real do computador e o usuário do Windows. Isso identifica a sessão local, sem autenticar a pessoa. Não há perfis ou restrições de acesso no MVP.
 - Mudança e evento de auditoria são gravados na mesma transação; falha em qualquer parte desfaz ambas. Edição com versão desatualizada é rejeitada e solicita recarregamento.
-- O CNPJ da empresa não pode ser editado. Cadastros usados podem ser inativados e reativados imediatamente, sem exclusão física. A reativação preserva as validações de integridade já existentes. Resultados históricos nunca são reescritos; recálculo explícito cria nova execução.
+- Há uma única organização por instalação: seu nome pode ser editado, mas ela não é inativada no MVP. O CNPJ da empresa não pode ser editado. Empresa inativa não recebe novos lotes. Perfil ou produto inativo não participa de novos vínculos nem da classificação cadastral atual. Inativação não se propaga aos cadastros relacionados; registros e lotes antigos continuam consultáveis. A reativação valida empresa e perfil relacionados. Edição de nome ou vigência de perfil usado é permitida com revisão e auditoria; pode alterar a classificação cadastral atual, mas avaliações e execuções históricas salvas não são reescritas.
 - Eventos de auditoria são imutáveis e consultáveis por cadastro, período e tipo de mudança. Qualquer usuário da instalação pode consultar.
 - Cada evento vence seis meses após sua criação. A limpeza automática roda na abertura, uma vez por dia enquanto o aplicativo estiver aberto e após restauração bem-sucedida, antes da consulta. Registra data e quantidade removida. Erro de limpeza gera diagnóstico e nova tentativa, sem bloquear o uso.
 - Após a conclusão dos casos de uso, uma migration separada cria o schema necessário para regras versionadas e sua auditoria. Política de backup completa continua em MD-10.
@@ -26,11 +26,11 @@ Decisões de produto confirmadas em 28/09/2026. Este plano não define fórmula,
 
 ## Progresso técnico
 
-- Passo 1: contratos de revisão esperada e erros distinguíveis preparados no domínio e nos contratos IPC. A revisão ainda não é lida nem gravada até a migration do passo 3.
-- Passo 2: operações existentes de organização, empresa, perfil fiscal e produto de fornecedor extraídas dos handlers IPC para casos de uso com portas de persistência.
-- Passos 3–6 (parciais): migration `0011` adiciona revisão e eventos de auditoria; criações, renomeação do escritório e vínculo de produto registram eventos na mesma transação. Há consulta por entidade, período e operação, conflito de revisão na edição do escritório e do vínculo de produto, além de expurgo automático após seis meses.
-- Pendentes nesta fase: casos de uso e telas para editar, inativar e reativar empresa, perfil e produto; revisão das demais edições; conexão da limpeza após restauração quando MD-10 for implementado.
+- Contratos IPC, casos de uso e repositórios implementados para os quatro cadastros. A organização tem criação e edição de nome; empresa, perfil e produto têm criação, edição, inativação e reativação.
+- Migrations `0011` e `0012` adicionam revisão, auditoria e estados de perfil/produto. As escritas comparam a revisão esperada, e alteração e evento são feitos na mesma transação.
+- As telas mostram estados e permitem editar e reativar; cadastros inativos continuam visíveis para consulta. A classificação cadastral atual ignora perfil/produto inativo e mostra o motivo da pendência.
+- Consulta e expurgo de auditoria após seis meses já estão implementados. A limpeza após restauração será conectada quando o fluxo de restauração de MD-10 existir.
 
 ## Critério de conclusão
 
-Os quatro cadastros podem ser criados, consultados, editados quando permitido, inativados e reativados por contratos de caso de uso; cada mudança concluída aparece uma vez na auditoria e nenhuma falha aparece como mudança. Conflitos de edição não sobrescrevem dados, resultados anteriores ficam intactos, e a limpeza respeita seis meses. O schema de regras versionadas é o incremento seguinte, sem bloquear esta entrega.
+A organização pode ser criada, consultada e renomeada; empresa, perfil e produto podem ser criados, consultados, editados, inativados e reativados por contratos de caso de uso; cada mudança concluída aparece uma vez na auditoria e nenhuma falha aparece como mudança. Conflitos de edição não sobrescrevem dados, resultados anteriores ficam intactos, e a limpeza respeita seis meses. O schema de regras versionadas é o incremento seguinte, sem bloquear esta entrega.

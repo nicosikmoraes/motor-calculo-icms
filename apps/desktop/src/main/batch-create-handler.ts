@@ -146,7 +146,7 @@ export function registerBatchCreateHandler(): void {
       }
       for (const item of recognized) {
         const company = companies.get(assignmentBySource.get(item.source!) ?? '')
-        if (!company) throw new AppError(AppErrorCode.COMPANY_REQUIRED_FOR_DOCUMENT, { path: item.relativePath })
+        if (!company || !company.active) throw new AppError(AppErrorCode.COMPANY_REQUIRED_FOR_DOCUMENT, { path: item.relativePath })
         const parties = [item.normalized!.issuer, item.normalized!.recipient]
         if (!parties.some((party) => party?.taxIdType === 'CNPJ' && party.taxId && normalizeCnpj(party.taxId) === company.cnpj)) {
           throw new AppError(AppErrorCode.COMPANY_NOT_IN_DOCUMENT, { path: item.relativePath })
@@ -155,7 +155,7 @@ export function registerBatchCreateHandler(): void {
       const firstCompanyId = recognized.length
         ? assignmentBySource.get(recognized[0]!.source!)!
         : input.assignments[0]?.companyId
-      if (!firstCompanyId || !companies.has(firstCompanyId)) throw new AppError(AppErrorCode.INVALID_INITIAL_COMPANY)
+      if (!firstCompanyId || !companies.get(firstCompanyId)?.active) throw new AppError(AppErrorCode.INVALID_INITIAL_COMPANY)
 
       // A ordem estável evita que a escolha da ocorrência original dependa da seleção.
       pending.sort((left, right) => left.relativePath.localeCompare(right.relativePath) || left.hash.localeCompare(right.hash))

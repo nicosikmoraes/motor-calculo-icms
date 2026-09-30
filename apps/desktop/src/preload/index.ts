@@ -32,6 +32,12 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.RENAME_ORGANIZATION, input) as Promise<OrganizationSummary>,
   createCompany: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_COMPANY, input) as Promise<CompanySummary>,
+  updateCompany: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_COMPANY, { ...input }) as Promise<CompanySummary>,
+  inactivateCompany: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INACTIVATE_COMPANY, { ...input }) as Promise<CompanySummary>,
+  reactivateCompany: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.REACTIVATE_COMPANY, { ...input }) as Promise<CompanySummary>,
   listFiscalProfiles: (companyId) =>
     ipcRenderer.invoke(IPC_CHANNELS.LIST_FISCAL_PROFILES, companyId) as Promise<readonly FiscalProfileSummary[]>,
   listFiscalProfileSuggestions: (companyId) =>
@@ -42,10 +48,22 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.GET_BUILTIN_RULE_PACK) as Promise<BuiltinRulePackSummary>,
   createFiscalProfile: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_FISCAL_PROFILE, { ...input }) as Promise<FiscalProfileSummary>,
+  updateFiscalProfile: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_FISCAL_PROFILE, { ...input }) as Promise<FiscalProfileSummary>,
+  inactivateFiscalProfile: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INACTIVATE_FISCAL_PROFILE, { ...input }) as Promise<FiscalProfileSummary>,
+  reactivateFiscalProfile: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.REACTIVATE_FISCAL_PROFILE, { ...input }) as Promise<FiscalProfileSummary>,
   listSupplierProducts: (companyId) =>
     ipcRenderer.invoke(IPC_CHANNELS.LIST_SUPPLIER_PRODUCTS, companyId) as Promise<readonly SupplierProductSummary[]>,
   saveSupplierProduct: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_SUPPLIER_PRODUCT, { ...input }) as Promise<SupplierProductSummary>,
+  updateSupplierProduct: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SUPPLIER_PRODUCT, { ...input }) as Promise<SupplierProductSummary>,
+  inactivateSupplierProduct: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INACTIVATE_SUPPLIER_PRODUCT, { ...input }) as Promise<SupplierProductSummary>,
+  reactivateSupplierProduct: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.REACTIVATE_SUPPLIER_PRODUCT, { ...input }) as Promise<SupplierProductSummary>,
   selectSources: () =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_SOURCES) as Promise<SelectedSource[]>,
   inspectSources: (sources, operationId) =>

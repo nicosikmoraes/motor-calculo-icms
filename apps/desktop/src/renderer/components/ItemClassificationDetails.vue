@@ -10,7 +10,9 @@ const reasonText: Record<ItemClassificationReason, string> = {
   ISSUER_CNPJ_MISSING: 'O CNPJ do emitente não está disponível para localizar o vínculo do produto.',
   PRODUCT_CODE_MISSING: 'O item não informa o código do produto do fornecedor.',
   PRODUCT_NOT_LINKED: 'Não há vínculo deste produto e fornecedor com um perfil fiscal da empresa.',
+  PRODUCT_INACTIVE: 'O vínculo deste produto está inativo no catálogo atual.',
   PROFILE_NOT_FOUND: 'O vínculo do produto aponta para um perfil fiscal que não foi encontrado nesta empresa.',
+  PROFILE_INACTIVE: 'O perfil fiscal do produto está inativo no catálogo atual.',
   ISSUE_DATE_MISSING: 'A data de emissão não está disponível para conferir a vigência do perfil.',
   PROFILE_NOT_YET_VALID: 'O perfil vinculado começa a valer depois da emissão da nota.',
   PROFILE_EXPIRED: 'O perfil vinculado deixou de valer antes da emissão da nota.',
@@ -22,7 +24,9 @@ const actionText: Record<ItemClassificationReason, string | undefined> = {
   ISSUER_CNPJ_MISSING: 'Confira o XML original do emitente.',
   PRODUCT_CODE_MISSING: 'Confira o código do item no XML original.',
   PRODUCT_NOT_LINKED: 'Vincule o produto a um perfil fiscal.',
+  PRODUCT_INACTIVE: 'Reative o produto ou revise seu vínculo.',
   PROFILE_NOT_FOUND: 'Revise o vínculo do produto no cadastro fiscal.',
+  PROFILE_INACTIVE: 'Reative o perfil fiscal se ele voltar a ser utilizado.',
   ISSUE_DATE_MISSING: 'Confira a data de emissão no XML original.',
   PROFILE_NOT_YET_VALID: 'Revise a vigência ou o vínculo do perfil fiscal.',
   PROFILE_EXPIRED: 'Revise a vigência ou o vínculo do perfil fiscal.',
@@ -49,7 +53,7 @@ function displayDate(value: string): string {
           <span v-if="item.profileValidFrom"> · Vigência: {{ displayDate(item.profileValidFrom) }} até {{ item.profileValidUntil ? displayDate(item.profileValidUntil) : 'sem data final' }}</span>
         </p>
         <p v-if="actionText[reason]" class="next-action">Próxima ação: {{ actionText[reason] }}</p>
-        <RouterLink v-if="reason === 'PRODUCT_NOT_LINKED' || reason === 'PROFILE_NOT_FOUND' || reason === 'PROFILE_NOT_YET_VALID' || reason === 'PROFILE_EXPIRED'" to="/perfis">Gerenciar perfis fiscais</RouterLink>
+        <RouterLink v-if="reason === 'PRODUCT_NOT_LINKED' || reason === 'PRODUCT_INACTIVE' || reason === 'PROFILE_NOT_FOUND' || reason === 'PROFILE_INACTIVE' || reason === 'PROFILE_NOT_YET_VALID' || reason === 'PROFILE_EXPIRED'" to="/perfis">Gerenciar perfis fiscais</RouterLink>
       </div>
     </details>
   </div>

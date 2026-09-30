@@ -3,6 +3,8 @@ import type {
   CreateSuggestedFiscalProfileInput, CreateSuggestedFiscalProfileResult, FiscalProfileSuggestion,
   FiscalProfileSummary, OrganizationSummary, RenameOrganizationInput,
   SaveSupplierProductInput, SupplierProductSummary, WorkspaceState,
+  RegistrationMutationInput, UpdateCompanyRegistrationInput,
+  UpdateFiscalProfileRegistrationInput, UpdateSupplierProductRegistrationInput,
 } from '@motor/contracts'
 import {
   AppError, AppErrorCode, RegistrationEntityCode, RegistrationOperationCode,
@@ -30,15 +32,27 @@ export interface RegistrationRepositories {
     findById(id: string): Company | undefined
     listByOrganization(organizationId: string): readonly Company[]
     create(company: Company): void
+    updateRegistration(id: string, expectedRevision: number, values: {
+      legalName: string; tradeName?: string; state: Company['state']; updatedAt: string
+    }): boolean
+    setRegistrationActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean
   }
   catalog: {
     listProfiles(companyId: string): readonly FiscalProfileSummary[]
+    getProfileById(id: string): FiscalProfileSummary | undefined
+    updateProfile(id: string, expectedRevision: number, values: {
+      name: string; validFrom: string; validUntil?: string; updatedAt: string
+    }): boolean
+    setProfileActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean
     listProfileSuggestionEvidence(companyId: string): readonly FiscalProfileEvidence[]
     createProfile(input: {
       organizationId: string; companyId: string; name: string;
       validFrom: string; validUntil?: string
     }): FiscalProfileSummary
     listSupplierProducts(companyId: string): readonly SupplierProductSummary[]
+    getSupplierProductById(id: string): SupplierProductSummary | undefined
+    updateSupplierProduct(id: string, expectedRevision: number, profileId: string, updatedAt: string): boolean
+    setSupplierProductActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean
     upsertSupplierProduct(input: {
       companyId: string; supplierCnpj: string; productCode: string; profileId: string
     }): SupplierProductSummary
@@ -157,19 +171,74 @@ export class RegistrationUseCases {
     })
   }
 
-  private activeCompany(companyId: unknown): { organization: Organization; company: Company } {
+  private companyForWorkspace(companyId: unknown): { organization: Organization; company: Company } {
     const organization = this.repositories.organizations.findSingle()
     const company = this.repositories.companies.findById(requiredText(companyId, 'Empresa'))
-    if (!organization || !company || company.organizationId !== organization.id || !company.active) {
-      throw new AppError(AppErrorCode.ACTIVE_COMPANY_NOT_FOUND)
+    if (!organization || !company || company.organizationId !== organization.id) {
+      throw new AppError(AppErrorCode.REGISTRATION_NOT_FOUND)
     }
     return { organization, company }
   }
 
+  private activeCompany(companyId: unknown): { organization: Organization; company: Company } {
+    const result = this.companyForWorkspace(companyId)
+    if (!result.company.active) throw new AppError(AppErrorCode.ACTIVE_COMPANY_NOT_FOUND)
+    return result
+  }
+
+  private assertRevision(actual: number | undefined, expected: unknown): number {
+    const revision = assertRegistrationRevision(expected)
+    if (actual !== revision) throw new AppError(AppErrorCode.REGISTRATION_REVISION_CONFLICT)
+    return revision
+  }
+
+  private assertSaved(saved: boolean): void {
+    if (!saved) throw new AppError(AppErrorCode.REGISTRATION_REVISION_CONFLICT)
+  }
+
+  updateCompany(input: UpdateCompanyRegistrationInput): CompanySummary {
+    return this.repositories.transaction(() => {
+      const { company } = this.companyForWorkspace(input.id)
+      const expected = this.assertRevision(company.revision, input.expectedRevision)
+      const legalName = requiredText(input.legalName, 'Razão social')
+      const tradeName = optionalText(input.tradeName)
+      const state = normalizeBrazilianState(requiredText(input.state, 'UF'))
+      if (company.legalName === legalName && company.tradeName === tradeName && company.state === state) {
+        return companySummary(company)
+      }
+      this.assertSaved(this.repositories.companies.updateRegistration(company.id, expected, {
+        legalName, ...(tradeName ? { tradeName } : {}), state, updatedAt: this.now(),
+      }))
+      const saved = this.repositories.companies.findById(company.id)!
+      this.record(RegistrationEntityCode.COMPANY, company.id, RegistrationOperationCode.UPDATE,
+        saved.revision!,
+        { legalName: company.legalName, tradeName: company.tradeName ?? null, state: company.state },
+        { legalName, tradeName: tradeName ?? null, state })
+      return companySummary(saved)
+    })
+  }
+
+  private setCompanyActive(input: RegistrationMutationInput, active: boolean): CompanySummary {
+    return this.repositories.transaction(() => {
+      const { company } = this.companyForWorkspace(input.id)
+      const expected = this.assertRevision(company.revision, input.expectedRevision)
+      if (company.active === active) return companySummary(company)
+      this.assertSaved(this.repositories.companies.setRegistrationActive(company.id, expected, active, this.now()))
+      const saved = this.repositories.companies.findById(company.id)!
+      this.record(RegistrationEntityCode.COMPANY, company.id,
+        active ? RegistrationOperationCode.REACTIVATE : RegistrationOperationCode.INACTIVATE,
+        saved.revision!, { active: company.active }, { active })
+      return companySummary(saved)
+    })
+  }
+
+  inactivateCompany(input: RegistrationMutationInput): CompanySummary { return this.setCompanyActive(input, false) }
+  reactivateCompany(input: RegistrationMutationInput): CompanySummary { return this.setCompanyActive(input, true) }
+
   listFiscalProfiles(companyId: unknown): readonly FiscalProfileSummary[] {
-    const { company } = this.activeCompany(companyId)
+    const { company } = this.companyForWorkspace(companyId)
     return this.repositories.catalog.listProfiles(company.id).map((profile) => ({
-      id: profile.id, revision: profile.revision, companyId: profile.companyId, name: profile.name,
+      id: profile.id, revision: profile.revision, active: profile.active, companyId: profile.companyId, name: profile.name,
       validFrom: profile.validFrom,
       ...(profile.validUntil ? { validUntil: profile.validUntil } : {}),
     }))
@@ -204,7 +273,7 @@ export class RegistrationUseCases {
             productCode: savedProduct.productCode, profileId: savedProduct.profileId })
       }
       return {
-        profile: { id: profile.id, revision: profile.revision, companyId: profile.companyId, name: profile.name,
+        profile: { id: profile.id, revision: profile.revision, active: profile.active, companyId: profile.companyId, name: profile.name,
           validFrom: profile.validFrom },
         linkedProducts: suggestion.products.length,
       }
@@ -224,19 +293,105 @@ export class RegistrationUseCases {
       this.record(RegistrationEntityCode.FISCAL_PROFILE, profile.id, RegistrationOperationCode.CREATE,
         profile.revision, {}, { name: profile.name, validFrom: profile.validFrom,
           validUntil: profile.validUntil ?? null })
-      return { id: profile.id, revision: profile.revision, companyId: profile.companyId,
+      return { id: profile.id, revision: profile.revision, active: profile.active, companyId: profile.companyId,
         name: profile.name, validFrom: profile.validFrom,
         ...(profile.validUntil ? { validUntil: profile.validUntil } : {}) }
     })
   }
 
+  updateFiscalProfile(input: UpdateFiscalProfileRegistrationInput): FiscalProfileSummary {
+    return this.repositories.transaction(() => {
+      const profile = this.repositories.catalog.getProfileById(requiredText(input.id, 'Perfil fiscal'))
+      if (!profile) throw new AppError(AppErrorCode.REGISTRATION_NOT_FOUND)
+      this.companyForWorkspace(profile.companyId)
+      const expected = this.assertRevision(profile.revision, input.expectedRevision)
+      const name = requiredText(input.name, 'Nome do perfil')
+      const validFrom = requiredText(input.validFrom, 'Início da vigência')
+      const validUntil = optionalText(input.validUntil)
+      if (profile.name === name && profile.validFrom === validFrom && profile.validUntil === validUntil) return profile
+      this.assertSaved(this.repositories.catalog.updateProfile(profile.id, expected, {
+        name, validFrom, ...(validUntil ? { validUntil } : {}), updatedAt: this.now(),
+      }))
+      const saved = this.repositories.catalog.getProfileById(profile.id)!
+      this.record(RegistrationEntityCode.FISCAL_PROFILE, profile.id, RegistrationOperationCode.UPDATE,
+        saved.revision, { name: profile.name, validFrom: profile.validFrom, validUntil: profile.validUntil ?? null },
+        { name, validFrom, validUntil: validUntil ?? null })
+      return saved
+    })
+  }
+
+  private setFiscalProfileActive(input: RegistrationMutationInput, active: boolean): FiscalProfileSummary {
+    return this.repositories.transaction(() => {
+      const profile = this.repositories.catalog.getProfileById(requiredText(input.id, 'Perfil fiscal'))
+      if (!profile) throw new AppError(AppErrorCode.REGISTRATION_NOT_FOUND)
+      const { company } = this.companyForWorkspace(profile.companyId)
+      const expected = this.assertRevision(profile.revision, input.expectedRevision)
+      if (profile.active === active) return profile
+      if (active && !company.active) throw new AppError(AppErrorCode.ACTIVE_COMPANY_NOT_FOUND)
+      this.assertSaved(this.repositories.catalog.setProfileActive(profile.id, expected, active, this.now()))
+      const saved = this.repositories.catalog.getProfileById(profile.id)!
+      this.record(RegistrationEntityCode.FISCAL_PROFILE, profile.id,
+        active ? RegistrationOperationCode.REACTIVATE : RegistrationOperationCode.INACTIVATE,
+        saved.revision, { active: profile.active }, { active })
+      return saved
+    })
+  }
+
+  inactivateFiscalProfile(input: RegistrationMutationInput): FiscalProfileSummary {
+    return this.setFiscalProfileActive(input, false)
+  }
+  reactivateFiscalProfile(input: RegistrationMutationInput): FiscalProfileSummary {
+    return this.setFiscalProfileActive(input, true)
+  }
+
   listSupplierProducts(companyId: unknown): readonly SupplierProductSummary[] {
-    const { company } = this.activeCompany(companyId)
+    const { company } = this.companyForWorkspace(companyId)
     return this.repositories.catalog.listSupplierProducts(company.id).map((product) => ({
-      id: product.id, revision: product.revision, companyId: product.companyId,
+      id: product.id, revision: product.revision, active: product.active, companyId: product.companyId,
       supplierCnpj: product.supplierCnpj, productCode: product.productCode,
       profileId: product.profileId,
     }))
+  }
+
+  updateSupplierProduct(input: UpdateSupplierProductRegistrationInput): SupplierProductSummary {
+    return this.repositories.transaction(() => {
+      const product = this.repositories.catalog.getSupplierProductById(requiredText(input.id, 'Produto'))
+      if (!product) throw new AppError(AppErrorCode.REGISTRATION_NOT_FOUND)
+      this.activeCompany(product.companyId)
+      const expected = this.assertRevision(product.revision, input.expectedRevision)
+      if (!product.active) throw new AppError(AppErrorCode.REGISTRATION_INACTIVE)
+      const profileId = requiredText(input.profileId, 'Perfil fiscal')
+      if (product.profileId === profileId) return product
+      this.assertSaved(this.repositories.catalog.updateSupplierProduct(product.id, expected, profileId, this.now()))
+      const saved = this.repositories.catalog.getSupplierProductById(product.id)!
+      this.record(RegistrationEntityCode.SUPPLIER_PRODUCT, product.id, RegistrationOperationCode.UPDATE,
+        saved.revision, { profileId: product.profileId }, { profileId })
+      return saved
+    })
+  }
+
+  private setSupplierProductActive(input: RegistrationMutationInput, active: boolean): SupplierProductSummary {
+    return this.repositories.transaction(() => {
+      const product = this.repositories.catalog.getSupplierProductById(requiredText(input.id, 'Produto'))
+      if (!product) throw new AppError(AppErrorCode.REGISTRATION_NOT_FOUND)
+      const { company } = this.companyForWorkspace(product.companyId)
+      const expected = this.assertRevision(product.revision, input.expectedRevision)
+      if (product.active === active) return product
+      if (active && !company.active) throw new AppError(AppErrorCode.ACTIVE_COMPANY_NOT_FOUND)
+      this.assertSaved(this.repositories.catalog.setSupplierProductActive(product.id, expected, active, this.now()))
+      const saved = this.repositories.catalog.getSupplierProductById(product.id)!
+      this.record(RegistrationEntityCode.SUPPLIER_PRODUCT, product.id,
+        active ? RegistrationOperationCode.REACTIVATE : RegistrationOperationCode.INACTIVATE,
+        saved.revision, { active: product.active }, { active })
+      return saved
+    })
+  }
+
+  inactivateSupplierProduct(input: RegistrationMutationInput): SupplierProductSummary {
+    return this.setSupplierProductActive(input, false)
+  }
+  reactivateSupplierProduct(input: RegistrationMutationInput): SupplierProductSummary {
+    return this.setSupplierProductActive(input, true)
   }
 
   saveSupplierProduct(input: SaveSupplierProductInput): SupplierProductSummary {
@@ -247,6 +402,7 @@ export class RegistrationUseCases {
       const profileId = requiredText(input.profileId, 'Perfil fiscal')
       const before = this.repositories.catalog.listSupplierProducts(company.id).find((product) =>
         product.supplierCnpj === supplierCnpj && product.productCode === productCode)
+      if (before && !before.active) throw new AppError(AppErrorCode.REGISTRATION_INACTIVE)
       if (before && before.revision !== assertRegistrationRevision(input.expectedRevision)) {
         throw new AppError(AppErrorCode.REGISTRATION_REVISION_CONFLICT)
       }
@@ -262,7 +418,7 @@ export class RegistrationUseCases {
             supplierCnpj: saved.supplierCnpj, productCode: saved.productCode, profileId: saved.profileId,
           })
       }
-      return { id: saved.id, revision: saved.revision, companyId: saved.companyId,
+      return { id: saved.id, revision: saved.revision, active: saved.active, companyId: saved.companyId,
         supplierCnpj: saved.supplierCnpj, productCode: saved.productCode, profileId: saved.profileId }
     })
   }

@@ -27,9 +27,11 @@ export function classifyFiscalItem(
     && entry.productCode === productCode,
   )
   if (!product) return { classification: 'PENDENTE', classificationReason: 'PRODUCT_NOT_LINKED' }
+  if (!product.active) return { classification: 'PENDENTE', classificationReason: 'PRODUCT_INACTIVE' }
 
   const profile = profiles.find((entry) => entry.id === product.profileId && entry.companyId === companyId)
   if (!profile) return { classification: 'PENDENTE', classificationReason: 'PROFILE_NOT_FOUND' }
+  if (!profile.active) return { classification: 'PENDENTE', classificationReason: 'PROFILE_INACTIVE' }
 
   const profileDetails = {
     fiscalProfileName: profile.name,

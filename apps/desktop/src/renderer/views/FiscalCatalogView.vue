@@ -18,9 +18,17 @@ const selectedProfileId = ref('')
 const busy = ref(false)
 const error = ref('')
 const success = ref('')
+const editingProfileId = ref('')
+const editProfileRevision = ref(0)
+const editProfileName = ref('')
+const editProfileFrom = ref('')
+const editProfileUntil = ref('')
+const editingProductId = ref('')
+const editProductRevision = ref(0)
+const editProductProfileId = ref('')
 
-const activeCompanies = computed(() => workspace.value.companies.filter((company) => company.active))
-const selectedCompany = computed(() => activeCompanies.value.find((company) => company.id === companyId.value))
+const selectedCompany = computed(() => workspace.value.companies.find((company) => company.id === companyId.value))
+const activeProfiles = computed(() => profiles.value.filter((profile) => profile.active))
 const visibleSuggestions = computed(() => showAllSuggestions.value ? suggestions.value : suggestions.value.slice(0, 10))
 const profileNames = computed(() => new Map(profiles.value.map((profile) => [profile.id, profile.name])))
 
@@ -44,7 +52,7 @@ async function loadCatalog(): Promise<void> {
   const [loadedProfiles, loadedProducts, loadedSuggestions] = await Promise.all([
     window.desktopApi.listFiscalProfiles(selected),
     window.desktopApi.listSupplierProducts(selected),
-    window.desktopApi.listFiscalProfileSuggestions(selected),
+    selectedCompany.value?.active ? window.desktopApi.listFiscalProfileSuggestions(selected) : Promise.resolve([]),
   ])
   if (companyId.value === selected) {
     profiles.value = loadedProfiles
@@ -119,10 +127,85 @@ async function saveProduct(): Promise<void> {
   }
 }
 
+function startProfileEdit(profile: FiscalProfileSummary): void {
+  editingProfileId.value = profile.id
+  editProfileRevision.value = profile.revision
+  editProfileName.value = profile.name
+  editProfileFrom.value = profile.validFrom
+  editProfileUntil.value = profile.validUntil ?? ''
+  error.value = ''
+}
+
+async function saveProfileEdit(): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    await window.desktopApi.updateFiscalProfile({
+      id: editingProfileId.value, expectedRevision: editProfileRevision.value,
+      name: editProfileName.value, validFrom: editProfileFrom.value,
+      validUntil: editProfileUntil.value,
+    })
+    editingProfileId.value = ''
+    await loadCatalog()
+    success.value = 'Perfil atualizado. A classificação cadastral atual pode mudar; as avaliações históricas permanecem salvas.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
+}
+
+async function changeProfileStatus(profile: FiscalProfileSummary): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    const input = { id: profile.id, expectedRevision: profile.revision }
+    if (profile.active) await window.desktopApi.inactivateFiscalProfile(input)
+    else await window.desktopApi.reactivateFiscalProfile(input)
+    await loadCatalog()
+    success.value = profile.active ? 'Perfil inativado.' : 'Perfil reativado.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
+}
+
+function startProductEdit(product: SupplierProductSummary): void {
+  editingProductId.value = product.id
+  editProductRevision.value = product.revision
+  editProductProfileId.value = product.profileId
+  error.value = ''
+}
+
+async function saveProductEdit(): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    await window.desktopApi.updateSupplierProduct({
+      id: editingProductId.value, expectedRevision: editProductRevision.value,
+      profileId: editProductProfileId.value,
+    })
+    editingProductId.value = ''
+    await loadCatalog()
+    success.value = 'Vínculo atualizado. A classificação cadastral atual pode mudar.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
+}
+
+async function changeProductStatus(product: SupplierProductSummary): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    const input = { id: product.id, expectedRevision: product.revision }
+    if (product.active) await window.desktopApi.inactivateSupplierProduct(input)
+    else await window.desktopApi.reactivateSupplierProduct(input)
+    await loadCatalog()
+    success.value = product.active ? 'Produto inativado.' : 'Produto reativado.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
+}
+
 watch(companyId, () => {
   error.value = ''
   success.value = ''
   selectedProfileId.value = ''
+  editingProfileId.value = ''
+  editingProductId.value = ''
   showAllSuggestions.value = false
   void loadCatalog().catch((cause) => { error.value = message(cause) })
 })
@@ -168,24 +251,24 @@ onMounted(async () => {
       <label class="company-picker" for="catalog-company">
         <span>Selecione a empresa</span>
         <select id="catalog-company" v-model="companyId">
-          <option value="" disabled>Escolha uma empresa ativa</option>
-          <option v-for="company in activeCompanies" :key="company.id" :value="company.id">
-            {{ company.legalName }} · {{ company.cnpj }}
+          <option value="" disabled>Escolha uma empresa</option>
+          <option v-for="company in workspace.companies" :key="company.id" :value="company.id">
+            {{ company.legalName }} · {{ company.cnpj }}{{ company.active ? '' : ' · inativa' }}
           </option>
         </select>
       </label>
     </section>
 
-    <p v-if="!activeCompanies.length" class="empty-state no-company">Cadastre uma empresa ativa para começar a organizar os perfis fiscais.</p>
+    <p v-if="!workspace.companies.length" class="empty-state no-company">Cadastre uma empresa ativa para começar a organizar os perfis fiscais.</p>
 
     <template v-if="companyId">
       <div class="context-line">
         <span class="context-dot" aria-hidden="true"></span>
         <span>Trabalhando em <strong>{{ selectedCompany?.legalName }}</strong></span>
-        <small>{{ selectedCompany?.cnpj }}</small>
+        <small>{{ selectedCompany?.cnpj }} · {{ selectedCompany?.active ? 'ativa' : 'inativa' }}</small>
       </div>
 
-      <section class="card suggestion-panel" aria-labelledby="suggestion-title">
+      <section v-if="selectedCompany?.active" class="card suggestion-panel" aria-labelledby="suggestion-title">
         <header class="records-heading">
           <div>
             <p class="eyebrow">A partir das notas importadas</p>
@@ -211,7 +294,7 @@ onMounted(async () => {
         <button v-if="suggestions.length > 10" class="button secondary" type="button" @click="showAllSuggestions = !showAllSuggestions">{{ showAllSuggestions ? 'Mostrar menos' : `Mostrar todas (${suggestions.length})` }}</button>
       </section>
 
-      <div class="editor-grid">
+      <div v-if="selectedCompany?.active" class="editor-grid">
         <article class="editor-card card">
           <div class="editor-heading">
             <span class="step-number" aria-hidden="true">02</span>
@@ -248,11 +331,11 @@ onMounted(async () => {
             <label><span>Perfil fiscal</span>
               <select v-model="selectedProfileId" required>
                 <option value="" disabled>Selecione um perfil</option>
-                <option v-for="profile in profiles" :key="profile.id" :value="profile.id">{{ profile.name }}</option>
+                <option v-for="profile in activeProfiles" :key="profile.id" :value="profile.id">{{ profile.name }}</option>
               </select>
             </label>
-            <button class="button primary" type="submit" :disabled="busy || !profiles.length">Salvar vínculo</button>
-            <p v-if="!profiles.length" class="field-hint">Cadastre um perfil antes de vincular produtos.</p>
+            <button class="button primary" type="submit" :disabled="busy || !activeProfiles.length">Salvar vínculo</button>
+            <p v-if="!activeProfiles.length" class="field-hint">Cadastre um perfil antes de vincular produtos.</p>
           </form>
         </article>
       </div>
@@ -265,24 +348,44 @@ onMounted(async () => {
           </header>
           <p v-if="!profiles.length" class="records-empty">Nenhum perfil cadastrado. Confirme uma sugestão ou use o formulário manual.</p>
           <ul v-else class="record-list">
-            <li v-for="profile in profiles" :key="profile.id" class="profile-row">
+            <li v-for="profile in profiles" :key="profile.id" class="profile-row lifecycle-row">
               <span class="record-mark" aria-hidden="true">P</span>
-              <div class="record-main"><strong>{{ profile.name }}</strong><span>Vigência: {{ displayDate(profile.validFrom) }} até {{ profile.validUntil ? displayDate(profile.validUntil) : 'sem data final' }}</span></div>
+              <div class="record-main"><strong>{{ profile.name }}</strong><span>{{ profile.active ? 'Ativo' : 'Inativo' }} · Vigência: {{ displayDate(profile.validFrom) }} até {{ profile.validUntil ? displayDate(profile.validUntil) : 'sem data final' }}</span></div>
+              <div class="record-actions">
+                <button class="button secondary" type="button" :disabled="busy" @click="startProfileEdit(profile)">Editar</button>
+                <button class="button secondary" type="button" :disabled="busy || (!profile.active && !selectedCompany?.active)" @click="changeProfileStatus(profile)">{{ profile.active ? 'Inativar' : 'Reativar' }}</button>
+              </div>
+              <form v-if="editingProfileId === profile.id" class="lifecycle-form" @submit.prevent="saveProfileEdit">
+                <label><span>Nome</span><input v-model="editProfileName" required /></label>
+                <label><span>Vigente desde</span><input v-model="editProfileFrom" type="date" required /></label>
+                <label><span>Vigente até</span><input v-model="editProfileUntil" type="date" /></label>
+                <button class="button primary" type="submit" :disabled="busy">Salvar</button>
+                <button class="button secondary" type="button" @click="editingProfileId = ''">Cancelar</button>
+              </form>
             </li>
           </ul>
         </section>
 
         <section class="records-panel card" aria-labelledby="products-title">
           <header class="records-heading">
-            <div><p class="eyebrow">Relações ativas</p><h3 id="products-title">Produtos vinculados</h3></div>
+            <div><p class="eyebrow">Catálogo da empresa</p><h3 id="products-title">Produtos vinculados</h3></div>
             <span class="count-badge">{{ products.length }}</span>
           </header>
           <p v-if="!products.length" class="records-empty">Nenhum produto vinculado. Use o formulário acima para criar o primeiro vínculo.</p>
           <ul v-else class="record-list">
-            <li v-for="product in products" :key="product.id" class="product-row">
+            <li v-for="product in products" :key="product.id" class="product-row lifecycle-row">
               <span class="record-mark product-mark" aria-hidden="true">#</span>
-              <div class="record-main"><strong>{{ product.productCode }}</strong><span>Fornecedor {{ product.supplierCnpj }}</span></div>
+              <div class="record-main"><strong>{{ product.productCode }}</strong><span>Fornecedor {{ product.supplierCnpj }} · {{ product.active ? 'Ativo' : 'Inativo' }}</span></div>
               <span class="profile-chip">{{ profileNames.get(product.profileId) || 'Perfil não encontrado' }}</span>
+              <div class="record-actions">
+                <button class="button secondary" type="button" :disabled="busy || !product.active || !selectedCompany?.active" @click="startProductEdit(product)">Editar</button>
+                <button class="button secondary" type="button" :disabled="busy || (!product.active && (!selectedCompany?.active || !profiles.find((profile) => profile.id === product.profileId)?.active))" @click="changeProductStatus(product)">{{ product.active ? 'Inativar' : 'Reativar' }}</button>
+              </div>
+              <form v-if="editingProductId === product.id" class="lifecycle-form" @submit.prevent="saveProductEdit">
+                <label><span>Perfil fiscal</span><select v-model="editProductProfileId" required><option v-for="profile in activeProfiles" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label>
+                <button class="button primary" type="submit" :disabled="busy">Salvar</button>
+                <button class="button secondary" type="button" @click="editingProductId = ''">Cancelar</button>
+              </form>
             </li>
           </ul>
         </section>
@@ -363,4 +466,10 @@ onMounted(async () => {
 .suggestion-copy details ul { margin: 7px 0 0; padding-left: 18px; }
 .suggestion-row .button { flex: none; }
 @media (max-width: 680px) { .suggestion-row { flex-direction: column; } }
+.lifecycle-row { flex-wrap: wrap; }
+.record-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.record-actions .button { padding: 7px 9px; font-size: 11px; }
+.lifecycle-form { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; width: 100%; padding-top: 12px; border-top: 1px solid #edf1f6; }
+.lifecycle-form label { display: grid; gap: 4px; flex: 1; min-width: 125px; }
+.lifecycle-form label span { font-size: 11px; }
 </style>

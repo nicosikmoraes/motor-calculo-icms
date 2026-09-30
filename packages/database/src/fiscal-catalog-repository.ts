@@ -6,6 +6,8 @@ import type { SqliteDatabase } from './sqlite-database'
 export interface FiscalProfileRecord {
   id: string
   revision: number
+  active: boolean
+  inactivatedAt?: string
   organizationId: string
   companyId: string
   name: string
@@ -17,6 +19,8 @@ export interface FiscalProfileRecord {
 export interface SupplierProductRecord {
   id: string
   revision: number
+  active: boolean
+  inactivatedAt?: string
   companyId: string
   supplierCnpj: string
   productCode: string
@@ -49,6 +53,7 @@ export class SqliteFiscalCatalogRepository {
     const profile: FiscalProfileRecord = {
       id: randomUUID(),
       revision: 1,
+      active: true,
       organizationId: required(input.organizationId, 'Organização'),
       companyId: required(input.companyId, 'Empresa'),
       name: required(input.name, 'Nome do perfil'),
@@ -58,10 +63,10 @@ export class SqliteFiscalCatalogRepository {
     }
     this.database.run(
       `INSERT INTO perfis_fiscais
-       (id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       profile.id, profile.organizationId, profile.companyId, profile.name,
-      profile.validFrom, profile.validUntil ?? null, profile.createdAt,
+      profile.validFrom, profile.validUntil ?? null, profile.createdAt, profile.createdAt,
     )
     return profile
   }
@@ -69,17 +74,49 @@ export class SqliteFiscalCatalogRepository {
   listProfiles(companyId: string): readonly FiscalProfileRecord[] {
     return this.database.all<{
       id: string; organizacao_id: string; empresa_id: string; nome: string; revisao: number;
-      vigente_de: string; vigente_ate: string | null; criado_em: string
+      vigente_de: string; vigente_ate: string | null; criado_em: string;
+      ativo: number; inativado_em: string | null
     }>(
-      `SELECT id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em, revisao
+      `SELECT id, organizacao_id, empresa_id, nome, vigente_de, vigente_ate, criado_em, revisao, ativo, inativado_em
        FROM perfis_fiscais WHERE empresa_id = ? ORDER BY nome COLLATE NOCASE, vigente_de, id`,
       companyId,
     ).map((row) => ({
       id: row.id, revision: row.revisao, organizationId: row.organizacao_id, companyId: row.empresa_id,
-      name: row.nome, validFrom: row.vigente_de,
+      name: row.nome, active: row.ativo === 1,
+      ...(row.inativado_em ? { inactivatedAt: row.inativado_em } : {}), validFrom: row.vigente_de,
       ...(row.vigente_ate ? { validUntil: row.vigente_ate } : {}),
       createdAt: row.criado_em,
     }))
+  }
+
+  getProfileById(id: string): FiscalProfileRecord | undefined {
+    const row = this.database.get<{ empresa_id: string }>('SELECT empresa_id FROM perfis_fiscais WHERE id = ?', id)
+    return row ? this.listProfiles(row.empresa_id).find((profile) => profile.id === id) : undefined
+  }
+
+  /** Atualiza perfil com comparação de revisão na escrita. */
+  updateProfile(id: string, expectedRevision: number, input: {
+    name: string; validFrom: string; validUntil?: string; updatedAt: string
+  }): boolean {
+    const validFrom = fiscalDate(input.validFrom, 'Início da vigência')
+    const validUntil = input.validUntil ? fiscalDate(input.validUntil, 'Fim da vigência') : undefined
+    if (validUntil && validUntil < validFrom) throw new AppError(AppErrorCode.INVALID_VALIDITY_RANGE)
+    this.database.run(
+      `UPDATE perfis_fiscais SET nome = ?, vigente_de = ?, vigente_ate = ?,
+       atualizado_em = ?, revisao = revisao + 1 WHERE id = ? AND revisao = ?`,
+      required(input.name, 'Nome do perfil'), validFrom, validUntil ?? null,
+      input.updatedAt, id, expectedRevision,
+    )
+    return this.didChange()
+  }
+
+  setProfileActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean {
+    this.database.run(
+      `UPDATE perfis_fiscais SET ativo = ?, inativado_em = ?, atualizado_em = ?,
+       revisao = revisao + 1 WHERE id = ? AND revisao = ? AND ativo = ?`,
+      active ? 1 : 0, active ? null : updatedAt, updatedAt, id, expectedRevision, active ? 0 : 1,
+    )
+    return this.didChange()
   }
 
   /** Lê somente campos cadastrais de itens elegíveis ainda sem vínculo. */
@@ -115,13 +152,53 @@ export class SqliteFiscalCatalogRepository {
     }))
   }
 
+  getSupplierProductById(id: string): SupplierProductRecord | undefined {
+    const row = this.database.get<{ empresa_id: string }>('SELECT empresa_id FROM produtos_fornecedor WHERE id = ?', id)
+    return row ? this.listSupplierProducts(row.empresa_id).find((product) => product.id === id) : undefined
+  }
+
+  updateSupplierProduct(id: string, expectedRevision: number, profileId: string, updatedAt: string): boolean {
+    const product = this.getSupplierProductById(id)
+    if (!product) return false
+    this.assertActiveProfile(profileId, product.companyId)
+    this.database.run(
+      `UPDATE produtos_fornecedor SET perfil_fiscal_id = ?, atualizado_em = ?, revisao = revisao + 1
+       WHERE id = ? AND revisao = ? AND ativo = 1`,
+      profileId, updatedAt, id, expectedRevision,
+    )
+    return this.didChange()
+  }
+
+  setSupplierProductActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean {
+    const product = this.getSupplierProductById(id)
+    if (!product) return false
+    if (active) this.assertActiveProfile(product.profileId, product.companyId)
+    this.database.run(
+      `UPDATE produtos_fornecedor SET ativo = ?, inativado_em = ?, atualizado_em = ?,
+       revisao = revisao + 1 WHERE id = ? AND revisao = ? AND ativo = ?`,
+      active ? 1 : 0, active ? null : updatedAt, updatedAt, id, expectedRevision, active ? 0 : 1,
+    )
+    return this.didChange()
+  }
+
+  private assertActiveProfile(profileId: string, companyId: string): void {
+    const profile = this.database.get<{ id: string }>(
+      'SELECT id FROM perfis_fiscais WHERE id = ? AND empresa_id = ? AND ativo = 1', profileId, companyId,
+    )
+    if (!profile) throw new AppError(AppErrorCode.PROFILE_COMPANY_MISMATCH)
+  }
+
+  private didChange(): boolean {
+    return Number(this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')?.changes ?? 0) === 1
+  }
+
   upsertSupplierProduct(input: Pick<SupplierProductRecord, 'companyId' | 'supplierCnpj' | 'productCode' | 'profileId'>): SupplierProductRecord {
     const companyId = required(input.companyId, 'Empresa')
     const supplierCnpj = normalizeCnpj(required(input.supplierCnpj, 'CNPJ do fornecedor'))
     const productCode = required(input.productCode, 'Código do produto')
     const profileId = required(input.profileId, 'Perfil fiscal')
     const profile = this.database.get<{ id: string }>(
-      'SELECT id FROM perfis_fiscais WHERE id = ? AND empresa_id = ?', profileId, companyId,
+      'SELECT id FROM perfis_fiscais WHERE id = ? AND empresa_id = ? AND ativo = 1', profileId, companyId,
     )
     if (!profile) throw new AppError(AppErrorCode.PROFILE_COMPANY_MISMATCH)
     const now = new Date().toISOString()
@@ -132,20 +209,22 @@ export class SqliteFiscalCatalogRepository {
        ON CONFLICT (empresa_id, fornecedor_cnpj, codigo_produto)
        DO UPDATE SET perfil_fiscal_id = excluded.perfil_fiscal_id, atualizado_em = excluded.atualizado_em,
                      revisao = produtos_fornecedor.revisao + 1
-       WHERE produtos_fornecedor.perfil_fiscal_id <> excluded.perfil_fiscal_id`,
+       WHERE produtos_fornecedor.ativo = 1 AND produtos_fornecedor.perfil_fiscal_id <> excluded.perfil_fiscal_id`,
       randomUUID(), companyId, supplierCnpj, productCode, profileId, now, now,
     )
     const saved = this.database.get<{
       id: string; empresa_id: string; fornecedor_cnpj: string; codigo_produto: string;
-      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number
+      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number;
+      ativo: number; inativado_em: string | null
     }>(
-      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao
+      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao, ativo, inativado_em
        FROM produtos_fornecedor WHERE empresa_id = ? AND fornecedor_cnpj = ? AND codigo_produto = ?`,
       companyId, supplierCnpj, productCode,
     )
     if (!saved) throw new AppError(AppErrorCode.LINKED_PRODUCT_NOT_FOUND)
     return {
-      id: saved.id, revision: saved.revisao, companyId: saved.empresa_id, supplierCnpj: saved.fornecedor_cnpj,
+      id: saved.id, revision: saved.revisao, active: saved.ativo === 1,
+      ...(saved.inativado_em ? { inactivatedAt: saved.inativado_em } : {}), companyId: saved.empresa_id, supplierCnpj: saved.fornecedor_cnpj,
       productCode: saved.codigo_produto, profileId: saved.perfil_fiscal_id,
       createdAt: saved.criado_em, updatedAt: saved.atualizado_em,
     }
@@ -154,13 +233,15 @@ export class SqliteFiscalCatalogRepository {
   listSupplierProducts(companyId: string): readonly SupplierProductRecord[] {
     return this.database.all<{
       id: string; empresa_id: string; fornecedor_cnpj: string; codigo_produto: string;
-      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number
+      perfil_fiscal_id: string; criado_em: string; atualizado_em: string; revisao: number;
+      ativo: number; inativado_em: string | null
     }>(
-      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao
+      `SELECT id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em, revisao, ativo, inativado_em
        FROM produtos_fornecedor WHERE empresa_id = ?
        ORDER BY fornecedor_cnpj, codigo_produto`, companyId,
     ).map((row) => ({
-      id: row.id, revision: row.revisao, companyId: row.empresa_id, supplierCnpj: row.fornecedor_cnpj,
+      id: row.id, revision: row.revisao, active: row.ativo === 1,
+      ...(row.inativado_em ? { inactivatedAt: row.inativado_em } : {}), companyId: row.empresa_id, supplierCnpj: row.fornecedor_cnpj,
       productCode: row.codigo_produto, profileId: row.perfil_fiscal_id,
       createdAt: row.criado_em, updatedAt: row.atualizado_em,
     }))

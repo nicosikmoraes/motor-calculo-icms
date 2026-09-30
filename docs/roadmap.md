@@ -339,10 +339,11 @@ Após a decisão:
 - [x] persistir e consultar organização, empresa, lote e ocorrência de arquivo;
 - [x] expor organização e empresa ao renderer por contratos IPC restritos;
 - [x] persistir perfil fiscal e produto de fornecedor;
-- [ ] concluir transações dos casos de uso e trilha básica de auditoria;
+- [x] concluir transações dos casos de uso e trilha básica de auditoria;
 - [x] testar criação, consulta, inativação, rollback e reinicialização para as
   entidades da migration `0001`;
-- [ ] testar atualização versionada após implementar perfis, produtos e regras.
+- [x] testar atualização versionada de organização, empresa, perfil e produto;
+- [ ] testar atualização versionada de regras quando seu schema for implementado.
 
 **SAÍDA:** cadastros permanecem íntegros após fechar e reabrir o aplicativo.
 

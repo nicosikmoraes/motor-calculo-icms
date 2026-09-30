@@ -9,6 +9,7 @@ import calculationRunsSql from '../migrations/0008_execucoes_calculo.sql?raw'
 import historicalRuleAssessmentSql from '../migrations/0009_avaliacao_regras_historica.sql?raw'
 import ruleAssessmentRunsSql from '../migrations/0010_execucoes_avaliacao_regras.sql?raw'
 import registrationAuditSql from '../migrations/0011_auditoria_cadastros.sql?raw'
+import registrationLifecycleSql from '../migrations/0012_ciclo_vida_cadastros.sql?raw'
 import { createSqlMigration, type SqlMigration } from './migrations'
 
 export const CORE_MIGRATIONS: readonly SqlMigration[] = [
@@ -77,5 +78,9 @@ export const CORE_MIGRATIONS: readonly SqlMigration[] = [
     name: 'auditoria_cadastros',
     fileName: '0011_auditoria_cadastros.sql',
     sql: registrationAuditSql,
+  }),
+  createSqlMigration({
+    version: 12, name: 'ciclo_vida_cadastros',
+    fileName: '0012_ciclo_vida_cadastros.sql', sql: registrationLifecycleSql,
   }),
 ]
