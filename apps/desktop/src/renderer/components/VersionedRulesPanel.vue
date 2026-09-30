@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { RuleDraftFields, VersionedRuleSummary, RuleAuditSummary } from '@motor/contracts'
-import { RuleLevelCode } from '@motor/tax-engine'
+import { detectPotentialRuleOverlaps, RuleLevelCode, type FamilyRule, type RuleLevel } from '@motor/tax-engine'
 import { RendererErrorMessage } from '../error-messages'
 
 const rules = ref<readonly VersionedRuleSummary[]>([])
@@ -29,11 +29,45 @@ const conditionFields = [
   ['supplierProductId', 'ID do produto vinculado'], ['fiscalProfileId', 'ID do perfil'],
   ['originState', 'UF de origem'], ['destinationState', 'UF de destino'],
   ['ncm', 'NCM'], ['cest', 'CEST'], ['cfop', 'CFOP'], ['issuerRegime', 'CRT'],
-  ['cst', 'CST'], ['recipientTaxpayer', 'Contribuinte destinatário'],
+  ['cst', 'CST'],
   ['finalConsumer', 'Consumidor final'], ['purpose', 'Finalidade'],
   ['merchandiseOrigin', 'Origem da mercadoria'],
 ] as const
 const labels = new Map<string, string>(conditionFields)
+function selectionRule(rule: VersionedRuleSummary): FamilyRule {
+  return { id: rule.id, familyId: rule.familyId, version: rule.version,
+    name: rule.name, status: rule.status, level: rule.level as RuleLevel,
+    priority: rule.priority, validFrom: rule.validFrom,
+    ...(rule.validUntil ? { validUntil: rule.validUntil } : {}),
+    legalBasis: rule.legalBasis ?? '', conditions: rule.conditions }
+}
+const overlaps = computed(() => detectPotentialRuleOverlaps(rules.value.map(selectionRule)))
+const previewOverlaps = computed(() => {
+  if (!Object.keys(form.value.conditions).length || !form.value.validFrom) return []
+  const previous = rules.value.find((rule) => rule.id === editId.value)
+  const preview: FamilyRule = {
+    id: 'preview', familyId: previous?.familyId ?? 'preview-family',
+    version: previous?.version ?? 1, name: form.value.name,
+    status: 'APPROVED', level: form.value.level as RuleLevel,
+    priority: form.value.priority, validFrom: form.value.validFrom,
+    ...(form.value.validUntil ? { validUntil: form.value.validUntil } : {}),
+    legalBasis: form.value.legalBasis ?? '', conditions: form.value.conditions,
+  }
+  return detectPotentialRuleOverlaps([...rules.value.map(selectionRule), preview])
+    .filter((overlap) => overlap.leftId === preview.id || overlap.rightId === preview.id)
+    .map((overlap) => ({ ...overlap,
+      other: rules.value.find((rule) => rule.id === (overlap.leftId === preview.id ? overlap.rightId : overlap.leftId)),
+    }))
+})
+function overlapsFor(id: string): readonly string[] {
+  return overlaps.value.filter((overlap) => overlap.leftId === id || overlap.rightId === id)
+    .map((overlap) => {
+      const otherId = overlap.leftId === id ? overlap.rightId : overlap.leftId
+      const other = rules.value.find((rule) => rule.id === otherId)
+      return (other?.name ?? otherId) + (overlap.tiePossible ? ' · empate possível' : ' · precedência resolve')
+    })
+}
+
 function emptyForm(): RuleDraftFields {
   return { name: '', level: RuleLevelCode.DEFAULT_OPERATION, priority: 0,
     validFrom: new Date().toISOString().slice(0, 10), legalBasis: '', conditions: {} }
@@ -85,7 +119,7 @@ async function act(rule: VersionedRuleSummary, action: 'approve' | 'version' | '
     const input = { id: rule.id, expectedRevision: rule.revision }
     if (action === 'approve') {
       await window.desktopApi.approveRule(input)
-      success.value = 'Versão aprovada. A avaliação dos lotes e o cálculo fiscal continuam pendentes.'
+      success.value = 'Versão aprovada. Ela será considerada em novas avaliações; o cálculo fiscal continua pendente.'
     } else if (action === 'version') {
       const created = await window.desktopApi.createRuleVersion(input)
       success.value = 'Nova versão em rascunho.'
@@ -114,7 +148,7 @@ onMounted(() => void reload().catch((cause) => { error.value = message(cause) })
     <header>
       <p class="eyebrow">Catálogo local</p>
       <h2 id="versioned-title">Regras versionadas</h2>
-      <p>Rascunhos, aprovações e revogações ficam registrados neste computador. A aprovação registra a versão e seu recorte. As regras locais ainda não são usadas na avaliação dos lotes nem no cálculo de ICMS.</p>
+      <p>Rascunhos, aprovações e revogações ficam registrados neste computador. A versão aprovada mais nova de cada família entra nas novas avaliações dos lotes. As avaliações já salvas permanecem intactas. Revogar a versão mais nova não reativa a anterior; nenhum cálculo de ICMS é liberado nesta etapa.</p>
     </header>
     <p v-if="error" class="form-error" role="alert">{{ error }}
       <button v-if="error.includes('Recarregue os dados')" class="button secondary" type="button" @click="reload">Recarregar</button>
@@ -141,6 +175,8 @@ onMounted(() => void reload().catch((cause) => { error.value = message(cause) })
         <li v-for="(value, key) in form.conditions" :key="key"><span>{{ labels.get(String(key)) ?? key }}: <strong>{{ value }}</strong></span><button type="button" class="button secondary" @click="removeCondition(String(key))">Remover</button></li>
       </ul>
       <p class="hint">Para aprovar, informe o fundamento e a condição exigida pelo nível escolhido. Prioridade acima de zero exige justificativa.</p>
+      <p v-for="overlap in previewOverlaps" :key="overlap.other?.id" class="overlap-warning" role="status">Possível sobreposição com {{ overlap.other?.name ?? 'outra regra' }}: {{ overlap.tiePossible ? 'pode haver empate na seleção.' : 'a precedência definirá a escolhida.' }}</p>
+
       <div class="actions"><button class="button primary" type="submit" :disabled="busy">{{ editId ? 'Salvar rascunho' : 'Criar rascunho' }}</button><button v-if="editId" class="button secondary" type="button" @click="editId = ''; form = emptyForm()">Cancelar edição</button></div>
     </form>
     <div class="rule-list">
@@ -150,6 +186,8 @@ onMounted(() => void reload().catch((cause) => { error.value = message(cause) })
         <p>{{ levels.find((level) => level[0] === rule.level)?.[1] ?? rule.level }} · {{ rule.validFrom }} até {{ rule.validUntil ?? 'sem fim' }} · prioridade {{ rule.priority }}</p>
         <p v-if="rule.legalBasis"><strong>Fundamento:</strong> {{ rule.legalBasis }}</p>
         <p v-if="rule.revocationReason"><strong>Revogação:</strong> {{ rule.revocationReason }}</p>
+        <p v-for="warning in overlapsFor(rule.id)" :key="warning" class="overlap-warning">Sobreposição potencial com {{ warning }}.</p>
+
         <ul class="condition-list"><li v-for="(value, key) in rule.conditions" :key="key">{{ labels.get(String(key)) ?? key }}: {{ value }}</li></ul>
         <div class="actions">
           <button v-if="rule.status === 'DRAFT'" class="button secondary" type="button" :disabled="busy" @click="edit(rule)">Editar</button>
@@ -190,5 +228,6 @@ onMounted(() => void reload().catch((cause) => { error.value = message(cause) })
 .rule-record p { color: #4e5e74; font-size: 12px; }
 .status { align-self: start; padding: 5px 8px; border-radius: 12px; background: #eaf1fb; font-size: 11px; font-weight: 700; }
 .audit-list { font-size: 11px; color: #52647e; }
+.overlap-warning { padding: 8px 10px; border-radius: 8px; background: #fff1d5; color: #76522a !important; }
 @media (max-width: 650px) { .fields { grid-template-columns: 1fr; } }
 </style>

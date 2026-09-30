@@ -376,14 +376,15 @@ ainda sem promessa de cálculo fiscal completo.
 
 **Já iniciado:** seleção por nível, especificidade, prioridade e ambiguidade;
 perfis fiscais e vínculos com produtos de fornecedor já estão persistidos.
-O ciclo de vida local das versões está implementado; o próximo incremento é ligar as regras elegíveis à avaliação dos itens com explicação por candidato, após definir os campos fiscais necessários.
+O ciclo de vida local das versões e sua seleção nas novas avaliações estão
+implementados. Resultados tributários continuam aguardando MD-05/MD-06.
 
 - [ ] implementar cadastro estruturado de condições e resultados;
 - [x] implementar rascunho, aprovação para seleção, nova versão e revogação no catálogo local;
 - [x] exigir fundamento legal e vigência para aprovação da seleção;
-- [ ] detectar sobreposição potencial;
+- [x] detectar sobreposição potencial e avisar sobre empates possíveis;
 - [x] vincular produto de fornecedor a perfil fiscal, por empresa e CNPJ do emitente;
-- [ ] registrar candidatas consideradas e explicação da seleção;
+- [x] registrar candidatas consideradas e explicação da seleção;
 - [ ] gerar pendências `REGRA_NAO_ENCONTRADA`, `REGRA_AMBIGUA`,
   `PRODUTO_NAO_CLASSIFICADO` e `DIVERGENCIA_CADASTRAL`;
 - [ ] cobrir a precedência com testes de tabela.

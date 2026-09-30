@@ -18,7 +18,7 @@ type RuleRepositories = {
 type Change = { before: string | number | null; after: string | number | null }
 const CONDITION_KEYS = new Set([
   'companyId', 'supplierProductId', 'fiscalProfileId', 'originState', 'destinationState',
-  'ncm', 'cest', 'cfop', 'operationType', 'issuerRegime', 'cst', 'recipientTaxpayer',
+  'ncm', 'cest', 'cfop', 'operationType', 'issuerRegime', 'cst',
   'finalConsumer', 'purpose', 'merchandiseOrigin',
 ])
 const REQUIRED_BY_LEVEL: Record<RuleLevelCode, readonly string[]> = {

@@ -3,12 +3,12 @@ import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS, type CreatedBatchSummary, type CreateBatchInput } from '@motor/contracts'
-import { ContentConflictCode, IngestionStatusCode, RepetitionCode, SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository } from '@motor/database'
+import { ContentConflictCode, IngestionStatusCode, RepetitionCode, SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteFiscalCatalogRepository, SqliteVersionedRuleRepository } from '@motor/database'
 import { AppError, AppErrorCode, BatchStatusCode, classifyDocumentIngestion, classifyDocumentOccurrences, normalizeCnpj,
   type NormalizedNfe } from '@motor/domain'
 import { PRODUCTION_XML_SECURITY_POLICY, PRODUCTION_ZIP_SECURITY_POLICY,
   normalizeNfeStructure, readNfeXmlStructure, visitSafeZipFileEntries } from '@motor/nfe-parser'
-import { assessBuiltinRules } from './rule-pack-assessment'
+import { assessFiscalRules } from './rule-pack-assessment'
 import { activeDatabase, hashFile, inputRecord, isCancelled, runBatchOperation,
   validatedSources } from './main-services'
 
@@ -189,6 +189,11 @@ export function registerBatchCreateHandler(): void {
         AMBIENTE_DIVERGENTE: 'O ambiente do XML diverge do ambiente confirmado para o lote.',
         OCORRENCIA_INELEGIVEL: 'A ocorrência é repetida ou possui conflito de conteúdo.',
       } as const
+      // Uma fotografia das versões é usada para todos os itens desta importação.
+      const fiscalCatalog = new SqliteFiscalCatalogRepository(connection)
+      const versionedRules = new SqliteVersionedRuleRepository(connection).list(organization.id)
+      const profilesByCompany = new Map([...companies.keys()].map((id) => [id, fiscalCatalog.listProfiles(id)] as const))
+      const productsByCompany = new Map([...companies.keys()].map((id) => [id, fiscalCatalog.listSupplierProducts(id)] as const))
       // Cada item recebe a avaliação do pacote vigente, persistida junto do lote.
       const documents = baseOccurrences.flatMap(({ item, id }) => {
         if (!item.normalized) return []
@@ -213,7 +218,8 @@ export function registerBatchCreateHandler(): void {
           companyId: company.id,
           normalized: item.normalized,
           ruleAssessments: Object.fromEntries(item.normalized.items.map((line) => [
-            line.itemNumber, assessBuiltinRules(item.normalized!, line, receivedAt),
+            line.itemNumber, assessFiscalRules(item.normalized!, line, versionedRules, company.id,
+              profilesByCompany.get(company.id), productsByCompany.get(company.id), receivedAt),
           ])),
           eligibleForProcessing: classification.eligibleForProcessing,
           ...(classification.pendingReasons.length > 0
