@@ -5,13 +5,22 @@ export const IPC_CHANNELS = {
   CREATE_ORGANIZATION: 'workspace:create-organization',
   RENAME_ORGANIZATION: 'workspace:rename-organization',
   CREATE_COMPANY: 'companies:create',
+  UPDATE_COMPANY: 'companies:update',
+  INACTIVATE_COMPANY: 'companies:inactivate',
+  REACTIVATE_COMPANY: 'companies:reactivate',
   LIST_FISCAL_PROFILES: 'fiscal-profiles:list',
   LIST_FISCAL_PROFILE_SUGGESTIONS: 'fiscal-profiles:list-suggestions',
   CREATE_SUGGESTED_FISCAL_PROFILE: 'fiscal-profiles:create-suggestion',
   GET_BUILTIN_RULE_PACK: 'fiscal-rules:built-in-pack',
   CREATE_FISCAL_PROFILE: 'fiscal-profiles:create',
+  UPDATE_FISCAL_PROFILE: 'fiscal-profiles:update',
+  INACTIVATE_FISCAL_PROFILE: 'fiscal-profiles:inactivate',
+  REACTIVATE_FISCAL_PROFILE: 'fiscal-profiles:reactivate',
   LIST_SUPPLIER_PRODUCTS: 'supplier-products:list',
   SAVE_SUPPLIER_PRODUCT: 'supplier-products:save',
+  UPDATE_SUPPLIER_PRODUCT: 'supplier-products:update',
+  INACTIVATE_SUPPLIER_PRODUCT: 'supplier-products:inactivate',
+  REACTIVATE_SUPPLIER_PRODUCT: 'supplier-products:reactivate',
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
   CREATE_BATCH: 'batch:create',
@@ -141,6 +150,7 @@ export interface CreateSuggestedFiscalProfileResult {
 }
 
 export interface FiscalProfileSummary {
+  active: boolean
   id: string
   revision: number
   companyId: string
@@ -157,6 +167,7 @@ export interface CreateFiscalProfileInput {
 }
 
 export interface SupplierProductSummary {
+  active: boolean
   id: string
   revision: number
   companyId: string
@@ -281,7 +292,9 @@ export enum ItemClassificationReasonCode {
   ISSUER_CNPJ_MISSING = 'ISSUER_CNPJ_MISSING',
   PRODUCT_CODE_MISSING = 'PRODUCT_CODE_MISSING',
   PRODUCT_NOT_LINKED = 'PRODUCT_NOT_LINKED',
+  PRODUCT_INACTIVE = 'PRODUCT_INACTIVE',
   PROFILE_NOT_FOUND = 'PROFILE_NOT_FOUND',
+  PROFILE_INACTIVE = 'PROFILE_INACTIVE',
   ISSUE_DATE_MISSING = 'ISSUE_DATE_MISSING',
   PROFILE_NOT_YET_VALID = 'PROFILE_NOT_YET_VALID',
   PROFILE_EXPIRED = 'PROFILE_EXPIRED',
@@ -436,13 +449,22 @@ export interface DesktopApi {
   createOrganization(input: CreateOrganizationInput): Promise<OrganizationSummary>
   renameOrganization(input: RenameOrganizationInput): Promise<OrganizationSummary>
   createCompany(input: CreateCompanyInput): Promise<CompanySummary>
+  updateCompany(input: UpdateCompanyRegistrationInput): Promise<CompanySummary>
+  inactivateCompany(input: RegistrationMutationInput): Promise<CompanySummary>
+  reactivateCompany(input: RegistrationMutationInput): Promise<CompanySummary>
   listFiscalProfiles(companyId: string): Promise<readonly FiscalProfileSummary[]>
   listFiscalProfileSuggestions(companyId: string): Promise<readonly FiscalProfileSuggestion[]>
   createSuggestedFiscalProfile(input: CreateSuggestedFiscalProfileInput): Promise<CreateSuggestedFiscalProfileResult>
   getBuiltinRulePack(): Promise<BuiltinRulePackSummary>
   createFiscalProfile(input: CreateFiscalProfileInput): Promise<FiscalProfileSummary>
+  updateFiscalProfile(input: UpdateFiscalProfileRegistrationInput): Promise<FiscalProfileSummary>
+  inactivateFiscalProfile(input: RegistrationMutationInput): Promise<FiscalProfileSummary>
+  reactivateFiscalProfile(input: RegistrationMutationInput): Promise<FiscalProfileSummary>
   listSupplierProducts(companyId: string): Promise<readonly SupplierProductSummary[]>
   saveSupplierProduct(input: SaveSupplierProductInput): Promise<SupplierProductSummary>
+  updateSupplierProduct(input: UpdateSupplierProductRegistrationInput): Promise<SupplierProductSummary>
+  inactivateSupplierProduct(input: RegistrationMutationInput): Promise<SupplierProductSummary>
+  reactivateSupplierProduct(input: RegistrationMutationInput): Promise<SupplierProductSummary>
   selectSources(): Promise<SelectedSource[]>
   inspectSources(sources: readonly SelectedSource[], operationId: string): Promise<BatchPreparation>
   createBatch(input: CreateBatchInput): Promise<CreatedBatchSummary>

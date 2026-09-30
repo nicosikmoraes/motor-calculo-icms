@@ -4,12 +4,12 @@ import { classifyFiscalItem } from '../src/main/fiscal-item-classification'
 
 const profile: FiscalProfileRecord = {
   id: 'profile-1', organizationId: 'org-1', companyId: 'company-1',
-  name: 'Revenda', validFrom: '2026-01-01', validUntil: '2026-12-31',
+  name: 'Revenda', revision: 1, active: true, validFrom: '2026-01-01', validUntil: '2026-12-31',
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 const product: SupplierProductRecord = {
   id: 'product-1', companyId: 'company-1', supplierCnpj: '11222333000181',
-  productCode: 'ABC-1', profileId: profile.id,
+  productCode: 'ABC-1', profileId: profile.id, revision: 1, active: true,
   createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
@@ -53,6 +53,14 @@ describe('classificação cadastral de item', () => {
       product.companyId, product.supplierCnpj, product.productCode, '2026-09-01',
       [], [product],
     ).classificationReason).toBe('PROFILE_NOT_FOUND')
+  })
+
+  it('marca vínculo ou perfil inativo como pendência do catálogo atual', () => {
+    const args = ['company-1', '11222333000181', 'ABC-1', '2026-09-01'] as const
+    expect(classifyFiscalItem(...args, [profile], [{ ...product, active: false }]).classificationReason)
+      .toBe('PRODUCT_INACTIVE')
+    expect(classifyFiscalItem(...args, [{ ...profile, active: false }], [product]).classificationReason)
+      .toBe('PROFILE_INACTIVE')
   })
 
   it('avisa quando a data da nota está fora da vigência ou ausente', () => {

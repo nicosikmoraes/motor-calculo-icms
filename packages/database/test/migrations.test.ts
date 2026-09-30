@@ -298,7 +298,7 @@ describe('SQLite e migrations', () => {
         batchId,
       )
 
-      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+      expect(result.applied.map(({ version }) => version)).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
       expect(database.get<{ status: string }>('SELECT status FROM lotes WHERE id = ?', batchId))
         .toEqual({ status: 'CANCELADO' })
       expect(
@@ -313,6 +313,33 @@ describe('SQLite e migrations', () => {
     } finally {
       database.close()
     }
+  })
+
+  it('mantém perfis e produtos legados ativos ao migrar o ciclo de vida', () => {
+    const database = new SqliteDatabase(':memory:')
+    const timestamp = '2026-09-21T18:00:00.000Z'
+    try {
+      runSqlMigrations(database, CORE_MIGRATIONS.slice(0, 11), migrationOptions)
+      database.run(`INSERT INTO organizacoes (id, nome, criado_em, atualizado_em)
+        VALUES ('00000000-0000-4000-8000-000000000001', 'Escritório', ?, ?)`, timestamp, timestamp)
+      database.run(`INSERT INTO empresas
+        (id, organizacao_id, razao_social, cnpj, uf, criado_em, atualizado_em)
+        VALUES ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', 'Empresa', '11222333000181', 'PR', ?, ?)`, timestamp, timestamp)
+      database.run(`INSERT INTO perfis_fiscais
+        (id, organizacao_id, empresa_id, nome, vigente_de, criado_em)
+        VALUES ('00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', 'Perfil', '2026-01-01', ?)`, timestamp)
+      database.run(`INSERT INTO produtos_fornecedor
+        (id, empresa_id, fornecedor_cnpj, codigo_produto, perfil_fiscal_id, criado_em, atualizado_em)
+        VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002', '11222333000181', 'P1', '00000000-0000-4000-8000-000000000003', ?, ?)`, timestamp, timestamp)
+
+      runSqlMigrations(database, CORE_MIGRATIONS, migrationOptions)
+      expect(database.get<{ ativo: number; inativado_em: string | null; atualizado_em: string }>(
+        "SELECT ativo, inativado_em, atualizado_em FROM perfis_fiscais WHERE id = '00000000-0000-4000-8000-000000000003'",
+      )).toEqual({ ativo: 1, inativado_em: null, atualizado_em: timestamp })
+      expect(database.get<{ ativo: number; inativado_em: string | null }>(
+        "SELECT ativo, inativado_em FROM produtos_fornecedor WHERE id = '00000000-0000-4000-8000-000000000004'",
+      )).toEqual({ ativo: 1, inativado_em: null })
+    } finally { database.close() }
   })
 
   it('preserva eventos de auditoria contra edição e exclusão', () => {

@@ -105,10 +105,65 @@ describe('casos de uso de cadastros', () => {
       { operation: RegistrationOperationCode.CREATE, revision: 1 }])
   })
 
+  it('edita, inativa e reativa empresa sem alterar CNPJ ou histórico', () => {
+    cases.createOrganization({ name: 'Escritório' })
+    const company = cases.createCompany({ legalName: 'Original', cnpj: '11.222.333/0001-81', state: 'PR' })
+    const updated = cases.updateCompany({ id: company.id, expectedRevision: company.revision,
+      legalName: 'Atualizada', tradeName: 'Fantasia', state: 'SP' })
+    expect(updated).toMatchObject({ revision: 2, cnpj: company.cnpj, legalName: 'Atualizada', state: 'SP' })
+    expect(() => cases.updateCompany({ id: company.id, expectedRevision: company.revision,
+      legalName: 'Antiga', state: 'RJ' })).toThrowError(
+        expect.objectContaining({ code: AppErrorCode.REGISTRATION_REVISION_CONFLICT }))
+    const inactive = cases.inactivateCompany({ id: company.id, expectedRevision: updated.revision })
+    expect(inactive).toMatchObject({ active: false, revision: 3 })
+    expect(() => cases.createFiscalProfile({ companyId: company.id, name: 'Novo', validFrom: '2026-01-01' }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.ACTIVE_COMPANY_NOT_FOUND }))
+    const restored = cases.reactivateCompany({ id: company.id, expectedRevision: inactive.revision })
+    expect(restored).toMatchObject({ active: true, revision: 4 })
+    expect(cases.listAudit({ entity: RegistrationEntityCode.COMPANY, entityId: company.id })
+      .map((event) => event.operation)).toEqual([
+        RegistrationOperationCode.REACTIVATE, RegistrationOperationCode.INACTIVATE,
+        RegistrationOperationCode.UPDATE, RegistrationOperationCode.CREATE,
+      ])
+    expect(cases.listAudit({ entity: RegistrationEntityCode.COMPANY, entityId: company.id })[2]?.changes)
+      .toEqual({ legalName: { before: 'Original', after: 'Atualizada' },
+        tradeName: { before: null, after: 'Fantasia' }, state: { before: 'PR', after: 'SP' } })
+  })
+
+  it('mantém vínculo e histórico ao inativar perfil e produto, com reativação validada', () => {
+    cases.createOrganization({ name: 'Escritório' })
+    const company = cases.createCompany({ legalName: 'Empresa', cnpj: '11.222.333/0001-81', state: 'PR' })
+    const profile = cases.createFiscalProfile({ companyId: company.id, name: 'Perfil A', validFrom: '2026-01-01' })
+    const product = cases.saveSupplierProduct({ companyId: company.id, supplierCnpj: company.cnpj,
+      productCode: 'P1', profileId: profile.id })
+    const edited = cases.updateFiscalProfile({ id: profile.id, expectedRevision: profile.revision,
+      name: 'Perfil B', validFrom: '2026-02-01', validUntil: '2026-12-31' })
+    expect(edited).toMatchObject({ name: 'Perfil B', revision: 2 })
+    expect(() => cases.updateFiscalProfile({ id: profile.id, expectedRevision: profile.revision,
+      name: 'Obsoleto', validFrom: '2026-01-01' }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.REGISTRATION_REVISION_CONFLICT }))
+    const inactiveProfile = cases.inactivateFiscalProfile({ id: profile.id, expectedRevision: edited.revision })
+    expect(inactiveProfile).toMatchObject({ active: false, revision: 3 })
+    expect(cases.listSupplierProducts(company.id)).toMatchObject([{ id: product.id, active: true }])
+    expect(() => cases.saveSupplierProduct({ companyId: company.id, supplierCnpj: company.cnpj,
+      productCode: 'P2', profileId: profile.id }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.PROFILE_COMPANY_MISMATCH }))
+    const inactiveProduct = cases.inactivateSupplierProduct({ id: product.id, expectedRevision: product.revision })
+    expect(inactiveProduct).toMatchObject({ active: false, revision: 2 })
+    expect(() => cases.reactivateSupplierProduct({ id: product.id, expectedRevision: inactiveProduct.revision }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.PROFILE_COMPANY_MISMATCH }))
+    const restoredProfile = cases.reactivateFiscalProfile({ id: profile.id, expectedRevision: inactiveProfile.revision })
+    expect(restoredProfile).toMatchObject({ active: true, revision: 4 })
+    const restoredProduct = cases.reactivateSupplierProduct({ id: product.id, expectedRevision: inactiveProduct.revision })
+    expect(restoredProduct).toMatchObject({ active: true, revision: 3, profileId: profile.id })
+    expect(cases.listAudit({ entity: RegistrationEntityCode.FISCAL_PROFILE, entityId: profile.id })).toHaveLength(4)
+    expect(cases.listAudit({ entity: RegistrationEntityCode.SUPPLIER_PRODUCT, entityId: product.id })).toHaveLength(3)
+  })
+
   it('recusa acesso ao catálogo de empresa ausente', () => {
     cases.createOrganization({ name: 'Escritório' })
     expect(() => cases.listFiscalProfiles('inexistente')).toThrowError(
-      expect.objectContaining({ code: AppErrorCode.ACTIVE_COMPANY_NOT_FOUND }),
+      expect.objectContaining({ code: AppErrorCode.REGISTRATION_NOT_FOUND }),
     )
   })
 

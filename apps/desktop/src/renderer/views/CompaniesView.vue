@@ -14,6 +14,12 @@ const savingOffice = ref(false)
 const error = ref('')
 const success = ref('')
 const revisionConflict = ref(false)
+const editingCompanyId = ref('')
+const editingRevision = ref(0)
+const editLegalName = ref('')
+const editTradeName = ref('')
+const editState = ref('')
+const busyCompanyId = ref('')
 
 const states = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
@@ -69,6 +75,48 @@ async function createCompany(): Promise<void> {
   } finally {
     savingCompany.value = false
   }
+}
+
+function startCompanyEdit(company: CompanySummary): void {
+  editingCompanyId.value = company.id
+  editingRevision.value = company.revision
+  editLegalName.value = company.legalName
+  editTradeName.value = company.tradeName ?? ''
+  editState.value = company.state
+  error.value = ''
+}
+
+async function saveCompany(): Promise<void> {
+  busyCompanyId.value = editingCompanyId.value
+  error.value = ''
+  success.value = ''
+  try {
+    await window.desktopApi.updateCompany({
+      id: editingCompanyId.value, expectedRevision: editingRevision.value,
+      legalName: editLegalName.value, tradeName: editTradeName.value, state: editState.value,
+    })
+    editingCompanyId.value = ''
+    await load()
+    success.value = 'Empresa atualizada.'
+  } catch (cause) {
+    error.value = message(cause, RendererErrorMessage.OPERATION_FAILED)
+    revisionConflict.value = error.value.includes('Recarregue os dados')
+  } finally { busyCompanyId.value = '' }
+}
+
+async function changeCompanyStatus(company: CompanySummary): Promise<void> {
+  busyCompanyId.value = company.id
+  error.value = ''
+  success.value = ''
+  try {
+    if (company.active) await window.desktopApi.inactivateCompany({ id: company.id, expectedRevision: company.revision })
+    else await window.desktopApi.reactivateCompany({ id: company.id, expectedRevision: company.revision })
+    await load()
+    success.value = company.active ? 'Empresa inativada.' : 'Empresa reativada.'
+  } catch (cause) {
+    error.value = message(cause, RendererErrorMessage.OPERATION_FAILED)
+    revisionConflict.value = error.value.includes('Recarregue os dados')
+  } finally { busyCompanyId.value = '' }
 }
 
 onMounted(() => void load().catch((cause) => {
@@ -147,15 +195,28 @@ onMounted(() => void load().catch((cause) => {
         Nenhuma empresa cadastrada. O primeiro cadastro permitirá associar um lote.
       </p>
       <ul v-else class="company-list">
-        <li v-for="company in workspace.companies" :key="company.id">
-          <div>
+        <li v-for="company in workspace.companies" :key="company.id" class="company-row">
+          <div class="company-info">
             <strong>{{ company.legalName }}</strong>
             <span v-if="company.tradeName">{{ company.tradeName }}</span>
+            <span>{{ company.cnpj }} · {{ company.state }} · {{ company.active ? 'Ativa' : 'Inativa' }}</span>
           </div>
-          <div class="company-meta">
-            <span>{{ company.cnpj }}</span>
-            <span class="tag">{{ company.state }}</span>
+          <div class="company-actions">
+            <button class="button secondary" type="button" :disabled="!!busyCompanyId" @click="startCompanyEdit(company)">Editar</button>
+            <button class="button secondary" type="button" :disabled="!!busyCompanyId" @click="changeCompanyStatus(company)">
+              {{ company.active ? 'Inativar' : 'Reativar' }}
+            </button>
           </div>
+          <form v-if="editingCompanyId === company.id" class="form-grid company-edit" @submit.prevent="saveCompany">
+            <label class="field-wide"><span>Razão social</span><input v-model="editLegalName" required maxlength="200" /></label>
+            <label class="field-wide"><span>Nome fantasia</span><input v-model="editTradeName" maxlength="200" /></label>
+            <label><span>UF</span><select v-model="editState" required><option v-for="item in states" :key="item" :value="item">{{ item }}</option></select></label>
+            <p class="field-wide">O CNPJ permanece {{ company.cnpj }}.</p>
+            <div class="company-actions field-wide">
+              <button class="button primary" type="submit" :disabled="!!busyCompanyId">Salvar alterações</button>
+              <button class="button secondary" type="button" @click="editingCompanyId = ''">Cancelar</button>
+            </div>
+          </form>
         </li>
       </ul>
     </article>
@@ -183,4 +244,8 @@ onMounted(() => void load().catch((cause) => {
 @media (max-width: 650px) {
   .company-list li { align-items: flex-start; flex-direction: column; }
 }
+.company-row { flex-wrap: wrap; }
+.company-info { flex: 1; }
+.company-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.company-edit { width: 100%; margin-top: 12px; padding-top: 16px; border-top: 1px solid #e8edf4; }
 </style>

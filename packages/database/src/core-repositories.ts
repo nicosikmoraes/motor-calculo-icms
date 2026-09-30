@@ -364,6 +364,32 @@ export class SqliteCompanyRepository {
       .map(mapCompany)
   }
 
+  /** Atualiza campos editáveis e compara a revisão na própria escrita. */
+  updateRegistration(id: string, expectedRevision: number, values: {
+    legalName: string; tradeName?: string; state: Company['state']; updatedAt: string
+  }): boolean {
+    this.database.run(
+      `UPDATE empresas SET razao_social = ?, nome_fantasia = ?, uf = ?,
+       atualizado_em = ?, revisao = revisao + 1 WHERE id = ? AND revisao = ?`,
+      requiredText(values.legalName, 'company.legalName'),
+      optionalText(values.tradeName) ?? null,
+      normalizeBrazilianState(values.state),
+      assertCanonicalUtcTimestamp(values.updatedAt, 'company.updatedAt'), id, expectedRevision,
+    )
+    return Number(this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')?.changes ?? 0) === 1
+  }
+
+  /** Alterna disponibilidade para novos lotes sem remover referências históricas. */
+  setRegistrationActive(id: string, expectedRevision: number, active: boolean, updatedAt: string): boolean {
+    const timestamp = assertCanonicalUtcTimestamp(updatedAt, 'company.updatedAt')
+    this.database.run(
+      `UPDATE empresas SET ativo = ?, inativada_em = ?, atualizado_em = ?,
+       revisao = revisao + 1 WHERE id = ? AND revisao = ? AND ativo = ?`,
+      active ? 1 : 0, active ? null : timestamp, timestamp, id, expectedRevision, active ? 0 : 1,
+    )
+    return Number(this.database.get<{ changes: number | bigint }>('SELECT changes() AS changes')?.changes ?? 0) === 1
+  }
+
   inactivate(id: string, inactivatedAt: string): void {
     const timestamp = assertCanonicalUtcTimestamp(inactivatedAt, 'inactivatedAt')
     this.database.run(

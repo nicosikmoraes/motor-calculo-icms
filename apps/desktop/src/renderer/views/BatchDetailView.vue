@@ -46,7 +46,10 @@ async function loadDetail(): Promise<void> {
   const loaded = await window.desktopApi.getBatchDetail(String(route.params.id), selectedRunId.value || undefined)
   detail.value = loaded
   const companyIds = [...new Set(loaded.documents.map((document) => document.companyId).filter((id): id is string => Boolean(id)))]
-  const entries = await Promise.all(companyIds.map(async (id) => [id, await window.desktopApi.listFiscalProfiles(id)] as const))
+  const workspace = await window.desktopApi.getWorkspace()
+  const activeCompanies = new Set(workspace.companies.filter((company) => company.active).map((company) => company.id))
+  const entries = await Promise.all(companyIds.map(async (id) => [id, activeCompanies.has(id)
+    ? (await window.desktopApi.listFiscalProfiles(id)).filter((profile) => profile.active) : []] as const))
   profilesByCompany.value = Object.fromEntries(entries)
 }
 

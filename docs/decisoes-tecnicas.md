@@ -537,11 +537,11 @@ nenhum ICMS novo é calculado ou comparado nesta etapa.
 
 ## DT-033 — Casos de uso e auditoria local de cadastros
 
-**Status:** decisões de produto aprovadas em 28/09/2026; implementação pendente.
+**Status:** decisões de produto aprovadas em 28–29/09/2026; casos de uso implementados.
 
 Os casos de uso de organização, empresa, perfil fiscal e produto de fornecedor
-serão concluídos antes do schema de regras versionadas. Criar, editar, inativar
-e reativar com sucesso gera evento imutável de auditoria na mesma transação da
+são concluídos antes do schema de regras versionadas. Criar e editar, assim
+como inativar e reativar empresa, perfil e produto, gera evento imutável de auditoria na mesma transação da
 mudança. Falhas geram diagnóstico técnico, sem evento de alteração. Cada evento
 inclui entidade, identificador, operação, horário UTC, campos efetivamente
 alterados com valores anterior e novo, usuário do Windows e nome real do
@@ -551,10 +551,14 @@ XMLs, arquivos e segredos não constam.
 
 Qualquer pessoa com acesso à instalação pode operar os cadastros e consultar a
 auditoria até que haja perfis. Edição baseada em revisão desatualizada é rejeitada.
-O CNPJ da empresa não é editável. Cadastros usados podem ser inativados e
-reativados imediatamente, preservadas as validações de integridade existentes.
-Não há exclusão física pelos casos de uso. Mudanças não reescrevem resultados
-históricos; recálculo explícito cria nova execução.
+A organização única pode ser renomeada, mas não inativada no MVP. O CNPJ da
+empresa não é editável. Empresa inativa não recebe novos lotes. Perfil e produto
+inativos não participam de novos vínculos nem da classificação cadastral atual;
+a inativação não é propagada. Lotes e registros antigos seguem consultáveis.
+Perfil usado pode ter nome e vigência editados com revisão e auditoria: a
+classificação cadastral atual pode mudar, enquanto avaliações e execuções
+históricas salvas não são reescritas. Reativação valida os cadastros relacionados.
+Não há exclusão física pelos casos de uso.
 
 A consulta permite filtrar por cadastro, período e operação. Cada evento é
 retido por seis meses desde sua criação. A limpeza automática roda na abertura,
