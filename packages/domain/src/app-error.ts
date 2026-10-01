@@ -1,6 +1,7 @@
 /** Códigos estáveis para erros de validação e operação exibidos pelo desktop. */
 export enum AppErrorCode {
   INVALID_OPERATION = 'INVALID_OPERATION',
+  IMPORT_OPERATION_BUSY = 'IMPORT_OPERATION_BUSY',
   MISSING_SOURCE = 'MISSING_SOURCE',
   INVALID_ENVIRONMENT = 'INVALID_ENVIRONMENT',
   ORGANIZATION_REQUIRED = 'ORGANIZATION_REQUIRED',
@@ -108,6 +109,7 @@ export enum AppErrorMessage {
   UNKNOWN_FAILURE = 'Falha desconhecida.',
   DATABASE_OPEN_TITLE = 'Não foi possível abrir o banco de dados',
   INVALID_OPERATION = 'Operação de importação inválida ou duplicada.',
+  IMPORT_OPERATION_BUSY = 'Já existe uma inspeção ou importação em andamento. Aguarde sua conclusão.',
   MISSING_SOURCE = 'Selecione ao menos um arquivo.',
   INVALID_ENVIRONMENT = 'Confirme se o lote é de produção ou homologação.',
   ORGANIZATION_REQUIRED = 'Configure o escritório antes de {action}.',
@@ -210,6 +212,7 @@ export enum AppErrorMessage {
 
 const errorMessageByCode: Record<AppErrorCode, AppErrorMessage> = {
   [AppErrorCode.INVALID_OPERATION]: AppErrorMessage.INVALID_OPERATION,
+  [AppErrorCode.IMPORT_OPERATION_BUSY]: AppErrorMessage.IMPORT_OPERATION_BUSY,
   [AppErrorCode.MISSING_SOURCE]: AppErrorMessage.MISSING_SOURCE,
   [AppErrorCode.INVALID_ENVIRONMENT]: AppErrorMessage.INVALID_ENVIRONMENT,
   [AppErrorCode.ORGANIZATION_REQUIRED]: AppErrorMessage.ORGANIZATION_REQUIRED,

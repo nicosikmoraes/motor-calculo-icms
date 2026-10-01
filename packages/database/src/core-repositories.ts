@@ -11,6 +11,7 @@ import {
   type FiscalEnvironmentCode,
   type Organization,
   type NormalizedNfe,
+  type NormalizedDocumentArtifact,
 } from '@motor/domain'
 import type { SqliteDatabase } from './sqlite-database'
 
@@ -93,6 +94,20 @@ export interface NormalizedFiscalDocumentRecord {
   ruleAssessments?: Readonly<Record<string, ItemRuleAssessment>>
   eligibleForProcessing: boolean
   pendingReason?: string
+  createdAt: string
+}
+
+export enum DocumentArtifactAssociationCode {
+  ASSOCIATED = 'ASSOCIATED', ORPHAN = 'ORPHAN', AMBIGUOUS = 'AMBIGUOUS',
+}
+export interface DocumentArtifactRecord {
+  id: string
+  batchId: string
+  occurrenceId: string
+  documentId?: string
+  association: `${DocumentArtifactAssociationCode}`
+  contentHash: string
+  normalized: NormalizedDocumentArtifact
   createdAt: string
 }
 
@@ -410,7 +425,8 @@ export class SqliteBatchRepository {
     batch: Omit<FiscalBatchRecord, 'totalFiles' | 'totalDocuments' | 'totalPendencies'>,
     occurrences: readonly FileOccurrenceRecord[],
     diagnostics: readonly IngestionDiagnosticRecord[] = [],
-    documents: readonly NormalizedFiscalDocumentRecord[] = [],
+    documents: Iterable<NormalizedFiscalDocumentRecord> = [],
+    artifacts: Iterable<DocumentArtifactRecord> = [],
   ): void {
     const ordered = [...occurrences].sort(
       (left, right) =>
@@ -422,11 +438,6 @@ export class SqliteBatchRepository {
     if (diagnostics.some(({ batchId }) => batchId !== batch.id)) {
       throw new AppError(AppErrorCode.DIAGNOSTIC_BATCH_MISMATCH)
     }
-    if (documents.some(({ batchId }) => batchId !== batch.id)) {
-      throw new AppError(AppErrorCode.DOCUMENT_BATCH_MISMATCH)
-    }
-    const totalDocuments = ordered.filter(({ accessKey }) => accessKey !== undefined).length
-
     this.database.transaction(() => {
       this.database.run(
         `INSERT INTO lotes (
@@ -445,7 +456,7 @@ export class SqliteBatchRepository {
           ? assertCanonicalUtcTimestamp(batch.lastCanceledAt, 'batch.lastCanceledAt')
           : null,
         ordered.length,
-        totalDocuments,
+        0,
         diagnostics.length,
         assertCanonicalUtcTimestamp(batch.createdAt, 'batch.createdAt'),
         assertCanonicalUtcTimestamp(batch.updatedAt, 'batch.updatedAt'),
@@ -466,8 +477,48 @@ export class SqliteBatchRepository {
           assertCanonicalUtcTimestamp(diagnostic.createdAt, 'diagnostic.createdAt'),
         )
       }
-      for (const document of documents) this.insertNormalizedDocument(document)
+      let totalDocuments = 0
+      for (const document of documents) {
+        if (document.batchId !== batch.id) throw new AppError(AppErrorCode.DOCUMENT_BATCH_MISMATCH)
+        this.insertNormalizedDocument(document)
+        totalDocuments += 1
+      }
+      this.database.run('UPDATE lotes SET total_notas = ? WHERE id = ?', totalDocuments, batch.id)
+      for (const artifact of artifacts) {
+        if (artifact.batchId !== batch.id) throw new AppError(AppErrorCode.DOCUMENT_BATCH_MISMATCH)
+        this.insertDocumentArtifact(artifact)
+      }
     })
+  }
+
+  private insertDocumentArtifact(artifact: DocumentArtifactRecord): void {
+    const value = artifact.normalized
+    this.database.run(
+      `INSERT INTO artefatos_documentais (
+        id, lote_id, ocorrencia_arquivo_id, documento_id, tipo, chave_acesso, versao,
+        tipo_evento, sequencia, protocolo, codigo_status, associacao, hash_xml, dados_json, criado_em
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      artifact.id, artifact.batchId, artifact.occurrenceId, artifact.documentId ?? null,
+      value.kind, value.accessKey, value.version, value.eventType ?? null,
+      value.sequence ?? null, value.protocolNumber ?? null, value.statusCode ?? null,
+      artifact.association, artifact.contentHash, JSON.stringify(value),
+      assertCanonicalUtcTimestamp(artifact.createdAt, 'artifact.createdAt'),
+    )
+  }
+
+  listDocumentArtifacts(batchId: string): readonly DocumentArtifactRecord[] {
+    return this.database.all<{
+      id: string; lote_id: string; ocorrencia_arquivo_id: string; documento_id: string | null;
+      associacao: DocumentArtifactRecord['association']; hash_xml: string; dados_json: string; criado_em: string
+    }>(`SELECT id, lote_id, ocorrencia_arquivo_id, documento_id, associacao, hash_xml, dados_json, criado_em
+       FROM artefatos_documentais WHERE lote_id = ? ORDER BY chave_acesso, tipo, tipo_evento, sequencia, id`, batchId)
+      .map((row) => ({
+        id: row.id, batchId: row.lote_id, occurrenceId: row.ocorrencia_arquivo_id,
+        ...(row.documento_id ? { documentId: row.documento_id } : {}),
+        association: row.associacao, contentHash: row.hash_xml,
+        normalized: JSON.parse(row.dados_json) as NormalizedDocumentArtifact,
+        createdAt: row.criado_em,
+      }))
   }
 
   findById(id: string): FiscalBatchRecord | undefined {

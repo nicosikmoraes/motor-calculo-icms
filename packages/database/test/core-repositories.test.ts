@@ -129,6 +129,7 @@ describe("migrations e repositórios centrais", () => {
       .map(({ name }) => name);
 
     expect(tables).toEqual([
+      "artefatos_documentais",
       "auditoria_retencao_controle",
       "auditoria_retencao_execucoes",
       "avaliacoes_regras_itens",
@@ -268,7 +269,7 @@ describe("migrations e repositórios centrais", () => {
 
     expect(batches.findById(batchId)).toMatchObject({
       totalFiles: 1,
-      totalDocuments: 1,
+      totalDocuments: 0,
       totalPendencies: 1,
     });
     expect(batches.listDiagnostics(batchId)).toEqual([
@@ -277,6 +278,38 @@ describe("migrations e repositórios centrais", () => {
         source: "nota.xml",
       }),
     ]);
+  });
+
+  it("desfaz o lote quando a fonte incremental falha durante a transação", () => {
+    seedRegistrations();
+    const batches = new SqliteBatchRepository(database);
+    function* documents(): Generator<never> {
+      throw new Error("Estágio indisponível");
+    }
+    expect(() => batches.createWithOccurrences(batch(), [
+      occurrence({ id: firstOccurrenceId, order: 1 }),
+    ], [], documents())).toThrow("Estágio indisponível");
+    expect(batches.findById(batchId)).toBeUndefined();
+    expect(batches.listOccurrences(batchId)).toEqual([]);
+  });
+
+  it("persiste evento órfão e protocolo com proveniência da ocorrência", () => {
+    seedRegistrations();
+    const batches = new SqliteBatchRepository(database);
+    batches.createWithOccurrences(batch(), [occurrence({ id: firstOccurrenceId, order: 1 })], [], [], [
+      {
+        id: "00000000-0000-4000-8000-000000000040",
+        batchId, occurrenceId: firstOccurrenceId, association: "ORPHAN",
+        contentHash: "1".repeat(64), createdAt: timestamp,
+        normalized: { kind: "EVENT", envelope: "PROC_EVENTO_NFE", version: "1.00",
+          accessKey: "1".repeat(44), eventType: "110111", sequence: "1", statusCode: "135" },
+      },
+    ]);
+    expect(batches.findById(batchId)?.totalDocuments).toBe(0);
+    expect(batches.listDocumentArtifacts(batchId)).toMatchObject([{
+      association: "ORPHAN", occurrenceId: firstOccurrenceId,
+      normalized: { kind: "EVENT", eventType: "110111", statusCode: "135" },
+    }]);
   });
 
   it("preserva empresas diferentes dentro do mesmo lote", () => {

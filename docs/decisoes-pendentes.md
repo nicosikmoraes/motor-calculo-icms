@@ -5,10 +5,10 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 ## Prioridade 1 — concluir ingestão e ciclo do documento
 
 1. **Duplicidade:** política aprovada na DT-019; falta detalhar a interface de resolução do conflito, sem alterar sua consequência fiscal.
-2. **Eventos órfãos:** serão ignorados pelo cálculo inicial; ao implementar eventos, definir retenção, associação posterior e reprocessamento.
+2. **Eventos órfãos:** já são preservados e identificados no lote; definir associação posterior entre lotes, retenção e reprocessamento. Não participam do cálculo inicial.
 3. **Conflitos e precedência:** ordem final entre cancelamento, rejeição, denegação, manifestações, CC-e, contingência e pendências fiscais.
 4. **Validação do XML 4.00:** pacote inicial `PL_010f_v1.04`, bibliotecas e catálogo inicial de severidades aprovados nas DT-020 e DT-021; falta ampliar campos necessários durante a normalização fiscal. Assinatura não será validada no MVP.
-5. **Versões de protocolos e eventos:** definir por tipo de artefato as versões aceitas no MVP e o tratamento de uma versão não suportada.
+5. **Validação de protocolos e eventos:** as versões do incremento estrutural estão na DT-036; falta validar seus XSDs específicos e decidir o escopo de tipos de evento para efeitos documentais.
 6. **XML sem protocolo:** decidir expressamente se `NAO_VERIFICADA` integra o total definitivo ou somente um subtotal provisório.
 
 ## Prioridade 2 — contrato fiscal do cálculo
@@ -46,9 +46,9 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
    política de migrations foi aprovada na DT-027.
 4. Detalhes de índices e restrições do schema. A idempotência de execução foi
    aprovada na DT-026 e a política de ocorrências repetidas permanece na DT-019.
-5. Capacidade da fila e pressão de retorno. A instância única, a escrita
-   centralizada, os checkpoints por documento e a recuperação após interrupção
-   já foram aprovados nas DT-024 e DT-025.
+5. Medir se a capacidade inicial de uma operação e uma entrada XML em processamento
+   por vez atende ao volume de referência; ajustar a vazão somente com as metas
+   de MD-11. A pressão de retorno inicial está registrada na DT-024.
 
 ## Prioridade 5 — retenção e proteção de dados
 

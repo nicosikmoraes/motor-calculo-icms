@@ -13,6 +13,7 @@ const hasSources = computed(() => sources.value.length > 0)
 const workspace = ref<WorkspaceState>({ companies: [] })
 const assignments = ref<Record<string, string>>({})
 const selectedEnvironmentCode = ref<'1' | '2' | ''>('')
+const artifactCompanyId = ref('')
 const preparation = ref<BatchPreparation | null>(null)
 const error = ref('')
 const registrationCandidate = ref<BatchCompanyCandidate | null>(null)
@@ -65,6 +66,8 @@ function setPreparation(value: BatchPreparation): void {
     next[document.source] = suggestCompanyForDocument(document, workspace.value.companies, prior)
   }
   assignments.value = next
+  const activeCompanies = workspace.value.companies.filter((company) => company.active)
+  artifactCompanyId.value = activeCompanies.length === 1 ? activeCompanies[0]!.id : artifactCompanyId.value
   selectedEnvironmentCode.value = selectedEnvironmentCode.value || (value.environmentCodes.length === 1
     ? value.environmentCodes[0]!
     : '')
@@ -83,6 +86,7 @@ async function selectSources(): Promise<void> {
     preparation.value = null
     selectedEnvironmentCode.value = ''
     assignments.value = {}
+    artifactCompanyId.value = ''
     createdBatch.value = null
     if (sources.value.length > 0) {
       inspecting.value = true
@@ -102,7 +106,8 @@ async function selectSources(): Promise<void> {
 }
 
 async function createBatch(): Promise<void> {
-  if (!preparation.value || remainingCount.value || !selectedEnvironmentCode.value) return
+  if (!preparation.value || remainingCount.value || !selectedEnvironmentCode.value
+    || (!preparation.value.documents.length && !artifactCompanyId.value)) return
   error.value = ''
   notice.value = ''
   creatingBatch.value = true
@@ -112,6 +117,7 @@ async function createBatch(): Promise<void> {
       operationId: activeOperationId.value,
       totalEntries: preparation.value.totalEntries,
       assignments: preparation.value.documents.map(({ source }) => ({ source, companyId: assignments.value[source]! })),
+      ...(!preparation.value.documents.length ? { artifactCompanyId: artifactCompanyId.value } : {}),
       environmentCode: selectedEnvironmentCode.value,
       sources: serializableSources(sources.value),
     })
@@ -240,7 +246,7 @@ onUnmounted(() => unsubscribeProgress?.())
 
     <article v-if="preparation" class="card preparation-card">
       <p class="eyebrow">Inspeção concluída</p>
-      <h3>{{ preparation.inspectedXmlCount }} XML(s) reconhecido(s)</h3>
+      <h3>{{ preparation.inspectedXmlCount }} nota(s) e {{ preparation.artifacts.length }} protocolo(s)/evento(s) avulso(s) reconhecido(s)</h3>
 
       <label class="standalone-field environment-field">
         <span>Ambiente confirmado para este lote</span>
@@ -255,6 +261,24 @@ onUnmounted(() => unsubscribeProgress?.())
         <small v-else-if="preparation.environmentCodes.length === 0">
           O ambiente não pôde ser identificado automaticamente.
         </small>
+      </label>
+
+      <div v-if="preparation.artifacts.length" class="review-heading">
+        <div>
+          <p class="eyebrow">Protocolos e eventos avulsos</p>
+          <h3>Artefatos reconhecidos</h3>
+          <p>A associação à nota é feita pela chave de acesso. Artefatos sem nota correspondente ficam identificados como órfãos no histórico.</p>
+          <ul><li v-for="artifact in preparation.artifacts" :key="artifact.source">
+            {{ artifact.kind === 'PROTOCOL' ? 'Protocolo' : 'Evento' }} {{ artifact.eventType || '' }} · {{ documentLabel(artifact.source) }} · chave {{ artifact.accessKey }}
+          </li></ul>
+        </div>
+      </div>
+      <label v-if="!preparation.documents.length && preparation.artifacts.length" class="standalone-field">
+        <span>Empresa responsável por este lote de protocolos/eventos</span>
+        <select v-model="artifactCompanyId">
+          <option value="">Escolha uma empresa ativa</option>
+          <option v-for="company in workspace.companies.filter((entry) => entry.active)" :key="company.id" :value="company.id">{{ company.legalName }} — {{ company.cnpj }}</option>
+        </select>
       </label>
 
       <div class="review-heading">
@@ -301,7 +325,7 @@ onUnmounted(() => unsubscribeProgress?.())
 
       <p v-if="preparation.documents.length && !remainingCount" class="form-success">Todas as notas têm uma empresa associada.</p>
       <button v-if="!createdBatch" class="button primary confirm-batch" type="button"
-        :disabled="creatingBatch || !selectedEnvironmentCode || !!remainingCount || !preparation.documents.length"
+        :disabled="creatingBatch || !selectedEnvironmentCode || !!remainingCount || (!preparation.documents.length && (!preparation.artifacts.length || !artifactCompanyId))"
         @click="createBatch">
         {{ creatingBatch ? 'Processando lote…' : 'Confirmar e processar lote' }}
       </button>

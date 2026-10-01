@@ -346,6 +346,13 @@ ordena as alterações no banco. Controle de concorrência, capacidade da fila,
 pressão de retorno e granularidade das transações serão medidos antes de fixar os
 limites de produção.
 
+No primeiro controle de pressão de retorno, há apenas uma inspeção ou importação
+ativa por instalação. O leitor de XML/ZIP aguarda o estágio temporário da nota
+normalizada antes de avançar para a próxima entrada; o conteúdo normalizado é
+carregado uma nota por vez na transação final e o estágio é removido ao terminar
+ou falhar. Assim, não há fila de notas normalizadas acumulada na memória. A meta
+de vazão e o processamento paralelo continuam sujeitos às medições de MD-11.
+
 ## DT-025 — Checkpoints e retomada de lote
 
 **Status:** aprovado.
@@ -608,3 +615,25 @@ calcula ICMS: resultados fiscais seguem dependentes de MD-05/MD-06.
 A fila detalhada e priorizada está em [Decisões pendentes](decisoes-pendentes.md).
 Os próximos itens recomendados são definir os tipos normalizados de nota e item,
 os limites técnicos de segurança e homologar uma massa anonimizada representativa.
+
+## DT-036 — Ingestão estrutural de protocolos e eventos
+
+**Status:** aprovado para este incremento técnico.
+
+O parser reconhece `nfeProc` e `protNFe` 4.00, além de `procEventoNFe` e `evento`
+1.00. Versões diferentes são recusadas. O limite comum de XML é 10 MB, com
+profundidade máxima de 100 elementos; entradas em ZIP usam os limites de MD-04.
+O XML é lido com proteção contra DTD e entidades externas. A validação XSD
+específica desses artefatos fica para incremento próprio.
+
+O protocolo embutido e os arquivos avulsos preservam chave, status, número de
+protocolo e proveniência. Eventos preservam tipo, sequência, data, conteúdo
+relevante e resultado do retorno, quando presente. A associação pela chave
+ocorre após o inventário das notas do lote. Ausência de nota gera órfão; mais
+de uma nota com a mesma chave ou conflito gera associação ambígua. Um protocolo
+com chave divergente da nota ou um retorno de evento divergente gera diagnóstico.
+O ambiente divergente do lote também gera diagnóstico.
+
+Artefatos não alteram estado documental, cálculos ou totais nesta entrega.
+Deduplicação, associação de órfãos entre lotes e precedência documental
+continuam nas MD-02 e MD-07.

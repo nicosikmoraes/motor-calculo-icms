@@ -102,6 +102,18 @@ export function registerBatchQueryHandlers(): void {
           code: diagnostic.code,
           message: diagnostic.message,
         })),
+        artifacts: batches.listDocumentArtifacts(batchId).map(({ id, occurrenceId, documentId, association, normalized }) => ({
+          id, occurrenceId, ...(documentId ? { documentId } : {}), association,
+          kind: normalized.kind, envelope: normalized.envelope, accessKey: normalized.accessKey,
+          version: normalized.version,
+          ...(normalized.eventType ? { eventType: normalized.eventType } : {}),
+          ...(normalized.sequence ? { sequence: normalized.sequence } : {}),
+          ...(normalized.statusCode ? { statusCode: normalized.statusCode } : {}),
+          ...(normalized.statusReason ? { statusReason: normalized.statusReason } : {}),
+          ...(normalized.protocolNumber ? { protocolNumber: normalized.protocolNumber } : {}),
+          ...(normalized.occurredAt ? { occurredAt: normalized.occurredAt } : {}),
+          ...(normalized.responseMatches !== undefined ? { responseMatches: normalized.responseMatches } : {}),
+        })),
         ruleAssessmentRuns,
         ...(originalAssessment ? { originalAssessmentPack: { id: originalAssessment.packId, version: originalAssessment.packVersion } } : {}),
         documents: documents.map(({
