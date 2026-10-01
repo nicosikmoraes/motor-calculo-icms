@@ -461,7 +461,10 @@ os mesmos totais.
 
 ### Fase 8 — Relatório XLSX
 
-**PODE AVANÇAR:** criar um modelo de dados de relatório independente da biblioteca.
+- [x] criar modelo interno de dados de relatório independente da biblioteca,
+  com snapshot de notas, itens, pendências, candidatas, diagnósticos, ocorrências,
+  protocolos e eventos; preservar versões, precisão e evidências sem gerar totais.
+  Contrato técnico em [Modelo de dados do relatório](modelo-de-dados-relatorio.md).
 
 **DECISÃO NECESSÁRIA:** aprovar MD-08 antes de congelar abas e colunas.
 
