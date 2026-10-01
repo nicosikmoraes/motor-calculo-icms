@@ -7,7 +7,8 @@
   "dependencies": {
     "@motor/domain": "workspace:*",
     "@motor/contracts": "workspace:*",
-    "@motor/tax-engine": "workspace:*"
+    "@motor/tax-engine": "workspace:*",
+    "@motor/interchange": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
