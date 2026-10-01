@@ -87,5 +87,8 @@ silenciosamente à arquitetura.
 
 `packages/interchange` contém o codec inicial de `.icmspack`: criação de manifesto,
 serialização canônica e validação de schema, referências, contagens e SHA-256.
-Não acessa SQLite e não implementa exportação ou importação pela interface.
+O codec não acessa SQLite. A tela `InterchangeView` usa IPC restrito e diálogos
+nativos; `SqliteInterchangeRepository` coordena snapshot, reconciliação de conflitos,
+revisões e auditorias na conexão única. A importação revalida o pacote e o catálogo
+local antes da escrita, que ocorre em uma única transação.
 O contrato e os limites estão em [ICMSPACK v1](contrato-icmspack-v1.md).

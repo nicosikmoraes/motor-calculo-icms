@@ -487,11 +487,11 @@ Após a decisão:
 - [x] validar versão, contagens, hashes, schema e referências internas no codec;
   contrato em [ICMSPACK v1](contrato-icmspack-v1.md);
 
-- [ ] exportar manifesto e cadastros aprovados;
-- [ ] integrar a validação do pacote ao fluxo de importação;
-- [ ] apresentar novidades e conflitos;
-- [ ] importar tudo em uma única transação;
-- [ ] garantir rollback integral em caso de erro.
+- [x] exportar manifesto e cadastros aprovados;
+- [x] integrar a validação do pacote ao fluxo de importação;
+- [x] apresentar novidades e conflitos;
+- [x] importar tudo em uma única transação;
+- [x] garantir rollback integral em caso de erro.
 
 #### 9B — Retenção
 
