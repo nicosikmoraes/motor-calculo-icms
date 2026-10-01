@@ -5,7 +5,7 @@ import type {
 } from '@motor/contracts'
 import { AppError, AppErrorCode, assertRegistrationRevision, type Organization } from '@motor/domain'
 import type { RuleAuditEvent, SqliteVersionedRuleRepository, VersionedRuleRecord } from '@motor/database'
-import { FiscalRuleStatusCode, RuleLevelCode, RULE_LEVELS } from '@motor/tax-engine'
+import { FiscalRuleStatusCode, RuleLevelCode, RULE_LEVELS, normalizeRuleConditions } from '@motor/tax-engine'
 
 type RuleRepositories = {
   transaction<T>(operation: () => T): T
@@ -16,11 +16,6 @@ type RuleRepositories = {
 }
 
 type Change = { before: string | number | null; after: string | number | null }
-const CONDITION_KEYS = new Set([
-  'companyId', 'supplierProductId', 'fiscalProfileId', 'originState', 'destinationState',
-  'ncm', 'cest', 'cfop', 'operationType', 'issuerRegime', 'cst',
-  'finalConsumer', 'purpose', 'merchandiseOrigin',
-])
 const REQUIRED_BY_LEVEL: Record<RuleLevelCode, readonly string[]> = {
   [RuleLevelCode.DEFAULT_OPERATION]: ['operationType'],
   [RuleLevelCode.NCM]: ['ncm'],
@@ -53,16 +48,9 @@ function draftFields(input: RuleDraftFields): RuleDraftFields {
   if (!Number.isSafeInteger(input.priority) || input.priority < 0) throw new AppError(AppErrorCode.RULE_INVALID_PRIORITY)
   const priorityReason = optional(input.priorityReason)
   if (input.priority > 0 && !priorityReason) throw new AppError(AppErrorCode.RULE_INVALID_PRIORITY)
-  if (!input.conditions || typeof input.conditions !== 'object' || Array.isArray(input.conditions)) {
-    throw new AppError(AppErrorCode.RULE_INVALID_CONDITIONS)
-  }
-  const conditions: Record<string, string> = {}
-  for (const [key, value] of Object.entries(input.conditions)) {
-    if (!CONDITION_KEYS.has(key) || typeof value !== 'string' || !value.trim()) {
-      throw new AppError(AppErrorCode.RULE_INVALID_CONDITIONS)
-    }
-    conditions[key] = value.trim()
-  }
+  let conditions: RuleDraftFields['conditions']
+  try { conditions = normalizeRuleConditions(input.conditions) }
+  catch { throw new AppError(AppErrorCode.RULE_INVALID_CONDITIONS) }
   const validFrom = date(input.validFrom, 'Início da vigência')
   const validUntil = optional(input.validUntil)
   if (validUntil) date(validUntil, 'Fim da vigência')
@@ -195,6 +183,8 @@ export class VersionedRuleUseCases {
       const before = this.get(input.id)
       const revision = this.revision(before, input.expectedRevision)
       if (before.status !== FiscalRuleStatusCode.DRAFT) throw new AppError(AppErrorCode.RULE_NOT_DRAFT)
+      // Revalida rascunhos salvos antes da introdução do catálogo estruturado.
+      draftFields(fieldsOf(before))
       const required = REQUIRED_BY_LEVEL[before.level as RuleLevelCode]
       if (!before.legalBasis || !required?.every((key) => before.conditions[key])) {
         throw new AppError(AppErrorCode.RULE_APPROVAL_INCOMPLETE)
