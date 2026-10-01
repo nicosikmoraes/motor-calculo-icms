@@ -59,8 +59,15 @@ function registerIpcHandlers(): void {
   registerBatchReassessmentHandler()
 }
 
+// Uma segunda instância reutiliza a janela já aberta e não concorre pelo SQLite nem pelo estágio.
+const primaryInstance = app.requestSingleInstanceLock()
+if (!primaryInstance) app.quit()
+else app.on('second-instance', () => {
+  if (app.isReady()) createWindow()
+})
+
 // O banco e suas migrations precisam estar prontos antes de a interface abrir.
-app.whenReady().then(async () => {
+if (primaryInstance) app.whenReady().then(async () => {
   try {
     await openDatabase()
     registerIpcHandlers()

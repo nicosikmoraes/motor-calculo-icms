@@ -79,12 +79,12 @@ exige decisões próprias sobre eventos e precedência documental.
 - [x] incompatibilidade tolerável gera aviso e dados insuficientes geram `INFORMACOES_FALTANTES`;
 - [x] `fast-xml-parser` e `xmllint-wasm` aprovados na DT-020;
 - [x] executar a prova de conceito documentada em `prova-conceito-parser-xml.md`;
-- [ ] definir versões aceitas de protocolos e eventos, por tipo de artefato, antes do incremento correspondente;
+- [x] neste incremento estrutural, aceitar `nfeProc`/`protNFe` 4.00 e `procEventoNFe`/`evento` 1.00; versões diferentes são recusadas;
 - [x] revisão inicial, uso e origem dos schemas XSD 4.00: `PL_010f_v1.04`;
 - [x] catálogo objetivo de aviso, pendência e erro impeditivo, conforme DT-021;
 - [x] proteção contra DTD e entidades externas;
 - [x] limites técnicos de profundidade e tamanho de NF-e/NFC-e e ZIP, conforme MD-04;
-- [ ] versões e limites específicos de protocolos e eventos no incremento posterior.
+- [x] aplicar aos protocolos e eventos os limites comuns de 10 MB por XML, profundidade máxima de 100 elementos e ZIP conforme MD-04; validação XSD específica ainda pendente.
 
 **Desbloqueia:** normalização real de XML, protocolos e eventos.
 
@@ -129,7 +129,8 @@ exige decisões próprias sobre eventos e precedência documental.
   DT-024;
 - [x] checkpoint transacional por documento e retomada apenas do trabalho não
   concluído, conforme DT-025;
-- [ ] capacidade da fila e pressão de retorno;
+- [x] capacidade inicial: uma operação ativa e uma entrada XML em processamento por vez,
+  com leitura do ZIP aguardando o estágio temporário da nota; medir ajuste em MD-11;
 - [x] recuperação de execução interrompida;
 - [x] idempotência por `solicitacaoId + documentoId`, distinguindo retomada de
   recálculo explícito, conforme DT-026.
@@ -293,8 +294,8 @@ exige decisões próprias sobre eventos e precedência documental.
 **PODE AVANÇAR:**
 
 - [x] definir tipos normalizados para nota e item sem acoplar a uma biblioteca XML;
-- [ ] definir tipos normalizados para protocolo e evento quando suas versões forem
-  aprovadas;
+- [x] definir tipos normalizados para protocolo e evento nas versões do
+  incremento estrutural;
 - [x] criar códigos estruturados de erro e pendência de ingestão;
 - [x] criar builders de teste e fixtures sintéticas sem dados reais;
 - [x] testar inventário independente da ordem dos arquivos;
@@ -304,9 +305,9 @@ exige decisões próprias sobre eventos e precedência documental.
 - [x] preparar testes de segurança para XXE, Zip Slip, ZIP corrompido e ZIP
   expansivo;
 
-**DECISÃO NECESSÁRIA:** MD-01 e MD-02 já sustentam o núcleo NF-e/NFC-e
-implementado. Versões e identidade de protocolos/eventos continuam abertas
-somente para o incremento correspondente.
+**DECISÃO NECESSÁRIA:** as versões do incremento estrutural de protocolos e eventos
+estão registradas na DT-036. Deduplicação, identidade fiscal e associação posterior
+de órfãos continuam em MD-02.
 
 **SAÍDA:** contratos revisados, fixtures versionadas e testes de aceitação da
 ingestão prontos para receber a implementação.
@@ -356,7 +357,8 @@ Após a decisão:
 - [x] ler XML/ZIP sequencialmente com limites de segurança;
 - [x] validar formato, versão, ambiente e schema de NF-e/NFC-e 4.00;
 - [x] normalizar e persistir NF-e/NFC-e e seus itens;
-- [ ] normalizar protocolos e eventos quando suas versões forem aprovadas;
+- [x] normalizar e persistir protocolos e eventos nas versões aceitas, com
+  associação por chave no lote, estado órfão ou ambíguo e proveniência da ocorrência;
 - [x] calcular e persistir hashes SHA-256;
 - [x] classificar repetições e conflitos por chave independentemente da ordem;
 - [x] identificar candidatos a empresa pelos CNPJ de XMLs diretos e de ZIPs,
@@ -368,6 +370,11 @@ Após a decisão:
   cancelamento cooperativo e preservação do trabalho parcial;
 - [x] apresentar histórico detalhado do lote, documentos, itens, ocorrências e
   diagnósticos.
+
+**Limite desta entrega:** a associação de protocolos e eventos é estrutural e
+restrita ao lote importado. Ainda faltam validação XSD própria, deduplicação e
+associação posterior de órfãos (MD-02). A precedência documental, reprocessamento
+e participação nos totais continuam em MD-07.
 
 **SAÍDA:** um lote real é importado de forma segura, idempotente e auditável, mas
 ainda sem promessa de cálculo fiscal completo.

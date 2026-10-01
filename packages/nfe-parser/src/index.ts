@@ -1,5 +1,6 @@
 export * from './analyze-nfe'
 export * from './diagnostic-catalog'
+export * from './document-artifacts'
 export * from './file-inventory'
 export * from './nfe-parser'
 export * from './normalize-nfe'

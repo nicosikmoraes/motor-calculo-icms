@@ -4,6 +4,7 @@ export * from './app-error'
 export * from './document-occurrence-classifier'
 export * from './document-ingestion-classifier'
 export * from './normalized-nfe'
+export * from './normalized-document-artifact'
 export * from './registrations'
 
 /** Estados persistidos do ciclo de vida de um lote. */

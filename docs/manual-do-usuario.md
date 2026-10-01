@@ -110,7 +110,13 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
    **Cancelar** para parar após a entrada atual. Na inspeção não há lote salvo;
    durante o processamento, os arquivos e diagnósticos já lidos ficam em um
    lote `CANCELADO`. Para processar os restantes, inicie nova importação.
-6. Abra os detalhes do lote para conferir documentos e pendências.
+6. Abra os detalhes do lote para conferir documentos, protocolos, eventos e pendências.
+
+Protocolos e eventos XML podem vir no mesmo ZIP das notas ou em arquivos avulsos.
+Se o lote contiver somente protocolos/eventos, escolha a empresa responsável.
+O histórico indica se cada artefato foi associado a uma nota do lote, ficou órfão
+ou tem associação ambígua. Essa associação ainda não altera o resultado fiscal
+nem os totais; a revisão dos efeitos documentais será feita em etapa posterior.
 
 O usuário não informa alíquota, finalidade ou tratamento durante o envio. O sistema usa os cadastros previamente aprovados.
 

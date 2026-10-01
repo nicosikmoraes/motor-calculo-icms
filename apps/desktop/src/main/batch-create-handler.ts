@@ -1,14 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
-import { basename } from 'node:path'
-import { ipcMain } from 'electron'
+import { basename, join } from 'node:path'
+import { app, ipcMain } from 'electron'
 import { IPC_CHANNELS, type CreatedBatchSummary, type CreateBatchInput } from '@motor/contracts'
-import { ContentConflictCode, IngestionStatusCode, RepetitionCode, SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteFiscalCatalogRepository, SqliteVersionedRuleRepository } from '@motor/database'
+import { ContentConflictCode, IngestionStatusCode, RepetitionCode, SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteFiscalCatalogRepository, SqliteVersionedRuleRepository, type NormalizedFiscalDocumentRecord } from '@motor/database'
 import { AppError, AppErrorCode, BatchStatusCode, classifyDocumentIngestion, classifyDocumentOccurrences, normalizeCnpj,
-  type NormalizedNfe } from '@motor/domain'
+  type NormalizedDocumentArtifact, type NormalizedNfe } from '@motor/domain'
 import { PRODUCTION_XML_SECURITY_POLICY, PRODUCTION_ZIP_SECURITY_POLICY,
-  normalizeNfeStructure, readNfeXmlStructure, visitSafeZipFileEntries } from '@motor/nfe-parser'
+  parseDocumentArtifactXml, visitSafeZipFileEntries } from '@motor/nfe-parser'
 import { assessFiscalRules } from './rule-pack-assessment'
+import { ImportStaging } from './import-staging'
+import { associateDocumentArtifacts } from './document-artifact-association'
 import { activeDatabase, hashFile, inputRecord, isCancelled, runBatchOperation,
   validatedSources } from './main-services'
 
@@ -37,13 +39,16 @@ export function registerBatchCreateHandler(): void {
       const companies = new Map(new SqliteCompanyRepository(connection)
         .listByOrganization(organization.id).filter(({ active }) => active).map((company) => [company.id, company]))
 
+      const staging = await ImportStaging.create(join(app.getPath('userData'), 'import-staging'))
+      try {
       const batchId = randomUUID()
       const receivedAt = new Date().toISOString()
       type Pending = {
         relativePath: string; originalName: string; kind: 'XML' | 'ZIP';
         source?: string;
         origin: 'SELECTED_FILE' | 'ZIP_ENTRY'; containerName?: string;
-        hash: string; size: number; accessKey?: string; normalized?: NormalizedNfe;
+        hash: string; size: number; accessKey?: string; normalizedPath?: string;
+        artifactPath?: string;
         issue?: { code: string; message: string }
       }
       const pending: Pending[] = []
@@ -51,23 +56,34 @@ export function registerBatchCreateHandler(): void {
       let completedEntries = 0
 
       // Guarda cada XML com hash e diagnóstico, inclusive quando a leitura falha.
-      const addXml = (contents: Buffer, relativePath: string, source: string, origin: Pending['origin'], containerName?: string): void => {
+      const addXml = async (contents: Buffer, relativePath: string, source: string, origin: Pending['origin'], containerName?: string): Promise<void> => {
         let accessKey: string | undefined
         let normalized: NormalizedNfe | undefined
+        let artifact: NormalizedDocumentArtifact | undefined
         let issue: Pending['issue']
         try {
-          normalized = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8')))
-          accessKey = normalized.accessKey
+          const parsed = parseDocumentArtifactXml(contents.toString('utf8'))
+          if (parsed.kind === 'NFE') {
+            normalized = parsed.note
+            artifact = parsed.embeddedProtocol
+            accessKey = normalized.accessKey
+          } else {
+            artifact = parsed.artifact
+            accessKey = artifact.accessKey
+          }
         } catch (cause) {
           issue = { code: ImportIssueCode.XML_NAO_IDENTIFICADO, message: cause instanceof Error ? cause.message : ImportIssueMessage.XML_INVALID }
         }
+        const normalizedPath = normalized ? await staging.stage(normalized) : undefined
+        const artifactPath = artifact ? await staging.stageArtifact(artifact) : undefined
         pending.push({
           relativePath,
           originalName: basename(relativePath),
           source,
           kind: 'XML', origin, ...(containerName ? { containerName } : {}),
           hash: createHash('sha256').update(contents).digest('hex'), size: contents.byteLength,
-          ...(accessKey ? { accessKey } : {}), ...(normalized ? { normalized } : {}),
+          ...(accessKey ? { accessKey } : {}), ...(normalizedPath ? { normalizedPath } : {}),
+          ...(artifactPath ? { artifactPath } : {}),
           ...(issue ? { issue } : {}),
         })
       }
@@ -83,7 +99,7 @@ export function registerBatchCreateHandler(): void {
           } else {
             const contents = await readFile(source.path)
             if (session.cancelled) break
-            addXml(contents, basename(source.path), source.path, 'SELECTED_FILE')
+            await addXml(contents, basename(source.path), source.path, 'SELECTED_FILE')
           }
           completedEntries += 1
           session.report('PROCESSING', completedEntries, input.totalEntries, basename(source.path))
@@ -106,9 +122,9 @@ export function registerBatchCreateHandler(): void {
           const inspection = await visitSafeZipFileEntries(
             source.path,
             PRODUCTION_ZIP_SECURITY_POLICY,
-            ({ relativePath, contents }) => {
+            async ({ relativePath, contents }) => {
               if (relativePath.toLowerCase().endsWith('.xml')) {
-                addXml(contents, relativePath, `${source.path}#${relativePath}`, 'ZIP_ENTRY', basename(source.path))
+                await addXml(contents, relativePath, `${source.path}#${relativePath}`, 'ZIP_ENTRY', basename(source.path))
               }
             },
             {
@@ -137,9 +153,12 @@ export function registerBatchCreateHandler(): void {
       await new Promise<void>((resolve) => setImmediate(resolve))
       const cancelled = session.cancelled
 
-      const recognized = pending.filter((item) => item.normalized)
+      const recognized = pending.filter((item) => item.normalizedPath)
       const recognizedSources = new Set(recognized.map((item) => item.source))
-      if (recognized.length === 0 && !cancelled) throw new AppError(AppErrorCode.NO_VALID_DOCUMENT)
+      const recognizedArtifacts = pending.filter((item) => item.artifactPath)
+      if (recognized.length === 0 && recognizedArtifacts.length === 0 && !cancelled) {
+        throw new AppError(AppErrorCode.NO_VALID_DOCUMENT)
+      }
       if (recognizedSources.size !== recognized.length) throw new AppError(AppErrorCode.DUPLICATE_XML_PATH)
       if (!cancelled && (assignmentBySource.size !== recognized.length || [...assignmentBySource.keys()].some((source) => !recognizedSources.has(source)))) {
         throw new AppError(AppErrorCode.ASSIGNMENTS_MISMATCH)
@@ -147,21 +166,22 @@ export function registerBatchCreateHandler(): void {
       for (const item of recognized) {
         const company = companies.get(assignmentBySource.get(item.source!) ?? '')
         if (!company || !company.active) throw new AppError(AppErrorCode.COMPANY_REQUIRED_FOR_DOCUMENT, { path: item.relativePath })
-        const parties = [item.normalized!.issuer, item.normalized!.recipient]
+        const normalized = staging.read(item.normalizedPath!)
+        const parties = [normalized.issuer, normalized.recipient]
         if (!parties.some((party) => party?.taxIdType === 'CNPJ' && party.taxId && normalizeCnpj(party.taxId) === company.cnpj)) {
           throw new AppError(AppErrorCode.COMPANY_NOT_IN_DOCUMENT, { path: item.relativePath })
         }
       }
       const firstCompanyId = recognized.length
         ? assignmentBySource.get(recognized[0]!.source!)!
-        : input.assignments[0]?.companyId
+        : input.artifactCompanyId ?? input.assignments[0]?.companyId
       if (!firstCompanyId || !companies.get(firstCompanyId)?.active) throw new AppError(AppErrorCode.INVALID_INITIAL_COMPANY)
 
       // A ordem estável evita que a escolha da ocorrência original dependa da seleção.
       pending.sort((left, right) => left.relativePath.localeCompare(right.relativePath) || left.hash.localeCompare(right.hash))
       const baseOccurrences = pending.map((item, index) => ({ item, id: randomUUID(), order: index + 1 }))
       const xmlClassifications = classifyDocumentOccurrences(
-        baseOccurrences.filter(({ item }) => item.kind === 'XML').map(({ item, id, order }) => ({
+        baseOccurrences.filter(({ item }) => item.normalizedPath).map(({ item, id, order }) => ({
           occurrenceId: id, batchId, order, contentHash: item.hash,
           ...(item.accessKey ? { accessKey: item.accessKey } : {}),
         })),
@@ -194,46 +214,53 @@ export function registerBatchCreateHandler(): void {
       const versionedRules = new SqliteVersionedRuleRepository(connection).list(organization.id)
       const profilesByCompany = new Map([...companies.keys()].map((id) => [id, fiscalCatalog.listProfiles(id)] as const))
       const productsByCompany = new Map([...companies.keys()].map((id) => [id, fiscalCatalog.listSupplierProducts(id)] as const))
-      // Cada item recebe a avaliação do pacote vigente, persistida junto do lote.
-      const documents = baseOccurrences.flatMap(({ item, id }) => {
-        if (!item.normalized) return []
+      // A classificação percorre as notas uma a uma; somente metadados seguem até a transação.
+      const documentSeeds: {
+        id: string; occurrenceId: string; contentHash: string; companyId: string; accessKey: string;
+        normalizedPath: string; eligibleForProcessing: boolean; pendingReason?: string;
+      }[] = []
+      for (const { item, id } of baseOccurrences) {
+        if (!item.normalizedPath) continue
+        const normalized = staging.read(item.normalizedPath)
         const company = companies.get(assignmentBySource.get(item.source!)!)!
         const occurrence = classificationById.get(id)
         const classification = classifyDocumentIngestion(
-          item.normalized,
-          company.cnpj,
-          environmentCode,
+          normalized, company.cnpj, environmentCode,
           occurrence?.eligibleForTotalsByOccurrencePolicy ?? false,
         )
         for (const reason of classification.pendingReasons) {
-          issues.push({
-            source: item.relativePath,
-            code: reason,
-            message: reasonMessages[reason],
-            occurrenceId: id,
-          })
+          issues.push({ source: item.relativePath, code: reason, message: reasonMessages[reason], occurrenceId: id })
         }
-        return [{
-          id: randomUUID(), batchId, occurrenceId: id, contentHash: item.hash,
-          companyId: company.id,
-          normalized: item.normalized,
-          ruleAssessments: Object.fromEntries(item.normalized.items.map((line) => [
-            line.itemNumber, assessFiscalRules(item.normalized!, line, versionedRules, company.id,
-              profilesByCompany.get(company.id), productsByCompany.get(company.id), receivedAt),
-          ])),
+        documentSeeds.push({
+          id: randomUUID(), occurrenceId: id, contentHash: item.hash, accessKey: normalized.accessKey,
+          companyId: company.id, normalizedPath: item.normalizedPath,
           eligibleForProcessing: classification.eligibleForProcessing,
           ...(classification.pendingReasons.length > 0
-            ? { pendingReason: classification.pendingReasons.join(',') }
-            : {}),
-          createdAt: receivedAt,
-        }]
-      })
-      if (documents.length === 0) {
+            ? { pendingReason: classification.pendingReasons.join(',') } : {}),
+        })
+      }
+      if (documentSeeds.length === 0 && recognizedArtifacts.length === 0) {
         issues.push({
           source: 'lote',
           code: ImportIssueCode.LOTE_SEM_DOCUMENTOS,
           message: ImportIssueMessage.BATCH_WITHOUT_DOCUMENTS,
         })
+      }
+      const association = associateDocumentArtifacts(batchId, receivedAt,
+        documentSeeds.map((seed) => ({ id: seed.id, accessKey: seed.accessKey,
+          contentConflict: classificationById.get(seed.occurrenceId)?.contentConflict === ContentConflictCode.CONFLITO_CONTEUDO })),
+        baseOccurrences.flatMap(({ item, id }) => item.artifactPath
+          ? [{ occurrenceId: id, relativePath: item.relativePath, contentHash: item.hash, artifact: staging.readArtifact(item.artifactPath) }]
+          : []))
+      issues.push(...association.issues)
+      for (const artifact of association.artifacts) {
+        const artifactEnvironment = artifact.normalized.environmentCode
+        if (artifactEnvironment && artifactEnvironment !== environmentCode) {
+          const source = baseOccurrences.find(({ id }) => id === artifact.occurrenceId)?.item.relativePath ?? 'lote'
+          issues.push({ source, occurrenceId: artifact.occurrenceId,
+            code: ImportIssueCode.ARTIFACT_ENVIRONMENT_MISMATCH,
+            message: ImportIssueMessage.ARTIFACT_ENVIRONMENT_MISMATCH })
+        }
       }
       if (cancelled) {
         issues.push({
@@ -249,6 +276,23 @@ export function registerBatchCreateHandler(): void {
       }))
       session.report('SAVING', completedEntries, session.total)
       const batches = new SqliteBatchRepository(connection)
+      // A transação consome cada nota do estágio e a libera antes de carregar a próxima.
+      function* documents(): Generator<NormalizedFiscalDocumentRecord> {
+        for (const seed of documentSeeds) {
+          const normalized = staging.read(seed.normalizedPath)
+          yield {
+            id: seed.id, batchId, occurrenceId: seed.occurrenceId, contentHash: seed.contentHash,
+            companyId: seed.companyId, normalized,
+            ruleAssessments: Object.fromEntries(normalized.items.map((line) => [
+              line.itemNumber, assessFiscalRules(normalized, line, versionedRules, seed.companyId,
+                profilesByCompany.get(seed.companyId), productsByCompany.get(seed.companyId), receivedAt),
+            ])),
+            eligibleForProcessing: seed.eligibleForProcessing,
+            ...(seed.pendingReason ? { pendingReason: seed.pendingReason } : {}),
+            createdAt: receivedAt,
+          }
+        }
+      }
       // O repositório salva lote, ocorrências, diagnósticos e documentos atomicamente.
       batches.createWithOccurrences({
         id: batchId, organizationId: organization.id, companyId: firstCompanyId,
@@ -259,11 +303,14 @@ export function registerBatchCreateHandler(): void {
         environmentCode,
         createdAt: receivedAt,
         updatedAt: receivedAt,
-      }, occurrences, diagnostics, documents)
+      }, occurrences, diagnostics, documents(), association.artifacts)
       const stored = batches.findById(batchId)!
       return {
         id: stored.id, status: stored.status, totalFiles: stored.totalFiles,
         totalDocuments: stored.totalDocuments, totalPendencies: stored.totalPendencies,
+      }
+      } finally {
+        await staging.dispose()
       }
       })
     },

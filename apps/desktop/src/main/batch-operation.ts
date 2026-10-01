@@ -32,6 +32,8 @@ export class BatchOperationRegistry {
     send: (progress: BatchOperationProgress) => void,
   ): BatchOperationSession {
     if (!operationId || this.sessions.has(operationId)) throw new AppError(AppErrorCode.INVALID_OPERATION)
+    // Uma única operação ativa impede que importações concorrentes disputem memória e banco.
+    if (this.sessions.size > 0) throw new AppError(AppErrorCode.IMPORT_OPERATION_BUSY)
     const controller = new AbortController()
     let completed = 0
     let expected = Math.max(0, total)

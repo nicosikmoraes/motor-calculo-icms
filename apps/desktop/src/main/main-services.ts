@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { IPC_CHANNELS, type SelectedSource } from '@motor/contracts'
@@ -106,6 +106,8 @@ export function runAuditRetention(): void {
 export async function openDatabase(): Promise<void> {
   const dataDirectory = app.getPath('userData')
   const backupDirectory = join(dataDirectory, 'backups')
+  // O bloqueio de instância já foi obtido: estágios remanescentes são de uma execução interrompida.
+  await rm(join(dataDirectory, 'import-staging'), { recursive: true, force: true })
   await mkdir(backupDirectory, { recursive: true })
 
   database = new SqliteDatabase(join(dataDirectory, 'motor-icms.sqlite'))

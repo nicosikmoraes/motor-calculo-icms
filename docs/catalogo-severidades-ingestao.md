@@ -27,8 +27,8 @@ Quando houver mais de um diagnóstico, prevalece a decisão mais restritiva:
 | `INFORMACOES_FALTANTES` | `INFORMACAO_FALTANTE` | O parser não encontrou grupo ou campo mínimo necessário. |
 | `XML_CONTEUDO_INSEGURO` | `ERRO_IMPEDITIVO` | O documento contém `DOCTYPE` ou declaração de entidade. |
 | `XML_MALFORMADO` | `ERRO_IMPEDITIVO` | O conteúdo não é XML bem formado. |
-| `TIPO_XML_NAO_SUPORTADO` | `ERRO_IMPEDITIVO` | A raiz não é `NFe` nem `nfeProc`. |
-| `VERSAO_NAO_SUPORTADA` | `ERRO_IMPEDITIVO` | O leiaute não é 4.00. |
+| `TIPO_XML_NAO_SUPORTADO` | `ERRO_IMPEDITIVO` | A raiz não é `NFe`, `nfeProc`, `protNFe`, `procEventoNFe` nem `evento`. |
+| `VERSAO_NAO_SUPORTADA` | `ERRO_IMPEDITIVO` | NF-e/protocolo não é 4.00 ou evento não é 1.00. |
 | `MODELO_NAO_SUPORTADO` | `ERRO_IMPEDITIVO` | O modelo não é 55 nem 65. |
 
 ## Regras de classificação XSD
@@ -56,7 +56,7 @@ for homologado, sem transformar ausência em valor presumido.
 
 - a lista de campos fiscais necessários será ampliada junto dos tipos normalizados
   de nota e item;
-- eventos e protocolos terão códigos próprios quando entrarem no escopo;
+- protocolos e eventos possuem diagnósticos para órfão, ambiguidade, chave ou retorno divergentes e ambiente divergente; XSD próprio, duplicidade e efeito documental seguem pendentes;
 - erro interno ao carregar o catálogo XSD não é tratado como problema da nota e
   deve interromper o lote para suporte técnico;
 - a interface de pendências e a coluna correspondente no XLSX serão implementadas

@@ -214,6 +214,23 @@ onMounted(async () => {
       </section>
 
       <section class="detail-section">
+        <h3>Protocolos e eventos <small>{{ detail.artifacts.length }}</small></h3>
+        <p>Associação estrutural por chave. O efeito documental e fiscal ainda aguarda revisão.</p>
+        <div v-if="detail.artifacts.length" class="card table-wrap"><table>
+          <thead><tr><th>Tipo</th><th>Chave</th><th>Evento</th><th>Protocolo</th><th>Status SEFAZ</th><th>Associação</th></tr></thead>
+          <tbody><tr v-for="artifact in detail.artifacts" :key="artifact.id">
+            <td>{{ artifact.kind === 'PROTOCOL' ? 'Protocolo' : 'Evento' }} <small>{{ artifact.envelope }} v{{ artifact.version }}</small></td>
+            <td>{{ artifact.accessKey }}</td>
+            <td>{{ artifact.eventType || '—' }}{{ artifact.sequence ? ' nº ' + artifact.sequence : '' }}</td>
+            <td>{{ artifact.protocolNumber || '—' }}</td>
+            <td>{{ artifact.statusCode || '—' }} <small>{{ artifact.statusReason || '' }}</small></td>
+            <td>{{ artifact.association === 'ASSOCIATED' ? 'Associado' : artifact.association === 'ORPHAN' ? 'Órfão' : 'Nota ambígua' }}<small v-if="artifact.responseMatches === false"> · retorno divergente</small></td>
+          </tr></tbody>
+        </table></div>
+        <p v-else class="empty-state">Nenhum protocolo ou evento registrado neste lote.</p>
+      </section>
+
+      <section class="detail-section">
         <h3>Ocorrências e integridade</h3>
         <div class="card table-wrap"><table><thead><tr><th>Arquivo</th><th>Tipo</th><th>Ingestão</th><th>Repetição</th><th>Conflito</th></tr></thead>
           <tbody><tr v-for="occurrence in detail.occurrences" :key="occurrence.id"><td :title="occurrence.contentHash">{{ occurrence.relativePath }}</td><td>{{ occurrence.kind }}</td><td>{{ occurrence.ingestionStatus }}</td><td>{{ occurrence.repetition }}</td><td>{{ occurrence.contentConflict }}</td></tr></tbody>

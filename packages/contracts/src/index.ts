@@ -218,6 +218,7 @@ export interface BatchSourceIssue {
 
 export interface BatchPreparation {
   documents: readonly BatchPreparedDocument[]
+  artifacts: readonly { source: string; kind: 'PROTOCOL' | 'EVENT'; accessKey: string; eventType?: string }[]
   candidates: readonly BatchCompanyCandidate[]
   issues: readonly BatchSourceIssue[]
   inspectedXmlCount: number
@@ -235,6 +236,7 @@ export interface BatchPreparedDocument {
 
 export interface CreateBatchInput {
   operationId: string
+  artifactCompanyId?: string
   totalEntries: number
   assignments: readonly { source: string; companyId: string }[]
   environmentCode: '1' | '2'
@@ -477,6 +479,24 @@ export interface ItemCalculationSummary {
   declared?: { base?: string; rate?: string; amount?: string }
 }
 
+export interface DocumentArtifactSummary {
+  id: string
+  occurrenceId: string
+  documentId?: string
+  kind: 'PROTOCOL' | 'EVENT'
+  envelope: string
+  accessKey: string
+  version: string
+  association: 'ASSOCIATED' | 'ORPHAN' | 'AMBIGUOUS'
+  eventType?: string
+  sequence?: string
+  statusCode?: string
+  statusReason?: string
+  protocolNumber?: string
+  occurredAt?: string
+  responseMatches?: boolean
+}
+
 export interface FiscalDocumentSummary {
   companyId?: string
   companyName?: string
@@ -509,6 +529,7 @@ export interface BatchDetail {
   batch: BatchListItem
   occurrences: readonly BatchOccurrenceSummary[]
   diagnostics: readonly BatchDiagnosticSummary[]
+  artifacts: readonly DocumentArtifactSummary[]
   documents: readonly FiscalDocumentSummary[]
   ruleAssessmentRuns: readonly RuleAssessmentRunSummary[]
   originalAssessmentPack?: { id: string; version: number }

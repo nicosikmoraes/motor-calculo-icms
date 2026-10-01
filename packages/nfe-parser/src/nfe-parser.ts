@@ -89,10 +89,9 @@ export interface NfeXmlStructure {
   info: XmlObject
 }
 
-/** @internal Árvore intermediária restrita à fronteira do parser. */
-export function readNfeXmlStructure(xml: string): NfeXmlStructure {
+/** Validação estrutural comum a notas, protocolos e eventos. */
+export function readFiscalXmlDocument(xml: string): XmlObject {
   assertSafeXml(xml)
-
   const wellFormed = XMLValidator.validate(xml)
   if (wellFormed !== true) {
     throw new NfeParseError(
@@ -100,8 +99,12 @@ export function readNfeXmlStructure(xml: string): NfeXmlStructure {
       formatNfeParseErrorMessage(NfeParseErrorMessage.MALFORMED_XML, { detail: wellFormed.err.msg, line: wellFormed.err.line }),
     )
   }
+  return asObject(parser.parse(xml)) ?? {}
+}
 
-  const document = asObject(parser.parse(xml))
+/** @internal Árvore intermediária restrita à fronteira do parser. */
+export function readNfeXmlStructure(xml: string): NfeXmlStructure {
+  const document = readFiscalXmlDocument(xml)
   const processed = asObject(document?.nfeProc)
   const nfe = processed ? asObject(processed.NFe) : asObject(document?.NFe)
 

@@ -5,7 +5,7 @@ import { IPC_CHANNELS, type BatchCompanyCandidate, type BatchPreparation, type S
 import { SqliteCompanyRepository, SqliteOrganizationRepository } from '@motor/database'
 import { AppError, AppErrorCode, normalizeCnpj, type FiscalEnvironmentCode } from '@motor/domain'
 import { PRODUCTION_XML_SECURITY_POLICY, PRODUCTION_ZIP_SECURITY_POLICY,
-  normalizeNfeStructure, readNfeXmlStructure, visitSafeZipFileEntries } from '@motor/nfe-parser'
+  parseDocumentArtifactXml, visitSafeZipFileEntries } from '@motor/nfe-parser'
 import { activeDatabase, approvedSourcePaths, isCancelled, runBatchOperation,
   validatedSources } from './main-services'
 
@@ -55,6 +55,7 @@ export function registerBatchInspectionHandlers(): void {
       }>()
       const issues: BatchPreparation['issues'][number][] = []
       const documents: BatchPreparation['documents'][number][] = []
+      const artifacts: BatchPreparation['artifacts'][number][] = []
       const environmentCodes = new Set<FiscalEnvironmentCode>()
       let inspectedXmlCount = 0
       let completedEntries = 0
@@ -63,7 +64,16 @@ export function registerBatchInspectionHandlers(): void {
       // Extrai apenas os dados necessários para sugerir empresas e detectar problemas.
       const inspectXml = (contents: Buffer, source: string): void => {
         try {
-          const normalized = normalizeNfeStructure(readNfeXmlStructure(contents.toString('utf8')))
+          const parsed = parseDocumentArtifactXml(contents.toString('utf8'))
+          if (parsed.kind !== 'NFE') {
+            artifacts.push({ source, kind: parsed.kind, accessKey: parsed.artifact.accessKey,
+              ...(parsed.artifact.eventType ? { eventType: parsed.artifact.eventType } : {}) })
+            if (parsed.artifact.environmentCode === '1' || parsed.artifact.environmentCode === '2') {
+              environmentCodes.add(parsed.artifact.environmentCode)
+            }
+            return
+          }
+          const normalized = parsed.note
           inspectedXmlCount += 1
           documents.push({
             source,
@@ -175,7 +185,7 @@ export function registerBatchInspectionHandlers(): void {
       return {
         candidates: resultCandidates,
         issues,
-        documents,
+        documents, artifacts,
         inspectedXmlCount,
         totalEntries: completedEntries,
         environmentCodes: [...environmentCodes].sort(),
