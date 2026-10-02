@@ -5,7 +5,7 @@ import { IPC_CHANNELS, type BatchCompanyCandidate, type BatchPreparation, type S
 import { SqliteCompanyRepository, SqliteOrganizationRepository } from '@motor/database'
 import { AppError, AppErrorCode, normalizeCnpj, type FiscalEnvironmentCode } from '@motor/domain'
 import { PRODUCTION_XML_SECURITY_POLICY, PRODUCTION_ZIP_SECURITY_POLICY,
-  parseDocumentArtifactXml, visitSafeZipFileEntries } from '@motor/nfe-parser'
+  parseDocumentArtifactXml, validateDocumentArtifactSchema, visitSafeZipFileEntries } from '@motor/nfe-parser'
 import { activeDatabase, approvedSourcePaths, isCancelled, runBatchOperation,
   validatedSources } from './main-services'
 
@@ -62,9 +62,12 @@ export function registerBatchInspectionHandlers(): void {
       let totalEntries = sources.filter((source) => source.kind === 'XML').length
 
       // Extrai apenas os dados necessários para sugerir empresas e detectar problemas.
-      const inspectXml = (contents: Buffer, source: string): void => {
+      const inspectXml = async (contents: Buffer, source: string): Promise<void> => {
         try {
-          const parsed = parseDocumentArtifactXml(contents.toString('utf8'))
+          const xml = contents.toString('utf8')
+          const parsed = parseDocumentArtifactXml(xml)
+          const schemaIssues = await validateDocumentArtifactSchema(xml, parsed)
+          issues.push(...schemaIssues.map((diagnostic) => ({ source, ...diagnostic })))
           if (parsed.kind !== 'NFE') {
             artifacts.push({ source, kind: parsed.kind, accessKey: parsed.artifact.accessKey,
               ...(parsed.artifact.eventType ? { eventType: parsed.artifact.eventType } : {}) })
@@ -122,7 +125,7 @@ export function registerBatchInspectionHandlers(): void {
           } else {
             const contents = await readFile(source.path)
             session.throwIfCancelled()
-            inspectXml(contents, source.path)
+            await inspectXml(contents, source.path)
           }
           completedEntries += 1
           session.report('INSPECTING', completedEntries, totalEntries, basename(source.path))
@@ -134,9 +137,9 @@ export function registerBatchInspectionHandlers(): void {
           const inspection = await visitSafeZipFileEntries(
             source.path,
             PRODUCTION_ZIP_SECURITY_POLICY,
-            ({ relativePath, contents }) => {
+            async ({ relativePath, contents }) => {
               if (relativePath.toLowerCase().endsWith('.xml')) {
-                inspectXml(contents, `${source.path}#${relativePath}`)
+                await inspectXml(contents, `${source.path}#${relativePath}`)
               }
             },
             {
