@@ -7,7 +7,7 @@ import { ContentConflictCode, IngestionStatusCode, RepetitionCode, SqliteBatchRe
 import { AppError, AppErrorCode, BatchStatusCode, classifyDocumentIngestion, classifyDocumentOccurrences, normalizeCnpj,
   type NormalizedDocumentArtifact, type NormalizedNfe } from '@motor/domain'
 import { PRODUCTION_XML_SECURITY_POLICY, PRODUCTION_ZIP_SECURITY_POLICY,
-  parseDocumentArtifactXml, visitSafeZipFileEntries } from '@motor/nfe-parser'
+  parseDocumentArtifactXml, validateDocumentArtifactSchema, visitSafeZipFileEntries } from '@motor/nfe-parser'
 import { assessFiscalRules } from './rule-pack-assessment'
 import { ImportStaging } from './import-staging'
 import { associateDocumentArtifacts } from './document-artifact-association'
@@ -49,6 +49,7 @@ export function registerBatchCreateHandler(): void {
         origin: 'SELECTED_FILE' | 'ZIP_ENTRY'; containerName?: string;
         hash: string; size: number; accessKey?: string; normalizedPath?: string;
         artifactPath?: string;
+        schemaIssues?: { code: string; message: string }[];
         issue?: { code: string; message: string }
       }
       const pending: Pending[] = []
@@ -61,8 +62,11 @@ export function registerBatchCreateHandler(): void {
         let normalized: NormalizedNfe | undefined
         let artifact: NormalizedDocumentArtifact | undefined
         let issue: Pending['issue']
+        let artifactSchemaIssues: Pending['schemaIssues']
         try {
-          const parsed = parseDocumentArtifactXml(contents.toString('utf8'))
+          const xml = contents.toString('utf8')
+          const parsed = parseDocumentArtifactXml(xml)
+          artifactSchemaIssues = await validateDocumentArtifactSchema(xml, parsed)
           if (parsed.kind === 'NFE') {
             normalized = parsed.note
             artifact = parsed.embeddedProtocol
@@ -85,6 +89,7 @@ export function registerBatchCreateHandler(): void {
           ...(accessKey ? { accessKey } : {}), ...(normalizedPath ? { normalizedPath } : {}),
           ...(artifactPath ? { artifactPath } : {}),
           ...(issue ? { issue } : {}),
+          ...(artifactSchemaIssues ? { schemaIssues: artifactSchemaIssues } : {}),
         })
       }
 
@@ -189,13 +194,14 @@ export function registerBatchCreateHandler(): void {
       const classificationById = new Map(xmlClassifications.map((value) => [value.occurrenceId, value]))
       const occurrences = baseOccurrences.map(({ item, id, order }) => {
         const classified = classificationById.get(id)
-        if (item.issue) issues.push({ source: item.relativePath, ...item.issue })
+        if (item.issue) issues.push({ source: item.relativePath, ...item.issue, occurrenceId: id })
+        for (const diagnostic of item.schemaIssues ?? []) issues.push({ source: item.relativePath, ...diagnostic, occurrenceId: id })
         return {
           id, batchId, originalName: item.originalName, relativePath: item.relativePath,
           detectedKind: item.kind, origin: item.origin, ...(item.containerName ? { containerName: item.containerName } : {}),
           contentHash: item.hash, sizeBytes: item.size, order,
           ...(item.accessKey ? { accessKey: item.accessKey } : {}),
-          ingestionStatus: item.issue ? IngestionStatusCode.PENDENTE : IngestionStatusCode.PROCESSADA,
+          ingestionStatus: item.issue || item.schemaIssues?.length ? IngestionStatusCode.PENDENTE : IngestionStatusCode.PROCESSADA,
           repetition: classified?.repetition ?? RepetitionCode.NAO_CLASSIFICAVEL,
           contentConflict: classified?.contentConflict ?? ContentConflictCode.NAO_CLASSIFICAVEL,
           ...(classified?.originalOccurrenceId ? { originalOccurrenceId: classified.originalOccurrenceId } : {}),
