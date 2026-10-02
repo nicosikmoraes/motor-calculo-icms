@@ -82,3 +82,11 @@ silenciosamente à arquitetura.
 - conexão SQLite local e executor versionado de migrations;
 - persistência de organização, empresa, lote, ocorrência, diagnóstico, documento
   fiscal normalizado e item.
+
+## Preparação de relatórios
+
+O pacote `reporting` exporta `ReportData` e `buildReportData`. A construção usa
+somente um snapshot de `BatchDetail`, valida referências e preserva textos
+decimais, datas fiscais, memórias e avaliações registradas. A descrição está em
+[Modelo de dados do relatório](modelo-de-dados-relatorio.md). Essa preparação não
+adiciona exportação XLSX nem consolidação fiscal de totais.

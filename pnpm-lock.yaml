@@ -102,7 +102,11 @@ importers:
         specifier: 3.3.1
         version: 3.3.1
 
-  packages/reporting: {}
+  packages/reporting:
+    dependencies:
+      '@motor/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/tax-engine:
     dependencies:
