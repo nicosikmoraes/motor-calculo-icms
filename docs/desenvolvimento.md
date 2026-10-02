@@ -82,3 +82,10 @@ silenciosamente à arquitetura.
 - conexão SQLite local e executor versionado de migrations;
 - persistência de organização, empresa, lote, ocorrência, diagnóstico, documento
   fiscal normalizado e item.
+
+## Intercâmbio de cadastros
+
+`packages/interchange` contém o codec inicial de `.icmspack`: criação de manifesto,
+serialização canônica e validação de schema, referências, contagens e SHA-256.
+Não acessa SQLite e não implementa exportação ou importação pela interface.
+O contrato e os limites estão em [ICMSPACK v1](contrato-icmspack-v1.md).
