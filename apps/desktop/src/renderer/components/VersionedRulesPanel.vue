@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { RuleDraftFields, VersionedRuleSummary, RuleAuditSummary } from '@motor/contracts'
-import { detectPotentialRuleOverlaps, RuleLevelCode, type FamilyRule, type RuleLevel } from '@motor/tax-engine'
+import { detectPotentialRuleOverlaps, RULE_CONDITION_FIELDS, normalizeRuleConditions, RuleLevelCode, type FamilyRule, type RuleLevel } from '@motor/tax-engine'
 import { RendererErrorMessage } from '../error-messages'
 
 const rules = ref<readonly VersionedRuleSummary[]>([])
@@ -24,16 +24,9 @@ const levels = [
   [RuleLevelCode.COMPANY, 'Empresa'],
   [RuleLevelCode.PRODUCT_COMPANY_EXCEPTION, 'Exceção de produto e empresa'],
 ] as const
-const conditionFields = [
-  ['operationType', 'Direção da operação'], ['companyId', 'ID da empresa'],
-  ['supplierProductId', 'ID do produto vinculado'], ['fiscalProfileId', 'ID do perfil'],
-  ['originState', 'UF de origem'], ['destinationState', 'UF de destino'],
-  ['ncm', 'NCM'], ['cest', 'CEST'], ['cfop', 'CFOP'], ['issuerRegime', 'CRT'],
-  ['cst', 'CST'],
-  ['finalConsumer', 'Consumidor final'], ['purpose', 'Finalidade'],
-  ['merchandiseOrigin', 'Origem da mercadoria'],
-] as const
-const labels = new Map<string, string>(conditionFields)
+const conditionFields = RULE_CONDITION_FIELDS
+const selectedCondition = computed(() => conditionFields.find((field) => field.key === conditionKey.value))
+const labels = new Map(conditionFields.map((field) => [field.key as string, field.label]))
 function selectionRule(rule: VersionedRuleSummary): FamilyRule {
   return { id: rule.id, familyId: rule.familyId, version: rule.version,
     name: rule.name, status: rule.status, level: rule.level as RuleLevel,
@@ -79,9 +72,12 @@ function message(cause: unknown): string {
 async function reload(): Promise<void> { rules.value = await window.desktopApi.listVersionedRules() }
 function addCondition(): void {
   if (!conditionKey.value || !conditionValue.value.trim()) return
-  form.value = { ...form.value,
-    conditions: { ...form.value.conditions, [conditionKey.value]: conditionValue.value.trim() } }
-  conditionValue.value = ''
+  try {
+    const conditions = normalizeRuleConditions({ ...form.value.conditions, [conditionKey.value]: conditionValue.value })
+    form.value = { ...form.value, conditions }
+    conditionValue.value = ''; error.value = ''
+  } catch (cause) { error.value = message(cause) }
+
 }
 function removeCondition(key: string): void {
   const conditions = { ...form.value.conditions }
@@ -167,10 +163,12 @@ onMounted(() => void reload().catch((cause) => { error.value = message(cause) })
       </div>
       <h4>Condições estruturadas</h4>
       <div class="condition-add">
-        <select v-model="conditionKey"><option value="" disabled>Escolha um campo</option><option v-for="[key, label] in conditionFields" :key="key" :value="key">{{ label }}</option></select>
-        <input v-model="conditionValue" placeholder="Valor exato" />
+        <select v-model="conditionKey" aria-label="Campo da condição" @change="conditionValue = ''"><option value="" disabled>Escolha um campo</option><option v-for="field in conditionFields" :key="field.key" :value="field.key">{{ field.label }}</option></select>
+        <select v-if="selectedCondition?.options" v-model="conditionValue" aria-label="Valor da condição"><option value="" disabled>Escolha um valor</option><option v-for="[code, label] in selectedCondition.options" :key="code" :value="code">{{ code }} · {{ label }}</option></select>
+        <input v-else v-model="conditionValue" aria-label="Valor da condição" :pattern="selectedCondition?.pattern" placeholder="Valor exato" />
         <button class="button secondary" type="button" @click="addCondition">Adicionar condição</button>
       </div>
+      <p v-if="selectedCondition" class="hint">{{ selectedCondition.hint }}</p>
       <ul v-if="Object.keys(form.conditions).length" class="condition-list">
         <li v-for="(value, key) in form.conditions" :key="key"><span>{{ labels.get(String(key)) ?? key }}: <strong>{{ value }}</strong></span><button type="button" class="button secondary" @click="removeCondition(String(key))">Remover</button></li>
       </ul>

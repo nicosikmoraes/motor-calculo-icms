@@ -386,7 +386,10 @@ perfis fiscais e vínculos com produtos de fornecedor já estão persistidos.
 O ciclo de vida local das versões e sua seleção nas novas avaliações estão
 implementados. Resultados tributários continuam aguardando MD-05/MD-06.
 
-- [ ] implementar cadastro estruturado de condições e resultados;
+- [x] cadastrar condições de igualdade exata com catálogo compartilhado, opções
+  por código e validação de formato no processo principal; rascunhos legados são
+  revalidados na aprovação;
+- [ ] cadastrar resultados tributários após MD-05/MD-06;
 - [x] implementar rascunho, aprovação para seleção, nova versão e revogação no catálogo local;
 - [x] exigir fundamento legal e vigência para aprovação da seleção;
 - [x] detectar sobreposição potencial e avisar sobre empates possíveis;
