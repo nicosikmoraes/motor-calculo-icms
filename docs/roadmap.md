@@ -386,7 +386,10 @@ perfis fiscais e vínculos com produtos de fornecedor já estão persistidos.
 O ciclo de vida local das versões e sua seleção nas novas avaliações estão
 implementados. Resultados tributários continuam aguardando MD-05/MD-06.
 
-- [ ] implementar cadastro estruturado de condições e resultados;
+- [x] cadastrar condições de igualdade exata com catálogo compartilhado, opções
+  por código e validação de formato no processo principal; rascunhos legados são
+  revalidados na aprovação;
+- [ ] cadastrar resultados tributários após MD-05/MD-06;
 - [x] implementar rascunho, aprovação para seleção, nova versão e revogação no catálogo local;
 - [x] exigir fundamento legal e vigência para aprovação da seleção;
 - [x] detectar sobreposição potencial e avisar sobre empates possíveis;
@@ -461,7 +464,10 @@ os mesmos totais.
 
 ### Fase 8 — Relatório XLSX
 
-**PODE AVANÇAR:** criar um modelo de dados de relatório independente da biblioteca.
+- [x] criar modelo interno de dados de relatório independente da biblioteca,
+  com snapshot de notas, itens, pendências, candidatas, diagnósticos, ocorrências,
+  protocolos e eventos; preservar versões, precisão e evidências sem gerar totais.
+  Contrato técnico em [Modelo de dados do relatório](modelo-de-dados-relatorio.md).
 
 **DECISÃO NECESSÁRIA:** aprovar MD-08 antes de congelar abas e colunas.
 
