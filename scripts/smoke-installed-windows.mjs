@@ -48,12 +48,13 @@ try {
   }
   let state
   for (let attempt = 0; attempt < 40; attempt++) {
-    state = await evaluate('({ text: document.body.innerText, bridge: typeof window.desktopApi, ready: document.readyState })')
+    state = await evaluate('({ text: document.body?.innerText ?? "", bridge: typeof window.desktopApi, ready: document.readyState })')
     if (state.text.includes('ContabiliNico')) break
     await delay(250)
   }
   assert.ok(state.text.includes('ContabiliNico'), JSON.stringify(state))
   assert.ok(state.text.includes('Restaurar'), JSON.stringify(state))
+  assert.equal(state.bridge, 'object', 'Preload instalado indisponível')
   console.log(JSON.stringify({ installedRenderer: 'ok', platform: process.platform, page: page.url, ready: state.ready }))
 } finally {
   socket?.close()
