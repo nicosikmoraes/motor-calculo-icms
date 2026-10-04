@@ -1,0 +1,16 @@
+{
+  "schemas/artifacts/e110110_v1.00.xsd": "0a56d7efa780579eb82f28c2069748bad1bf0fdbae57f3c59b0a198cecf3b718",
+  "schemas/artifacts/leiauteEvento_v1.00.xsd": "9a48df8603f685653dfde27dbda72e0f47b5d3c13be0090952f1e82f8d2bc476",
+  "schemas/artifacts/tiposBasico_v1.03.xsd": "eccea0733717db3108c79f8efc7cc7ffeeba8b6c46a5948410ff012c1636b0ba",
+  "schemas/artifacts/evento-adapter.xsd": "cbf70b35c71a305b50f89b78fe7403f88ba0f72e477b0a83d74c86fc19cb0ab3",
+  "schemas/artifacts/e110111_v1.00.xsd": "56fcdad336b281a9de5e7aae27850bc2c5bd7714e267c891e1b4d0dc227c65da",
+  "schemas/artifacts/xmldsig-core-schema_v1.01.xsd": "f56744a5f51c03f027de13f39f869307091781a9ef1d91b1ebe14719ce28e1ac",
+  "schemas/artifacts/procEventoNFe_v1.00.xsd": "4263ee5d12e7a731efab126310aba4edb25612e5986a1c5dde0c87e6c6173798",
+  "schemas/artifacts/protNFe-adapter.xsd": "c0ff94aba102890d2600ce66d677d3b897ea407ae362f17462efbc2453cbece0",
+  "schemas/PL_010f_v1.04/tiposBasico_v4.00.xsd": "772619c85723e598840667ca66e7298a250442df47eeb94b397d2a333ce62047",
+  "schemas/PL_010f_v1.04/DFeTiposBasicos_v1.00.xsd": "173577a4e3a9dc1d0deced85b89b955b6064bb5a4ae5a96f6727d2da8a694d09",
+  "schemas/PL_010f_v1.04/leiauteNFe_v4.00.xsd": "2bace939973916d54184ff3e2740041a932de5d79772f3363504504160f22542",
+  "schemas/PL_010f_v1.04/nfe_v4.00.xsd": "adce3646c13ceb54922ec3142fc1dc45bd4fb839ac35ad583e86c733c07d27df",
+  "schemas/PL_010f_v1.04/xmldsig-core-schema_v1.01.xsd": "f56744a5f51c03f027de13f39f869307091781a9ef1d91b1ebe14719ce28e1ac",
+  "schemas/PL_010f_v1.04/procNFe_v4.00.xsd": "d61d15303f8ccf77e6e5d77a8153255a6906e0d00385dc5000db19ed3bfa96e0"
+}
