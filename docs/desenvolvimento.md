@@ -102,3 +102,12 @@ somente um snapshot de `BatchDetail`, valida referências e preserva textos
 decimais, datas fiscais, memórias e avaliações registradas. A descrição está em
 [Modelo de dados do relatório](modelo-de-dados-relatorio.md). Essa preparação não
 adiciona exportação XLSX nem consolidação fiscal de totais.
+## Intercâmbio de cadastros
+
+`packages/interchange` contém o codec inicial de `.icmspack`: criação de manifesto,
+serialização canônica e validação de schema, referências, contagens e SHA-256.
+O codec não acessa SQLite. A tela `InterchangeView` usa IPC restrito e diálogos
+nativos; `SqliteInterchangeRepository` coordena snapshot, reconciliação de conflitos,
+revisões e auditorias na conexão única. A importação revalida o pacote e o catálogo
+local antes da escrita, que ocorre em uma única transação.
+O contrato e os limites estão em [ICMSPACK v1](contrato-icmspack-v1.md).

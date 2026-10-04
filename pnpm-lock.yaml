@@ -29,6 +29,9 @@ importers:
       '@motor/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@motor/interchange':
+        specifier: workspace:*
+        version: link:../../packages/interchange
       '@motor/nfe-parser':
         specifier: workspace:*
         version: link:../../packages/nfe-parser
@@ -71,11 +74,26 @@ importers:
       '@motor/domain':
         specifier: workspace:*
         version: link:../domain
+      '@motor/interchange':
+        specifier: workspace:*
+        version: link:../interchange
       '@motor/tax-engine':
         specifier: workspace:*
         version: link:../tax-engine
 
   packages/domain: {}
+
+  packages/interchange:
+    dependencies:
+      '@motor/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motor/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@motor/tax-engine':
+        specifier: workspace:*
+        version: link:../tax-engine
 
   packages/nfe-parser:
     dependencies:
