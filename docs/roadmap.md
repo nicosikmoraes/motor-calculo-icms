@@ -489,11 +489,15 @@ Após a decisão:
 
 #### 9A — Pacotes `.icmspack`
 
-- [ ] exportar manifesto e cadastros aprovados;
-- [ ] validar versão, contagens e hashes;
-- [ ] apresentar novidades e conflitos;
-- [ ] importar tudo em uma única transação;
-- [ ] garantir rollback integral em caso de erro.
+- [x] definir manifesto versionado e codec inicial para cadastros existentes;
+- [x] validar versão, contagens, hashes, schema e referências internas no codec;
+  contrato em [ICMSPACK v1](contrato-icmspack-v1.md);
+
+- [x] exportar manifesto e cadastros aprovados;
+- [x] integrar a validação do pacote ao fluxo de importação;
+- [x] apresentar novidades e conflitos;
+- [x] importar tudo em uma única transação;
+- [x] garantir rollback integral em caso de erro.
 
 #### 9B — Retenção
 

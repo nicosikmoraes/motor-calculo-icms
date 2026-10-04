@@ -15,3 +15,5 @@ export interface Repository<TEntity extends { id: string }> {
   findById(id: string): TEntity | undefined
   save(entity: TEntity): void
 }
+
+export * from './interchange-repository'

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@motor/contracts'
 import { AppErrorMessage } from '@motor/domain'
+import { registerInterchangeHandlers } from './interchange-handlers'
 import { registerCatalogHandlers } from './catalog-handlers'
 import { registerBatchInspectionHandlers } from './batch-inspection-handlers'
 import { registerBatchCreateHandler } from './batch-create-handler'
@@ -53,6 +54,7 @@ function registerIpcHandlers(): void {
     (event, rawOperationId: unknown): boolean =>
       batchOperations.cancel(requiredInputText(rawOperationId, 'Identificador da operação'), event.sender.id))
   registerCatalogHandlers()
+  registerInterchangeHandlers()
   registerBatchInspectionHandlers()
   registerBatchCreateHandler()
   registerBatchQueryHandlers()

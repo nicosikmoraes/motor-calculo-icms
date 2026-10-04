@@ -1,5 +1,9 @@
 export const IPC_CHANNELS = {
   APP_VERSION: 'app:get-version',
+  EXPORT_PACK: 'interchange:export',
+  PREVIEW_PACK: 'interchange:preview',
+  IMPORT_PACK: 'interchange:import',
+  DISCARD_PACK: 'interchange:discard',
   GET_WORKSPACE: 'workspace:get',
   LIST_REGISTRATION_AUDIT: 'registrations:audit-list',
   CREATE_ORGANIZATION: 'workspace:create-organization',
@@ -535,7 +539,37 @@ export interface BatchDetail {
   originalAssessmentPack?: { id: string; version: number }
 }
 
+export type PackEntity = 'companies' | 'profiles' | 'products' | 'rules'
+export type PackConflictChoice = 'KEEP_LOCAL' | 'USE_PACKAGE'
+export interface PackPreviewRow {
+  key: string
+  entity: PackEntity
+  label: string
+  status: 'NEW' | 'SAME' | 'CONFLICT' | 'BLOCKED'
+  reason?: string
+  canUsePackage: boolean
+  differences: readonly { field: string; local: string; incoming: string }[]
+}
+export interface PackImportPreview {
+  token: string
+  fileName: string
+  createdAt: string
+  appVersion: string
+  counts: Record<PackEntity, number>
+  rows: readonly PackPreviewRow[]
+}
+export interface PackImportInput {
+  token: string
+  choices: Readonly<Record<string, PackConflictChoice>>
+}
+export interface PackImportResult { created: number; updated: number; kept: number }
+export interface PackExportResult { path: string; counts: Record<PackEntity, number> }
+
 export interface DesktopApi {
+  exportPack(): Promise<PackExportResult | null>
+  previewPack(): Promise<PackImportPreview | null>
+  importPack(input: PackImportInput): Promise<PackImportResult>
+  discardPack(token: string): Promise<void>
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
   listRegistrationAudit(filter?: RegistrationAuditFilter): Promise<readonly RegistrationAuditEvent[]>

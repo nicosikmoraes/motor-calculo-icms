@@ -48,6 +48,7 @@ onMounted(async () => {
       <nav aria-label="Navegação principal">
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
+        <RouterLink to="/transferencia">Exportar e importar</RouterLink>
         <RouterLink to="/auditoria">Auditoria</RouterLink>
         <RouterLink to="/perfis">Perfis fiscais</RouterLink>
         <RouterLink to="/regras">Regras propostas</RouterLink>
@@ -134,4 +135,16 @@ onMounted(async () => {
   .sidebar-footer { display: none; }
 }
 .content { min-width: 0; }
+</style>
+
+<style scoped>
+/* Navegação horizontal em janelas menores, incluindo a nova transferência. */
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { min-width: 0; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+  .brand { padding: 0 4px 10px; }
+  .sidebar nav { min-width: 0; width: 100%; display: flex; overflow-x: auto; margin: 0; }
+  .sidebar nav a { flex: none; }
+  .sidebar-footer { display: none; }
+}
 </style>
