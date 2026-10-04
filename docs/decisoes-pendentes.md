@@ -64,8 +64,8 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 1. Backup manual seguido de automático diário aprovado na DT-037 e implementado; falta homologar operação no Windows.
 2. Destino escolhido pelo usuário implementado; falta homologar unidade externa e pasta sincronizada.
-3. Conteúdo, compactação, criptografia e retenção dos backups.
-4. Integridade do snapshot validada na criação; restauração completa e teste periódico pendentes.
+3. Retenção de sete automáticas implementada na DT-039; compactação, criptografia e extensão do conteúdo além do SQLite permanecem pendentes.
+4. Restauração do SQLite com validação e recuperação de troca interrompida implementada; homologação Windows e teste periódico operacional pendentes.
 5. Diferença entre backup da instalação e exportação de configurações `.icmspack`.
 
 ## Prioridade 7 — escala e desempenho local

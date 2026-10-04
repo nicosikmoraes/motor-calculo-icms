@@ -263,14 +263,13 @@ backup manual na nova pasta. Cancelar o seletor não altera o agendamento.
 O aplicativo precisa estar aberto para executar o agendamento. Se estiver fechado
 ou o computador suspenso, faz a cópia diária pendente ao abrir/retomar. A tela
 mostra destino, última cópia e erros; após falha automática tenta novamente em
-15 minutos. A execução cria uma pasta nova e mantém as cópias anteriores.
+15 minutos. A execução cria uma pasta nova. Por padrão mantém sete cópias automáticas; cópias manuais concluídas são preservadas.
 
 A cópia inclui os dados persistidos do banco, com manifesto e hash de integridade.
 Não inclui XML/ZIP de origem, relatórios externos nem temporários. Guarde esses
 arquivos separadamente quando precisar dos originais. Escolher unidade externa
 ou pasta sincronizada permite guardar a cópia fora do computador; a sincronização
-é responsabilidade da ferramenta escolhida. Restauração pela interface ainda
-não está disponível nesta entrega.
+é responsabilidade da ferramenta escolhida. Use **Restaurar backup…** para recuperar os dados persistidos do banco.
 
 ## Pausar e recuperar uma importação
 
@@ -288,3 +287,38 @@ alterado, preservando o ponto de recuperação. Entradas preparadas são reutili
 ZIPs ainda são percorridos para verificar segurança e alcançar as entradas restantes.
 Os checkpoints não fazem parte do backup SQLite; termine ou retome a importação
 antes de depender apenas de um backup para transferir a instalação.
+
+
+## Restaurar dados e gerenciar retenção
+
+Em **Backup** ou na tela de primeiro acesso, escolha **Restaurar backup…** e selecione a pasta de uma cópia
+concluída (a pasta que contém `manifest.json` e `motor-icms.sqlite`). O aplicativo
+verifica formato, SHA-256, integridade do SQLite, referências e compatibilidade
+do histórico de migrations. Backups antigos compatíveis são atualizados em uma
+cópia separada; o original é preservado.
+
+Depois da validação, a confirmação mostra a data da cópia e informa que os dados
+atuais serão substituídos. Cancelar mantém a instalação atual. Ao confirmar,
+o aplicativo cria um snapshot de segurança em `userData/backups/pre-restore-*.sqlite`,
+troca o banco e reinicia. Lotes ativos precisam ser pausados ou concluídos antes
+da restauração. Se a troca for interrompida, o registro de recuperação permite
+voltar automaticamente ao estado anterior na próxima abertura.
+
+O backup e a restauração abrangem os dados do SQLite. XMLs/ZIPs externos,
+relatórios, preferências de agendamento e pontos de importações pendentes não são
+substituídos. Cópias de segurança anteriores à restauração são mantidas.
+
+A retenção padrão é **7 cópias automáticas**, confirmada pelo responsável em
+04/10/2026. O campo permite de 1 a 365 cópias; **0** desativa o expurgo de cópias.
+Salvar a política não apaga imediatamente: ela é aplicada na manutenção seguinte.
+A limpeza acompanha os backups e a verificação diária com o aplicativo aberto.
+Somente pacotes automáticos válidos identificados como desta instalação entram
+no expurgo. Manuais, pacotes antigos sem identificação, pacotes corrompidos e
+arquivos de terceiros permanecem.
+
+A manutenção também limpa fragmentos e snapshots órfãos de importação abandonados
+por mais de 24h, pastas parciais de backup desta instalação com mais de 24h e pontos
+de lotes já gravados. Snapshots referenciados por checkpoints e importações
+pendentes são preservados. A tela informa a última limpeza e eventuais falhas;
+remoções são registradas no log local `maintenance.jsonl`, com rotação limitada.
+Esta política não apaga documentos fiscais nem arquivos de origem.

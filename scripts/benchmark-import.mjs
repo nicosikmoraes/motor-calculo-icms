@@ -87,4 +87,4 @@ try {
   }
   throw error
 } finally { await rm(root, { recursive: true, force: true }) }
-function resolveWorker() { return resolve('apps/desktop/out/main/batch-import-worker.js') }
+function resolveWorker() { return resolve(process.env.CONTABILINICO_WORKER_PATH ?? 'apps/desktop/out/main/batch-import-worker.js') }

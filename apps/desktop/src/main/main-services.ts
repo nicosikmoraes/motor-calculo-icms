@@ -1,3 +1,4 @@
+import { recoverInterruptedRestore } from './backup-restore'
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
@@ -14,6 +15,14 @@ import { ZipVisitCancelledError } from '@motor/nfe-parser'
 export const approvedSourcePaths = new Set<string>()
 export const batchOperations = new BatchOperationRegistry()
 let database: SqliteDatabase | undefined
+let databaseMaintenance = false
+export function beginDatabaseMaintenance(): SqliteDatabase {
+  if (databaseMaintenance || batchOperations.busy) throw new Error('Aguarde ou pause o lote antes de restaurar o backup.')
+  const connection = activeDatabase()
+  databaseMaintenance = true
+  return connection
+}
+export function endDatabaseMaintenance(): void { databaseMaintenance = false }
 let retentionTimer: ReturnType<typeof setInterval> | undefined
 let lastRetentionDate: string | undefined
 
@@ -25,6 +34,7 @@ export async function runBatchOperation<T>(
   total: number,
   operation: (session: BatchOperationSession) => Promise<T>,
 ): Promise<T> {
+  if (databaseMaintenance) throw new Error('Restauração em andamento. Aguarde o reinício.')
   const operationId = requiredInputText(rawOperationId, 'Identificador da operação')
   if (!Number.isSafeInteger(total) || total < 0) throw new AppError(AppErrorCode.INVALID_PROGRESS_TOTAL)
   const session = batchOperations.start(operationId, event.sender.id, phase, total, (progress) => {
@@ -44,6 +54,7 @@ export function isCancelled(cause: unknown): boolean {
 
 /** Entrega a conexão SQLite já migrada aos handlers. */
 export function activeDatabase(): SqliteDatabase {
+  if (databaseMaintenance) throw new Error('Restauração em andamento. Aguarde o reinício.')
   if (!database) throw new AppError(AppErrorCode.DATABASE_NOT_READY)
   return database
 }
@@ -88,7 +99,7 @@ export async function hashFile(path: string, session?: BatchOperationSession): P
 
 /** Limpa eventos vencidos; erro gera diagnóstico e a próxima chamada tenta novamente. */
 export function runAuditRetention(): void {
-  if (!database) return
+  if (!database || databaseMaintenance) return
   const now = new Date()
   const date = now.toISOString().slice(0, 10)
   if (lastRetentionDate === date) return
@@ -106,6 +117,7 @@ export function runAuditRetention(): void {
 export async function openDatabase(): Promise<void> {
   const dataDirectory = app.getPath('userData')
   const backupDirectory = join(dataDirectory, 'backups')
+  await recoverInterruptedRestore(dataDirectory)
   // Somente o estágio legado é descartado; import-recovery conserva checkpoints para retomada.
   await rm(join(dataDirectory, 'import-staging'), { recursive: true, force: true })
   await mkdir(backupDirectory, { recursive: true })
