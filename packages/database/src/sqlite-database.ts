@@ -1,7 +1,7 @@
 import { AppError, AppErrorCode } from '@motor/domain'
 import { resolve } from 'node:path'
 import { stat } from 'node:fs/promises'
-import { DatabaseSync, backup, type SQLInputValue } from 'node:sqlite'
+import { DatabaseSync, backup, type StatementSync, type SQLInputValue } from 'node:sqlite'
 
 export interface SqliteDatabaseOptions {
   readOnly?: boolean
@@ -11,6 +11,7 @@ export interface SqliteDatabaseOptions {
 export class SqliteDatabase {
   readonly #connection: DatabaseSync
   #closed = false
+  readonly #statements = new Map<string, StatementSync>()
 
   constructor(path: string, options: SqliteDatabaseOptions = {}) {
     const timeout = options.timeoutMilliseconds ?? 5_000
@@ -56,7 +57,7 @@ export class SqliteDatabase {
     ...parameters: SQLInputValue[]
   ): TRow | undefined {
     this.#assertOpen()
-    return this.#connection.prepare(sql).get(...parameters) as TRow | undefined
+    return this.#statement(sql).get(...parameters) as TRow | undefined
   }
 
   all<TRow extends Record<string, unknown>>(
@@ -64,12 +65,12 @@ export class SqliteDatabase {
     ...parameters: SQLInputValue[]
   ): readonly TRow[] {
     this.#assertOpen()
-    return this.#connection.prepare(sql).all(...parameters) as TRow[]
+    return this.#statement(sql).all(...parameters) as TRow[]
   }
 
   run(sql: string, ...parameters: SQLInputValue[]): void {
     this.#assertOpen()
-    this.#connection.prepare(sql).run(...parameters)
+    this.#statement(sql).run(...parameters)
   }
 
   transaction<T>(operation: () => T): T {
@@ -122,8 +123,19 @@ export class SqliteDatabase {
   close(): void {
     if (this.#closed) return
     if (this.#connection.isTransaction) this.#connection.exec('ROLLBACK')
+    this.#statements.clear()
     this.#connection.close()
     this.#closed = true
+  }
+
+  /** Cache limitado de SQL reutilizado por todas as notas; valores continuam vinculados. */
+  #statement(sql: string): StatementSync {
+    const existing = this.#statements.get(sql)
+    if (existing) return existing
+    const prepared = this.#connection.prepare(sql)
+    if (this.#statements.size >= 128) this.#statements.delete(this.#statements.keys().next().value!)
+    this.#statements.set(sql, prepared)
+    return prepared
   }
 
   #assertOpen(): void {

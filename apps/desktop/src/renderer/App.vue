@@ -49,6 +49,7 @@ onMounted(async () => {
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
         <RouterLink to="/transferencia">Exportar e importar</RouterLink>
+        <RouterLink to="/backup">Backup</RouterLink>
         <RouterLink to="/auditoria">Auditoria</RouterLink>
         <RouterLink to="/perfis">Perfis fiscais</RouterLink>
         <RouterLink to="/regras">Regras propostas</RouterLink>

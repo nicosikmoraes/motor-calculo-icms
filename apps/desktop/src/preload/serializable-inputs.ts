@@ -12,6 +12,7 @@ export function copyCreateBatchInput(input: CreateBatchInput): CreateBatchInput 
     totalEntries: input.totalEntries,
     assignments: input.assignments.map(({ source, companyId }) => ({ source, companyId })),
     environmentCode: input.environmentCode,
+    ...(input.artifactCompanyId ? { artifactCompanyId: input.artifactCompanyId } : {}),
     sources: copySelectedSources(input.sources),
   }
 }
