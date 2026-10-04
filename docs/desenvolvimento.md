@@ -82,3 +82,16 @@ silenciosamente à arquitetura.
 - conexão SQLite local e executor versionado de migrations;
 - persistência de organização, empresa, lote, ocorrência, diagnóstico, documento
   fiscal normalizado e item.
+
+## Cadastro de condições de regras
+
+`RULE_CONDITION_FIELDS`, no pacote `tax-engine`, define o vocabulário comum do
+formulário e da validação no processo principal. Condições usam igualdade exata;
+NCM, CEST e CFOP preservam zeros e não aceitam pontuação. Campos enumerados usam
+seletores. Identificadores de cadastros permanecem referências textuais locais.
+Salvar ou aprovar uma regra exige condições válidas; rascunhos anteriores podem
+ser corrigidos antes da aprovação. Versões já aprovadas e avaliações históricas
+não são reescritas. A validação de formato não homologa uma regra fiscal.
+
+Resultados tributários, fórmulas, base e arredondamento continuam pendentes de
+MD-05/MD-06. A aprovação local habilita seleção, sem liberar cálculo de ICMS.

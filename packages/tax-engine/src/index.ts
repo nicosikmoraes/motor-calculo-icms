@@ -12,3 +12,5 @@ export * from './calculation-memory'
 export interface TaxCalculator {
   calculate(input: unknown): Promise<import('./calculation-memory').CalculationMemory>
 }
+
+export * from './rule-condition-catalog'

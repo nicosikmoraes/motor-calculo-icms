@@ -33,6 +33,28 @@ const draftInput = {
   validFrom: '2026-01-01', legalBasis: 'Lei de teste', conditions: { ncm: '12345678' },
 }
 describe('regras fiscais versionadas', () => {
+  it('recusa condições inválidas pelo processo principal sem persistir nem auditar', () => {
+    expect(() => cases.createDraft({ ...draftInput, conditions: { cfop: 'texto' } }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.RULE_INVALID_CONDITIONS }))
+    expect(cases.list()).toHaveLength(0)
+    const draft = cases.createDraft(draftInput)
+    expect(() => cases.updateDraft({ ...draftInput, id: draft.id, expectedRevision: 1,
+      conditions: { cst: '0' } }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.RULE_INVALID_CONDITIONS }))
+    expect(repository.get(draft.id)).toMatchObject({ revision: 1, conditions: draftInput.conditions })
+    expect(cases.listAudit(draft.id)).toHaveLength(1)
+  })
+
+  it('bloqueia aprovação de rascunho legado com formato inválido e permite corrigir', () => {
+    const draft = cases.createDraft(draftInput)
+    database.run('UPDATE versoes_regras_fiscais SET condicoes_json = ? WHERE id = ?',
+      JSON.stringify({ ncm: '123' }), draft.id)
+    expect(() => cases.approve({ id: draft.id, expectedRevision: 1 }))
+      .toThrowError(expect.objectContaining({ code: AppErrorCode.RULE_INVALID_CONDITIONS }))
+    const corrected = cases.updateDraft({ ...draftInput, id: draft.id, expectedRevision: 1 })
+    expect(cases.approve({ id: draft.id, expectedRevision: corrected.revision }).status).toBe('APPROVED')
+  })
+
   it('cria rascunho, edita com revisão, aprova e preserva versão imutável', () => {
     const draft = cases.createDraft(draftInput)
     expect(draft).toMatchObject({ version: 1, revision: 1, status: 'DRAFT' })
