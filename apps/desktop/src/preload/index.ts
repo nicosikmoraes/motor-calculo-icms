@@ -21,6 +21,10 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  exportPack: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_PACK),
+  previewPack: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW_PACK),
+  importPack: (input) => ipcRenderer.invoke(IPC_CHANNELS.IMPORT_PACK, { token: input.token, choices: { ...input.choices } }),
+  discardPack: (token) => ipcRenderer.invoke(IPC_CHANNELS.DISCARD_PACK, token),
   getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
   getWorkspace: () =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_WORKSPACE) as Promise<WorkspaceState>,
