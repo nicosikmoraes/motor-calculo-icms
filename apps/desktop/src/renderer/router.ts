@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import BackupView from './views/BackupView.vue'
 import DashboardView from './views/DashboardView.vue'
 import CompaniesView from './views/CompaniesView.vue'
 import FiscalCatalogView from './views/FiscalCatalogView.vue'
@@ -11,6 +12,7 @@ import RegistrationAuditView from './views/RegistrationAuditView.vue'
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    { path: '/backup', component: BackupView },
     { path: '/', component: DashboardView },
     { path: '/empresas', component: CompaniesView },
     { path: '/auditoria', component: RegistrationAuditView },

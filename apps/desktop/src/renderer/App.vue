@@ -48,6 +48,7 @@ onMounted(async () => {
       <nav aria-label="Navegação principal">
         <RouterLink to="/">Visão geral</RouterLink>
         <RouterLink to="/empresas">Empresas</RouterLink>
+        <RouterLink to="/backup">Backup</RouterLink>
         <RouterLink to="/auditoria">Auditoria</RouterLink>
         <RouterLink to="/perfis">Perfis fiscais</RouterLink>
         <RouterLink to="/regras">Regras propostas</RouterLink>
