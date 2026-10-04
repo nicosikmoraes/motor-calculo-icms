@@ -1,0 +1,64 @@
+name: Windows - backup e instalador
+
+on:
+  push:
+    branches: [main, codex/backup-restore-retention]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Tipagem, testes e build no Windows
+        run: pnpm check
+      - name: Backup e restauração no runtime Electron
+        shell: pwsh
+        run: |
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          & apps/desktop/node_modules/electron/dist/electron.exe node_modules/vitest/vitest.mjs run apps/desktop/test/backup-service.test.ts apps/desktop/test/backup-restore-retention.test.ts apps/desktop/test/backup-handlers.test.ts --reporter=verbose
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Gerar instalador NSIS por usuário
+        run: pnpm --filter @motor/desktop dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Instalar e verificar aplicativo e worker distribuídos
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem apps/desktop/release/*-Setup.exe | Select-Object -First 1).FullName
+          $destination = Join-Path $env:RUNNER_TEMP 'ContabiliNico instalado'
+          $process = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Instalação falhou: $($process.ExitCode)" }
+          $exe = Join-Path $destination 'ContabiliNico.exe'
+          if (!(Test-Path $exe)) { throw 'Executável não instalado' }
+          node scripts/smoke-installed-windows.mjs $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $env:CONTABILINICO_WORKER_PATH = Join-Path $destination 'resources/app/out/main/batch-import-worker.js'
+          & $exe scripts/benchmark-import.mjs 5 --recover
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Guardar instalador e checksum
+        shell: pwsh
+        run: |
+          Get-ChildItem apps/desktop/release/*-Setup.exe | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ContabiliNico-Windows-x64
+          path: |
+            apps/desktop/release/*-Setup.exe
+            apps/desktop/release/*-Setup.exe.sha256
+          retention-days: 14
