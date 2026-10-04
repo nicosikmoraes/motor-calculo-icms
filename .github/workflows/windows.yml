@@ -2,7 +2,7 @@ name: Windows - backup e instalador
 
 on:
   push:
-    branches: [main, codex/backup-restore-retention]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
