@@ -12,7 +12,7 @@ import {
   type BuiltinRulePackSummary, type VersionedRuleSummary, type RuleAuditSummary,
   type SupplierProductSummary,
   type CreatedBatchSummary,
-  type DesktopApi,
+  type DesktopApi, type RecoverableImport,
   type OrganizationSummary,
   type SelectedSource,
   type WorkspaceState,
@@ -21,6 +21,9 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  pauseBatchOperation: (operationId) => ipcRenderer.invoke(IPC_CHANNELS.PAUSE_BATCH_OPERATION, operationId) as Promise<boolean>,
+  listRecoverableImports: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_RECOVERABLE_IMPORTS) as Promise<readonly RecoverableImport[]>,
+  resumeImport: (id, operationId) => ipcRenderer.invoke(IPC_CHANNELS.RESUME_IMPORT, id, operationId) as Promise<CreatedBatchSummary>,
   getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.APP_VERSION) as Promise<string>,
   getWorkspace: () =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_WORKSPACE) as Promise<WorkspaceState>,

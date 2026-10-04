@@ -1,3 +1,4 @@
+import { stopImportWorkers } from './import-worker-client'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
@@ -52,6 +53,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CANCEL_BATCH_OPERATION,
     (event, rawOperationId: unknown): boolean =>
       batchOperations.cancel(requiredInputText(rawOperationId, 'Identificador da operação'), event.sender.id))
+  ipcMain.handle(IPC_CHANNELS.PAUSE_BATCH_OPERATION,
+    (event, rawId: unknown) => batchOperations.pause(requiredInputText(rawId, 'Operação'), event.sender.id))
   registerCatalogHandlers()
   registerBatchInspectionHandlers()
   registerBatchCreateHandler()
@@ -88,6 +91,16 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  closeDatabase()
+let shutdownReady = false
+let shutdownPending = false
+app.on('before-quit', (event) => {
+  if (shutdownReady) return
+  event.preventDefault()
+  if (shutdownPending) return
+  shutdownPending = true
+  void stopImportWorkers().finally(() => {
+    closeDatabase()
+    shutdownReady = true
+    app.quit()
+  })
 })

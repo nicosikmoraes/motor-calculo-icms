@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { RendererErrorMessage } from '../error-messages'
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { BatchListItem } from '@motor/contracts'
+import type { BatchListItem, RecoverableImport, BatchOperationProgress } from '@motor/contracts'
 
+const recoveries = ref<readonly RecoverableImport[]>([])
+const resuming = ref('')
+const operationId = ref('')
+const progress = ref<BatchOperationProgress>()
+let unsubscribe: (() => void) | undefined
 const batches = ref<readonly BatchListItem[]>([])
 const loading = ref(true)
 const error = ref('')
@@ -16,15 +21,32 @@ function environment(code?: string): string {
   return code === '1' ? 'Produção' : code === '2' ? 'Homologação' : 'Ambiente não informado'
 }
 
-onMounted(async () => {
+async function load(): Promise<void> {
   try {
-    batches.value = await window.desktopApi.listBatches()
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LIST_LOAD
-  } finally {
-    loading.value = false
-  }
+    [batches.value, recoveries.value] = await Promise.all([
+      window.desktopApi.listBatches(), window.desktopApi.listRecoverableImports(),
+    ])
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LIST_LOAD }
+  finally { loading.value = false }
+}
+async function resume(id: string): Promise<void> {
+  error.value = ''; resuming.value = id; operationId.value = crypto.randomUUID()
+  try { await window.desktopApi.resumeImport(id, operationId.value) }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível retomar o lote.' }
+  finally { resuming.value = ''; operationId.value = ''; progress.value = undefined; await load() }
+}
+async function pause(): Promise<void> {
+  try { await window.desktopApi.pauseBatchOperation(operationId.value) }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível pausar.' }
+}
+onMounted(() => {
+  unsubscribe = window.desktopApi.onBatchProgress((value) => {
+    if (value.operationId === operationId.value) progress.value = value
+  })
+  void load()
 })
+onUnmounted(() => unsubscribe?.())
+
 </script>
 
 <template>
@@ -38,6 +60,18 @@ onMounted(async () => {
       <RouterLink class="button primary" to="/lotes/novo">Novo lote</RouterLink>
     </header>
     <p v-if="error" class="form-error notice">{{ error }}</p>
+    <article v-for="recovery in recoveries" :key="recovery.id" class="card recovery-card">
+      <h3>Importação pendente</h3>
+      <p>{{ recovery.originalName }}</p>
+      <p>{{ recovery.stagedEntries }} entrada(s) preservada(s) · {{ recovery.totalEntries }} entrada(s) previstas</p>
+      <p>Os arquivos de origem precisam continuar no mesmo local e com o mesmo conteúdo.</p>
+      <p v-if="recovery.error" role="alert">{{ recovery.error }}</p>
+      <button class="button primary" type="button" :disabled="!!resuming || !!recovery.error" @click="resume(recovery.id)">Retomar importação</button>
+      <template v-if="resuming === recovery.id">
+        <p role="status">{{ progress?.phase === 'SAVING' ? 'Salvando lote…' : 'Retomando…' }} {{ progress?.completed ?? 0 }} / {{ progress?.total ?? recovery.totalEntries }}</p>
+        <button class="button secondary" type="button" :disabled="progress?.phase === 'SAVING'" @click="pause">Pausar</button>
+      </template>
+    </article>
     <p v-if="loading" class="empty-state">Carregando lotes…</p>
     <article v-else-if="batches.length === 0" class="card empty-list-card">
       <h3>Nenhum lote criado</h3>
@@ -61,6 +95,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.recovery-card { padding: 24px; margin-bottom: 16px; overflow-wrap: anywhere; }
 .empty-list-card { padding: 32px; }
 .batch-list { display: grid; gap: 12px; }
 .batch-list-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px; color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }

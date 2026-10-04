@@ -19,7 +19,8 @@
     "@motor/tax-engine": "workspace:*",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.0",
+    "xmllint-wasm": "5.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
