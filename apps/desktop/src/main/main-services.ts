@@ -106,7 +106,7 @@ export function runAuditRetention(): void {
 export async function openDatabase(): Promise<void> {
   const dataDirectory = app.getPath('userData')
   const backupDirectory = join(dataDirectory, 'backups')
-  // O bloqueio de instância já foi obtido: estágios remanescentes são de uma execução interrompida.
+  // Somente o estágio legado é descartado; import-recovery conserva checkpoints para retomada.
   await rm(join(dataDirectory, 'import-staging'), { recursive: true, force: true })
   await mkdir(backupDirectory, { recursive: true })
 

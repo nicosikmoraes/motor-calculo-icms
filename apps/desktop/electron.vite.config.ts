@@ -4,6 +4,13 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   main: {
+    build: {
+      rollupOptions: {
+        external: ['xmllint-wasm'],
+        input: { index: resolve('src/main/index.ts'), 'batch-import-worker': resolve('src/main/batch-import-worker.ts') },
+        output: { entryFileNames: '[name].js' },
+      },
+    },
     plugins: [externalizeDepsPlugin({
       exclude: ['@motor/contracts', '@motor/database', '@motor/domain', '@motor/nfe-parser', '@motor/tax-engine'],
     })],

@@ -271,3 +271,20 @@ arquivos separadamente quando precisar dos originais. Escolher unidade externa
 ou pasta sincronizada permite guardar a cópia fora do computador; a sincronização
 é responsabilidade da ferramenta escolhida. Restauração pela interface ainda
 não está disponível nesta entrega.
+
+## Pausar e recuperar uma importação
+
+Durante o processamento de um novo lote, escolha **Pausar e retomar depois**.
+As entradas já preparadas ficam em disco; a importação pendente aparece no
+**Histórico**, onde **Retomar importação** continua a operação. O lote só aparece
+como importado após a confirmação da transação final. Durante essa gravação final
+não é possível pausar. **Cancelar** mantém seu comportamento anterior: salva um
+lote parcial cancelado e não equivale a pausar.
+
+Se o aplicativo fechar ou o worker interromper inesperadamente durante a preparação,
+abra o Histórico e retome a importação pendente. Mantenha XMLs/ZIPs no caminho
+original: a retomada verifica SHA-256 de todas as fontes e bloqueia conteúdo
+alterado, preservando o ponto de recuperação. Entradas preparadas são reutilizadas;
+ZIPs ainda são percorridos para verificar segurança e alcançar as entradas restantes.
+Os checkpoints não fazem parte do backup SQLite; termine ou retome a importação
+antes de depender apenas de um backup para transferir a instalação.

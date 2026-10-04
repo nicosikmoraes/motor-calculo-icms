@@ -1,3 +1,4 @@
+import { stopImportWorkers } from './import-worker-client'
 import { registerBackupHandlers, stopBackups } from './backup-handlers'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +54,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.CANCEL_BATCH_OPERATION,
     (event, rawOperationId: unknown): boolean =>
       batchOperations.cancel(requiredInputText(rawOperationId, 'Identificador da operação'), event.sender.id))
+  ipcMain.handle(IPC_CHANNELS.PAUSE_BATCH_OPERATION,
+    (event, rawId: unknown) => batchOperations.pause(requiredInputText(rawId, 'Operação'), event.sender.id))
   registerCatalogHandlers()
   registerBatchInspectionHandlers()
   registerBatchCreateHandler()
@@ -97,7 +100,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   if (shutdownPending) return
   shutdownPending = true
-  void stopBackups().finally(() => {
+  void stopImportWorkers().then(stopBackups).finally(() => {
     closeDatabase()
     shutdownReady = true
     app.quit()

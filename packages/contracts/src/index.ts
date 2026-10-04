@@ -32,6 +32,9 @@ export const IPC_CHANNELS = {
   REACTIVATE_SUPPLIER_PRODUCT: 'supplier-products:reactivate',
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
+  PAUSE_BATCH_OPERATION: 'batch:pause-operation',
+  LIST_RECOVERABLE_IMPORTS: 'batch:list-recoverable-imports',
+  RESUME_IMPORT: 'batch:resume-import',
   CREATE_BATCH: 'batch:create',
   CANCEL_BATCH_OPERATION: 'batch:cancel-operation',
   BATCH_PROGRESS: 'batch:progress',
@@ -258,6 +261,15 @@ export interface BatchOperationProgress {
   completed: number
   total: number
   currentSource?: string
+}
+
+export interface RecoverableImport {
+  id: string
+  originalName: string
+  receivedAt: string
+  stagedEntries: number
+  totalEntries: number
+  error?: string
 }
 
 export interface CreatedBatchSummary {
@@ -548,6 +560,9 @@ export interface BackupStatus {
 }
 
 export interface DesktopApi {
+  pauseBatchOperation(operationId: string): Promise<boolean>
+  listRecoverableImports(): Promise<readonly RecoverableImport[]>
+  resumeImport(id: string, operationId: string): Promise<CreatedBatchSummary>
   getBackupStatus(): Promise<BackupStatus>
   createBackup(): Promise<BackupStatus | null>
 

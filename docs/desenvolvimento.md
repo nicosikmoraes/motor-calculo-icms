@@ -82,3 +82,25 @@ silenciosamente à arquitetura.
 - conexão SQLite local e executor versionado de migrations;
 - persistência de organização, empresa, lote, ocorrência, diagnóstico, documento
   fiscal normalizado e item.
+
+## Desempenho e recuperação de importações
+
+O build principal gera `index.js` e `batch-import-worker.js`. A confirmação de lote
+usa o worker e uma conexão SQLite própria de curta duração; IPC continua no processo
+principal. `xmllint-wasm` fica externo ao bundle e deve acompanhar a distribuição.
+Checkpoints em `userData/import-recovery` conservam preparação interrompida.
+
+Após `pnpm build`, rode uma medição sintética independente dos dados do usuário:
+
+```bash
+node scripts/benchmark-import.mjs 1000
+node scripts/benchmark-import.mjs 1000 --recover
+```
+
+O segundo comando termina o worker depois de aproximadamente 50 entradas e retoma
+com a mesma identidade do lote. Ambos verificam a contagem final no SQLite e medem
+tempo, RSS do processo e atraso de um heartbeat de 20 ms no processo principal.
+O heartbeat é um indicador de disponibilidade do event loop, não uma medição da
+renderização Vue nem uma homologação do instalador Windows. Os arquivos temporários
+sintéticos são removidos após cada execução. Resultados estão em
+`docs/desempenho-recuperacao-lotes.md`.

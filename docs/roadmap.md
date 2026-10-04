@@ -513,10 +513,10 @@ sem confundir intercâmbio com backup.
 
 **Dependências:** MD-11, MD-12 e MD-13.
 
-- [ ] mover processamento pesado para workers;
+- [x] mover importação confirmada e gravação para worker; inspeção e reavaliação ainda no processo principal;
 - [ ] limitar concorrência, memória e temporários;
-- [ ] implementar pausa, retomada e cancelamento conforme decisão;
-- [ ] medir lotes no computador de referência;
+- [x] implementar pausa e retomada por checkpoints, preservando cancelamento parcial;
+- [x] medir 1.000 notas sintéticas no ambiente Linux de desenvolvimento; homologação Windows pendente;
 - [ ] implementar logs locais e pacote seguro de diagnóstico;
 - [ ] executar a suíte fiscal homologada;
 - [ ] testar migração e recuperação do banco;
