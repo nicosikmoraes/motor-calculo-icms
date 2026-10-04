@@ -62,10 +62,10 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 ## Prioridade 6 — backup e restauração
 
-1. Backup automático ou manual e periodicidade padrão.
-2. Destino local, unidade externa ou pasta sincronizada escolhida pelo usuário.
+1. Backup manual seguido de automático diário aprovado na DT-037 e implementado; falta homologar operação no Windows.
+2. Destino escolhido pelo usuário implementado; falta homologar unidade externa e pasta sincronizada.
 3. Conteúdo, compactação, criptografia e retenção dos backups.
-4. Validação de integridade, restauração completa e teste periódico.
+4. Integridade do snapshot validada na criação; restauração completa e teste periódico pendentes.
 5. Diferença entre backup da instalação e exportação de configurações `.icmspack`.
 
 ## Prioridade 7 — escala e desempenho local

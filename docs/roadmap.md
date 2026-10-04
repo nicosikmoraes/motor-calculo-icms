@@ -502,7 +502,7 @@ Após a decisão:
 
 **DECISÃO NECESSÁRIA:** MD-10.
 
-- [ ] criar e validar backup;
+- [x] criar e validar backup manual, com agendamento diário após o primeiro sucesso;
 - [ ] restaurar instalação completa;
 - [ ] testar corrupção, incompatibilidade e restauração interrompida.
 

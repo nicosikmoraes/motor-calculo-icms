@@ -1,4 +1,5 @@
 import { stopImportWorkers } from './import-worker-client'
+import { registerBackupHandlers, stopBackups } from './backup-handlers'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
@@ -74,6 +75,7 @@ if (primaryInstance) app.whenReady().then(async () => {
   try {
     await openDatabase()
     registerIpcHandlers()
+    await registerBackupHandlers()
     createWindow()
   } catch (error) {
     const message = error instanceof Error ? error.message : AppErrorMessage.UNKNOWN_FAILURE
@@ -98,7 +100,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   if (shutdownPending) return
   shutdownPending = true
-  void stopImportWorkers().finally(() => {
+  void stopImportWorkers().then(stopBackups).finally(() => {
     closeDatabase()
     shutdownReady = true
     app.quit()

@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  GET_BACKUP_STATUS: 'backup:status',
+  CREATE_BACKUP: 'backup:create',
   APP_VERSION: 'app:get-version',
   GET_WORKSPACE: 'workspace:get',
   LIST_REGISTRATION_AUDIT: 'registrations:audit-list',
@@ -547,10 +549,22 @@ export interface BatchDetail {
   originalAssessmentPack?: { id: string; version: number }
 }
 
+export interface BackupStatus {
+  enabled: boolean
+  hour: number
+  destination?: string
+  lastBackupAt?: string
+  lastBackupPath?: string
+  lastError?: string
+  busy: boolean
+}
+
 export interface DesktopApi {
   pauseBatchOperation(operationId: string): Promise<boolean>
   listRecoverableImports(): Promise<readonly RecoverableImport[]>
   resumeImport(id: string, operationId: string): Promise<CreatedBatchSummary>
+  getBackupStatus(): Promise<BackupStatus>
+  createBackup(): Promise<BackupStatus | null>
 
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
