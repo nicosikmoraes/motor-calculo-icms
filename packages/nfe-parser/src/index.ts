@@ -26,3 +26,5 @@ export interface ParsedFiscalArtifact {
 export interface NfeParser {
   parse(sourcePath: string): Promise<ParsedFiscalArtifact | ParseFailure>
 }
+
+export * from './artifact-schema-validator'
