@@ -665,3 +665,36 @@ A tela explicita esse alcance. Os backups não são criptografados e não são a
 automaticamente neste incremento. A restauração pela interface e a política de
 retenção das cópias continuam pendentes; não confundir esta entrega com recuperação
 completa já homologada ou com intercâmbio `.icmspack`.
+
+## DT-038 — Importação em worker e recuperação de lotes
+
+Incremento autorizado pelo responsável em 04/10/2026 para desempenho e recuperação.
+A confirmação de importação executa leitura, normalização, avaliação de regras e
+persistência em um worker Node dedicado, com uma conexão SQLite de curta duração.
+O processo principal conserva sua conexão para IPC e consultas da interface.
+Uma única operação de inspeção/importação continua permitida por vez. A biblioteca
+`xmllint-wasm` é dependência de runtime externa ao bundle para conservar seus
+workers e recursos no aplicativo compilado. SQL reutilizado possui cache limitado
+a 128 statements por conexão, mantendo parâmetros vinculados.
+
+Antes de preparar documentos, a operação grava um manifesto em `import-recovery`
+com identidade do lote, confirmação do ambiente, empresas e SHA-256 de cada fonte.
+Cada entrada preparada possui checkpoint publicado por rename após seus snapshots
+normalizados. Na retomada, todas as fontes são verificadas por hash; arquivos
+alterados ou ausentes bloqueiam a operação sem apagar os checkpoints. XMLs já
+preparados não são normalizados novamente; ZIPs são percorridos novamente para
+manter sua política de segurança, reutilizando as entradas já preparadas.
+
+Pausar conserva o estágio e retorna `INTERROMPIDO`; a importação pendente aparece
+no Histórico. Fechar o aplicativo interrompe o worker e conserva os checkpoints.
+O lote definitivo é criado uma única vez em transação; retomadas mantêm seu ID.
+Após COMMIT, o worker libera o banco antes de avisar a conclusão. Um checkpoint
+remanescente de uma queda entre COMMIT e limpeza é reconhecido pelo ID do lote
+persistido e removido, sem nova importação. Cancelar continua preservando um lote
+parcial cancelado e não é sinônimo de pausa. O estágio legado é expurgado; pontos
+de recuperação novos não são removidos na abertura.
+
+Inspeção inicial, consulta detalhada e reavaliação de regras ainda usam o processo
+principal. Fontes precisam permanecer disponíveis no caminho original. O backup
+SQLite da DT-037 não inclui os checkpoints de importações ainda não confirmadas.
+Metas e homologação de Windows, massa real e volumes extremos permanecem em MD-11.
