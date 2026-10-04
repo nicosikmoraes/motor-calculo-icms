@@ -15,3 +15,5 @@ export interface ReportRequest {
 export interface ReportGenerator {
   generate(request: ReportRequest): Promise<{ path: string }>
 }
+
+export * from './report-data'

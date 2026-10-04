@@ -95,3 +95,10 @@ não são reescritas. A validação de formato não homologa uma regra fiscal.
 
 Resultados tributários, fórmulas, base e arredondamento continuam pendentes de
 MD-05/MD-06. A aprovação local habilita seleção, sem liberar cálculo de ICMS.
+## Preparação de relatórios
+
+O pacote `reporting` exporta `ReportData` e `buildReportData`. A construção usa
+somente um snapshot de `BatchDetail`, valida referências e preserva textos
+decimais, datas fiscais, memórias e avaliações registradas. A descrição está em
+[Modelo de dados do relatório](modelo-de-dados-relatorio.md). Essa preparação não
+adiciona exportação XLSX nem consolidação fiscal de totais.
