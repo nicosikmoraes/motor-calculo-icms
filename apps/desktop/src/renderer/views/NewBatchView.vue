@@ -35,6 +35,13 @@ const progressLabel = computed(() => {
   return inspecting.value ? 'Inspecionando documentos…' : 'Processando lote…'
 })
 
+async function pauseOperation(): Promise<void> {
+  if (!activeOperationId.value || cancelling.value) return
+  cancelling.value = true
+  try { await window.desktopApi.pauseBatchOperation(activeOperationId.value) }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível pausar.'; cancelling.value = false }
+}
+
 async function cancelOperation(): Promise<void> {
   if (!activeOperationId.value || cancelling.value) return
   cancelling.value = true
@@ -214,8 +221,9 @@ onUnmounted(() => unsubscribeProgress?.())
         <button class="button secondary" type="button"
           :disabled="cancelling || operationProgress?.phase === 'SAVING'"
           @click="cancelOperation">
-          {{ cancelling ? 'Cancelando…' : 'Cancelar' }}
+          {{ cancelling ? 'Interrompendo…' : 'Cancelar' }}
         </button>
+        <button v-if="creatingBatch" class="button secondary" type="button" :disabled="cancelling || operationProgress?.phase === 'SAVING'" @click="pauseOperation">Pausar e retomar depois</button>
       </div>
     </article>
 
@@ -331,11 +339,12 @@ onUnmounted(() => unsubscribeProgress?.())
       </button>
 
       <div v-if="createdBatch" class="batch-result">
-        <p class="eyebrow">{{ createdBatch.status === 'CANCELADO' ? 'Importação cancelada' : 'Lote criado' }}</p>
+        <p class="eyebrow">{{ createdBatch.status === 'INTERROMPIDO' ? 'Importação pausada' : createdBatch.status === 'CANCELADO' ? 'Importação cancelada' : 'Lote criado' }}</p>
         <strong>{{ createdBatch.id }}</strong>
         <span>{{ createdBatch.totalFiles }} arquivo(s) · {{ createdBatch.totalDocuments }} nota(s) · {{ createdBatch.totalPendencies }} pendência(s)</span>
         <span v-if="createdBatch.status === 'CANCELADO'">As entradas já lidas e os diagnósticos foram preservados. As demais não foram processadas.</span>
-        <RouterLink class="button secondary" :to="`/lotes/${createdBatch.id}`">Abrir detalhes do lote</RouterLink>
+        <RouterLink v-if="createdBatch.status === 'INTERROMPIDO'" class="button secondary" to="/lotes">Retomar pelo histórico</RouterLink>
+        <RouterLink v-else class="button secondary" :to="`/lotes/${createdBatch.id}`">Abrir detalhes do lote</RouterLink>
       </div>
 
       <details v-if="preparation.issues.length" class="issues-panel">

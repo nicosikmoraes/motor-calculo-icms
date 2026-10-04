@@ -95,6 +95,7 @@ não são reescritas. A validação de formato não homologa uma regra fiscal.
 
 Resultados tributários, fórmulas, base e arredondamento continuam pendentes de
 MD-05/MD-06. A aprovação local habilita seleção, sem liberar cálculo de ICMS.
+
 ## Preparação de relatórios
 
 O pacote `reporting` exporta `ReportData` e `buildReportData`. A construção usa
@@ -102,6 +103,7 @@ somente um snapshot de `BatchDetail`, valida referências e preserva textos
 decimais, datas fiscais, memórias e avaliações registradas. A descrição está em
 [Modelo de dados do relatório](modelo-de-dados-relatorio.md). Essa preparação não
 adiciona exportação XLSX nem consolidação fiscal de totais.
+
 ## Intercâmbio de cadastros
 
 `packages/interchange` contém o codec inicial de `.icmspack`: criação de manifesto,
@@ -111,3 +113,25 @@ nativos; `SqliteInterchangeRepository` coordena snapshot, reconciliação de con
 revisões e auditorias na conexão única. A importação revalida o pacote e o catálogo
 local antes da escrita, que ocorre em uma única transação.
 O contrato e os limites estão em [ICMSPACK v1](contrato-icmspack-v1.md).
+
+## Desempenho e recuperação de importações
+
+O build principal gera `index.js` e `batch-import-worker.js`. A confirmação de lote
+usa o worker e uma conexão SQLite própria de curta duração; IPC continua no processo
+principal. `xmllint-wasm` fica externo ao bundle e deve acompanhar a distribuição.
+Checkpoints em `userData/import-recovery` conservam preparação interrompida.
+
+Após `pnpm build`, rode uma medição sintética independente dos dados do usuário:
+
+```bash
+node scripts/benchmark-import.mjs 1000
+node scripts/benchmark-import.mjs 1000 --recover
+```
+
+O segundo comando termina o worker depois de aproximadamente 50 entradas e retoma
+com a mesma identidade do lote. Ambos verificam a contagem final no SQLite e medem
+tempo, RSS do processo e atraso de um heartbeat de 20 ms no processo principal.
+O heartbeat é um indicador de disponibilidade do event loop, não uma medição da
+renderização Vue nem uma homologação do instalador Windows. Os arquivos temporários
+sintéticos são removidos após cada execução. Resultados estão em
+`docs/desempenho-recuperacao-lotes.md`.

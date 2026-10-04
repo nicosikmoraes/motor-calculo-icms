@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  GET_BACKUP_STATUS: 'backup:status',
+  CREATE_BACKUP: 'backup:create',
   APP_VERSION: 'app:get-version',
   EXPORT_PACK: 'interchange:export',
   PREVIEW_PACK: 'interchange:preview',
@@ -34,6 +36,9 @@ export const IPC_CHANNELS = {
   REACTIVATE_SUPPLIER_PRODUCT: 'supplier-products:reactivate',
   SELECT_SOURCES: 'batch:select-sources',
   INSPECT_SOURCES: 'batch:inspect-sources',
+  PAUSE_BATCH_OPERATION: 'batch:pause-operation',
+  LIST_RECOVERABLE_IMPORTS: 'batch:list-recoverable-imports',
+  RESUME_IMPORT: 'batch:resume-import',
   CREATE_BATCH: 'batch:create',
   CANCEL_BATCH_OPERATION: 'batch:cancel-operation',
   BATCH_PROGRESS: 'batch:progress',
@@ -260,6 +265,15 @@ export interface BatchOperationProgress {
   completed: number
   total: number
   currentSource?: string
+}
+
+export interface RecoverableImport {
+  id: string
+  originalName: string
+  receivedAt: string
+  stagedEntries: number
+  totalEntries: number
+  error?: string
 }
 
 export interface CreatedBatchSummary {
@@ -565,11 +579,27 @@ export interface PackImportInput {
 export interface PackImportResult { created: number; updated: number; kept: number }
 export interface PackExportResult { path: string; counts: Record<PackEntity, number> }
 
+export interface BackupStatus {
+  enabled: boolean
+  hour: number
+  destination?: string
+  lastBackupAt?: string
+  lastBackupPath?: string
+  lastError?: string
+  busy: boolean
+}
+
 export interface DesktopApi {
   exportPack(): Promise<PackExportResult | null>
   previewPack(): Promise<PackImportPreview | null>
   importPack(input: PackImportInput): Promise<PackImportResult>
   discardPack(token: string): Promise<void>
+  pauseBatchOperation(operationId: string): Promise<boolean>
+  listRecoverableImports(): Promise<readonly RecoverableImport[]>
+  resumeImport(id: string, operationId: string): Promise<CreatedBatchSummary>
+  getBackupStatus(): Promise<BackupStatus>
+  createBackup(): Promise<BackupStatus | null>
+
   getVersion(): Promise<string>
   getWorkspace(): Promise<WorkspaceState>
   listRegistrationAudit(filter?: RegistrationAuditFilter): Promise<readonly RegistrationAuditEvent[]>

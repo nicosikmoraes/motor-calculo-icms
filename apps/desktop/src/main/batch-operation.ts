@@ -15,6 +15,7 @@ export interface BatchOperationSession {
   readonly ownerId: number
   readonly signal: AbortSignal
   readonly cancelled: boolean
+  readonly paused?: boolean
   readonly completed: number
   readonly total: number
   report(phase: BatchOperationProgress['phase'], completed: number, total: number, currentSource?: string): void
@@ -35,12 +36,14 @@ export class BatchOperationRegistry {
     // Uma única operação ativa impede que importações concorrentes disputem memória e banco.
     if (this.sessions.size > 0) throw new AppError(AppErrorCode.IMPORT_OPERATION_BUSY)
     const controller = new AbortController()
+    let paused = false
     let completed = 0
     let expected = Math.max(0, total)
     const session: BatchOperationSession = {
       operationId,
       ownerId,
       get signal() { return controller.signal },
+      get paused() { return paused },
       get cancelled() { return controller.signal.aborted },
       get completed() { return completed },
       get total() { return expected },
@@ -59,6 +62,7 @@ export class BatchOperationRegistry {
         if (controller.signal.aborted) throw new BatchOperationCancelledError()
       },
     }
+    this.pauseCallbacks.set(operationId, () => { paused = true })
     this.sessions.set(operationId, session)
     this.controllers.set(operationId, controller)
     session.report(phase, 0, total)
@@ -77,10 +81,18 @@ export class BatchOperationRegistry {
     return true
   }
 
+  pause(operationId: string, ownerId: number): boolean {
+    if (this.sessions.get(operationId)?.ownerId !== ownerId) return false
+    this.pauseCallbacks.get(operationId)?.()
+    return this.cancel(operationId, ownerId)
+  }
+
   finish(operationId: string): void {
     this.sessions.delete(operationId)
     this.controllers.delete(operationId)
+    this.pauseCallbacks.delete(operationId)
   }
 
+  private readonly pauseCallbacks = new Map<string, () => void>()
   private readonly controllers = new Map<string, AbortController>()
 }

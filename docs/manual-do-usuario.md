@@ -252,3 +252,39 @@ O pacote de configuração não inclui XMLs, resultados ou relatórios.
 6. Confirme a importação.
 
 Se houver falha, o banco permanece como estava. Importar um pacote não cria sincronização contínua com a máquina de origem.
+
+## Backup manual e diário
+
+Abra **Backup** na navegação e clique em **Criar backup manual**. Escolha uma
+pasta de destino. Após concluir e validar a primeira cópia, o aplicativo ativa
+backups diários às 23h do computador nessa pasta. Para mudar o destino, faça outro
+backup manual na nova pasta. Cancelar o seletor não altera o agendamento.
+
+O aplicativo precisa estar aberto para executar o agendamento. Se estiver fechado
+ou o computador suspenso, faz a cópia diária pendente ao abrir/retomar. A tela
+mostra destino, última cópia e erros; após falha automática tenta novamente em
+15 minutos. A execução cria uma pasta nova e mantém as cópias anteriores.
+
+A cópia inclui os dados persistidos do banco, com manifesto e hash de integridade.
+Não inclui XML/ZIP de origem, relatórios externos nem temporários. Guarde esses
+arquivos separadamente quando precisar dos originais. Escolher unidade externa
+ou pasta sincronizada permite guardar a cópia fora do computador; a sincronização
+é responsabilidade da ferramenta escolhida. Restauração pela interface ainda
+não está disponível nesta entrega.
+
+## Pausar e recuperar uma importação
+
+Durante o processamento de um novo lote, escolha **Pausar e retomar depois**.
+As entradas já preparadas ficam em disco; a importação pendente aparece no
+**Histórico**, onde **Retomar importação** continua a operação. O lote só aparece
+como importado após a confirmação da transação final. Durante essa gravação final
+não é possível pausar. **Cancelar** mantém seu comportamento anterior: salva um
+lote parcial cancelado e não equivale a pausar.
+
+Se o aplicativo fechar ou o worker interromper inesperadamente durante a preparação,
+abra o Histórico e retome a importação pendente. Mantenha XMLs/ZIPs no caminho
+original: a retomada verifica SHA-256 de todas as fontes e bloqueia conteúdo
+alterado, preservando o ponto de recuperação. Entradas preparadas são reutilizadas;
+ZIPs ainda são percorridos para verificar segurança e alcançar as entradas restantes.
+Os checkpoints não fazem parte do backup SQLite; termine ou retome a importação
+antes de depender apenas de um backup para transferir a instalação.

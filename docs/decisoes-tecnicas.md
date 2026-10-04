@@ -641,3 +641,60 @@ continuam nas MD-02 e MD-07.
 ### Validação XSD offline de protocolos e eventos (incremento de DT036)
 
 A inspeção e o salvamento do lote validam protNFe 4.00, protocolo embutido em nfeProc, evento 1.00 e procEventoNFe 1.00 com tipos oficiais embarcados. Cancelamento 110111 e carta de correção 110110 recebem validação adicional de detEvento. Outros tipos conservam o diagnóstico explícito de cobertura específica indisponível. Erros são persistidos por ocorrência e tornam a ocorrência pendente; não descartam o artefato reconhecido nem aplicam efeitos fiscais. Catálogo, fontes, hashes e adaptadores locais documentados em `packages/nfe-parser/schemas/artifacts/README.md`. A decisão sobre efeitos fiscais e cobertura adicional de eventos permanece pendente.
+
+## DT-037 — Backup manual e agendamento diário
+
+Aprovado pelo responsável em 04/10/2026: o primeiro backup deve ser manual;
+apenas após sua conclusão validada fica habilitada a cópia automática diária.
+O destino selecionado no diálogo nativo é reutilizado. O horário inicial é 23h
+no relógio local do computador. Com o aplicativo fechado não há execução em
+segundo plano: a próxima abertura recupera a última cópia diária vencida.
+Suspensão é recuperada na primeira verificação após retomada; o relógio é
+verificado a cada minuto. Falhas automáticas aguardam 15 minutos para nova tentativa.
+
+Cada cópia é uma pasta única contendo snapshot SQLite validado por
+`integrity_check` e manifesto versionado com SHA-256. A pasta parcial só recebe o
+nome definitivo após concluir a cópia e o manifesto. O agendamento é persistido
+por troca de arquivo temporário; falha na primeira cópia não o ativa. Cópias são
+serializadas e o encerramento aguarda a cópia ativa antes de fechar o banco.
+
+Inclui todos os dados persistidos no SQLite. XML/ZIP originais selecionados pelo
+usuário, relatórios externos e estágio temporário de importação não são guardados
+no pacote: o aplicativo atual não possui arquivo permanente desses originais.
+A tela explicita esse alcance. Os backups não são criptografados e não são apagados
+automaticamente neste incremento. A restauração pela interface e a política de
+retenção das cópias continuam pendentes; não confundir esta entrega com recuperação
+completa já homologada ou com intercâmbio `.icmspack`.
+
+## DT-038 — Importação em worker e recuperação de lotes
+
+Incremento autorizado pelo responsável em 04/10/2026 para desempenho e recuperação.
+A confirmação de importação executa leitura, normalização, avaliação de regras e
+persistência em um worker Node dedicado, com uma conexão SQLite de curta duração.
+O processo principal conserva sua conexão para IPC e consultas da interface.
+Uma única operação de inspeção/importação continua permitida por vez. A biblioteca
+`xmllint-wasm` é dependência de runtime externa ao bundle para conservar seus
+workers e recursos no aplicativo compilado. SQL reutilizado possui cache limitado
+a 128 statements por conexão, mantendo parâmetros vinculados.
+
+Antes de preparar documentos, a operação grava um manifesto em `import-recovery`
+com identidade do lote, confirmação do ambiente, empresas e SHA-256 de cada fonte.
+Cada entrada preparada possui checkpoint publicado por rename após seus snapshots
+normalizados. Na retomada, todas as fontes são verificadas por hash; arquivos
+alterados ou ausentes bloqueiam a operação sem apagar os checkpoints. XMLs já
+preparados não são normalizados novamente; ZIPs são percorridos novamente para
+manter sua política de segurança, reutilizando as entradas já preparadas.
+
+Pausar conserva o estágio e retorna `INTERROMPIDO`; a importação pendente aparece
+no Histórico. Fechar o aplicativo interrompe o worker e conserva os checkpoints.
+O lote definitivo é criado uma única vez em transação; retomadas mantêm seu ID.
+Após COMMIT, o worker libera o banco antes de avisar a conclusão. Um checkpoint
+remanescente de uma queda entre COMMIT e limpeza é reconhecido pelo ID do lote
+persistido e removido, sem nova importação. Cancelar continua preservando um lote
+parcial cancelado e não é sinônimo de pausa. O estágio legado é expurgado; pontos
+de recuperação novos não são removidos na abertura.
+
+Inspeção inicial, consulta detalhada e reavaliação de regras ainda usam o processo
+principal. Fontes precisam permanecer disponíveis no caminho original. O backup
+SQLite da DT-037 não inclui os checkpoints de importações ainda não confirmadas.
+Metas e homologação de Windows, massa real e volumes extremos permanecem em MD-11.
