@@ -637,3 +637,7 @@ O ambiente divergente do lote também gera diagnóstico.
 Artefatos não alteram estado documental, cálculos ou totais nesta entrega.
 Deduplicação, associação de órfãos entre lotes e precedência documental
 continuam nas MD-02 e MD-07.
+
+### Validação XSD offline de protocolos e eventos (incremento de DT036)
+
+A inspeção e o salvamento do lote validam protNFe 4.00, protocolo embutido em nfeProc, evento 1.00 e procEventoNFe 1.00 com tipos oficiais embarcados. Cancelamento 110111 e carta de correção 110110 recebem validação adicional de detEvento. Outros tipos conservam o diagnóstico explícito de cobertura específica indisponível. Erros são persistidos por ocorrência e tornam a ocorrência pendente; não descartam o artefato reconhecido nem aplicam efeitos fiscais. Catálogo, fontes, hashes e adaptadores locais documentados em `packages/nfe-parser/schemas/artifacts/README.md`. A decisão sobre efeitos fiscais e cobertura adicional de eventos permanece pendente.
