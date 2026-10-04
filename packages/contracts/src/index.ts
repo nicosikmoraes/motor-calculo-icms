@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  SET_BACKUP_RETENTION: 'backup:set-retention',
+  RESTORE_BACKUP: 'backup:restore',
   GET_BACKUP_STATUS: 'backup:status',
   CREATE_BACKUP: 'backup:create',
   APP_VERSION: 'app:get-version',
@@ -580,6 +582,11 @@ export interface PackImportResult { created: number; updated: number; kept: numb
 export interface PackExportResult { path: string; counts: Record<PackEntity, number> }
 
 export interface BackupStatus {
+  automaticCopiesToKeep: number
+  lastCleanupAt?: string
+  lastCleanupRemoved?: number
+  cleanupError?: string
+
   enabled: boolean
   hour: number
   destination?: string
@@ -597,6 +604,8 @@ export interface DesktopApi {
   pauseBatchOperation(operationId: string): Promise<boolean>
   listRecoverableImports(): Promise<readonly RecoverableImport[]>
   resumeImport(id: string, operationId: string): Promise<CreatedBatchSummary>
+  setBackupRetention(count: number): Promise<BackupStatus>
+  restoreBackup(): Promise<boolean>
   getBackupStatus(): Promise<BackupStatus>
   createBackup(): Promise<BackupStatus | null>
 

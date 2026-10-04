@@ -25,6 +25,8 @@ export interface BatchOperationSession {
 export class BatchOperationRegistry {
   private readonly sessions = new Map<string, BatchOperationSession>()
 
+  get busy(): boolean { return this.sessions.size > 0 }
+
   start(
     operationId: string,
     ownerId: number,

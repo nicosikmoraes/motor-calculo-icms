@@ -5,7 +5,16 @@ import { ref } from 'vue'
 const emit = defineEmits<{ created: [] }>()
 const name = ref('')
 const saving = ref(false)
+const restoring = ref(false)
 const error = ref('')
+
+async function restoreBackup(): Promise<void> {
+  restoring.value = true
+  error.value = ''
+  try { await window.desktopApi.restoreBackup() }
+  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível restaurar o backup.' }
+  finally { restoring.value = false }
+}
 
 async function createOrganization(): Promise<void> {
   error.value = ''
@@ -37,10 +46,14 @@ async function createOrganization(): Promise<void> {
           <input v-model="name" autocomplete="organization" maxlength="160" required />
         </label>
         <p v-if="error" class="form-error" role="alert">{{ error }}</p>
-        <button class="button primary" type="submit" :disabled="saving || !name.trim()">
+        <button class="button primary" type="submit" :disabled="saving || restoring || !name.trim()">
           {{ saving ? 'Criando…' : 'Criar espaço local' }}
         </button>
       </form>
+      <p>Já tem uma cópia de outra instalação?</p>
+      <button class="button secondary" type="button" :disabled="saving || restoring" @click="restoreBackup">
+        {{ restoring ? 'Verificando backup…' : 'Restaurar backup…' }}
+      </button>
     </section>
   </main>
 </template>

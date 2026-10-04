@@ -506,15 +506,16 @@ Após a decisão:
 - [ ] configurar período;
 - [ ] avisar e registrar expurgo;
 - [ ] apagar XML sem apagar evidência obrigatória;
-- [ ] limpar temporários com segurança.
+- [x] limpar temporários técnicos abandonados e checkpoints de lotes concluídos, preservando pontos pendentes; retenção fiscal segue em MD-09.
 
 #### 9C — Backup e restauração
 
 **DECISÃO NECESSÁRIA:** MD-10.
 
 - [x] criar e validar backup manual, com agendamento diário após o primeiro sucesso;
-- [ ] restaurar instalação completa;
-- [ ] testar corrupção, incompatibilidade e restauração interrompida.
+- [x] manter sete cópias automáticas configuráveis e preservar cópias manuais;
+- [x] restaurar os dados persistidos do SQLite pela interface, com cópia de segurança e reinício;
+- [x] testar corrupção, incompatibilidade e restauração interrompida; homologação Windows pendente.
 
 **SAÍDA:** configurações podem ser transferidas, e a instalação pode ser recuperada
 sem confundir intercâmbio com backup.

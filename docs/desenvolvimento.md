@@ -135,3 +135,19 @@ O heartbeat é um indicador de disponibilidade do event loop, não uma medição
 renderização Vue nem uma homologação do instalador Windows. Os arquivos temporários
 sintéticos são removidos após cada execução. Resultados estão em
 `docs/desempenho-recuperacao-lotes.md`.
+
+## Restauração e retenção
+
+`backup-restore.ts` valida manifestos v1, hashes, integridade e histórico de
+migrations; prepara uma cópia migrada, cria snapshot anterior e usa journal para
+recuperar uma troca interrompida na abertura. `backup-retention.ts` limita expurgo
+a cópias automáticas da instalação identificada e limpa somente temporários
+reconhecidos. Operações de banco ficam bloqueadas durante a restauração.
+
+Verificação deste incremento: `pnpm check` aprovado; os 12 testes de restauração,
+retenção e handlers IPC também passaram no runtime Electron instalado, via
+`ELECTRON_RUN_AS_NODE=1 .../electron node_modules/vitest/vitest.mjs run`.
+Testes incluem cancelamento da confirmação, interrupção na troca, corrupção,
+schema futuro, migration de cópia antiga, isolamento de instalação e preservação
+de checkpoints pendentes. Isso não substitui homologação da interface e do
+filesystem no Windows.

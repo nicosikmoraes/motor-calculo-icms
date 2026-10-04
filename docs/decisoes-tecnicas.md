@@ -698,3 +698,36 @@ Inspeção inicial, consulta detalhada e reavaliação de regras ainda usam o pr
 principal. Fontes precisam permanecer disponíveis no caminho original. O backup
 SQLite da DT-037 não inclui os checkpoints de importações ainda não confirmadas.
 Metas e homologação de Windows, massa real e volumes extremos permanecem em MD-11.
+
+
+## DT-039 — Restauração validada e retenção de sete backups automáticos
+
+Autorizado pelo responsável em 04/10/2026; retenção de sete cópias automáticas
+confirmada expressamente. Cópias manuais e de segurança anteriores à restauração
+são preservadas. Política ajustável de 1 a 365; zero desativa o expurgo. Salvar
+não apaga imediatamente. A manutenção executa após backups e na verificação
+periódica diária, com operações serializadas com a criação de cópias.
+
+Novos manifestos v1 incluem `ownerId`; versões v1 anteriores continuam restauráveis,
+mas não são apagadas automaticamente por falta de identidade de instalação.
+O expurgo considera apenas pacotes automáticos próprios, com manifesto e snapshot
+válidos, preservando a cópia mais recente. Pacotes manuais, corrompidos e alheios
+não são removidos. Falha na limpeza não invalida um backup recém-concluído.
+
+A restauração usa diálogo nativo e confirmação da data. Verifica SHA-256,
+`integrity_check`, `foreign_key_check` e sequência/checksums das migrations.
+Uma cópia temporária compatível é migrada antes de trocar o banco ativo; versão
+futura ou histórico incompatível bloqueiam a restauração. Após validação e
+confirmação, cria snapshot de segurança do estado atual e journal local, fecha
+a conexão, troca arquivos e reinicia. Journal remanescente causa recuperação do
+estado anterior na abertura, após verificar seu hash e integridade. Operações
+que acessam o banco ficam bloqueadas durante restauração; lote ativo impede seu
+início. A confirmação cancelada não troca dados.
+
+O alcance continua sendo o SQLite; preferências, XML/ZIP externos, relatórios e
+checkpoints pendentes não são restaurados. Retenção fiscal geral continua no
+MD-09. A limpeza técnica remove fragmentos e snapshots órfãos acima de 24h,
+parciais de backup próprios acima de 24h e checkpoints de lotes já confirmados,
+sem expirar importações pendentes. Remoções são registradas em log JSONL limitado
+a aproximadamente 1 MiB por arquivo, com uma rotação anterior. Homologação de
+restauração e filesystem no Windows permanece pendente.
