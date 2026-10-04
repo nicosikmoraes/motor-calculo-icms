@@ -38,10 +38,13 @@ jobs:
         run: |
           $installer = (Get-ChildItem apps/desktop/release/*-Setup.exe | Select-Object -First 1).FullName
           $destination = Join-Path $env:RUNNER_TEMP 'ContabiliNico instalado'
-          $process = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -Wait -PassThru
+          $process = Start-Process -FilePath $installer -ArgumentList "/S /currentuser /D=`"$destination`"" -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Instalação falhou: $($process.ExitCode)" }
           $exe = Join-Path $destination 'ContabiliNico.exe'
-          if (!(Test-Path $exe)) { throw 'Executável não instalado' }
+          if (!(Test-Path $exe)) {
+            Get-ChildItem $destination -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
+            throw 'Executável não instalado na pasta solicitada'
+          }
           node scripts/smoke-installed-windows.mjs $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:ELECTRON_RUN_AS_NODE = '1'
