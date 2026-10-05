@@ -133,6 +133,7 @@ describe("migrations e repositórios centrais", () => {
       "auditoria_retencao_controle",
       "auditoria_retencao_execucoes",
       "avaliacoes_regras_itens",
+      "definicoes_respostas_fiscais",
       "diagnosticos_ingestao",
       "documentos_fiscais",
       "empresas",

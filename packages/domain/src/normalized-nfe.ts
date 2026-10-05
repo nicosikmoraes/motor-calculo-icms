@@ -11,6 +11,7 @@ export interface NormalizedParty {
   taxIdType?: 'CNPJ' | 'CPF'
   name?: string
   stateRegistration?: string
+  stateRegistrationIndicator?: string
   state?: string
   taxRegimeCode?: string
 }

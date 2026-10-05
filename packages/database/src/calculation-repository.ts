@@ -27,7 +27,7 @@ export interface SaveCalculationRunInput {
 export class SqliteCalculationRepository {
   constructor(private readonly database: SqliteDatabase) {}
 
-  save(input: SaveCalculationRunInput): CalculationRunRecord {
+  save(input: SaveCalculationRunInput, additionalWrite?: (record: CalculationRunRecord) => void): CalculationRunRecord {
     if (!input.requestId.trim() || !input.batchId.trim() || !input.documentId.trim() || !input.engineVersion.trim() || !input.items.length) {
       throw new AppError(AppErrorCode.CALCULATION_RUN_INCOMPLETE)
     }
@@ -80,6 +80,7 @@ export class SqliteCalculationRepository {
           record.id, record.documentId, item.itemNumber, item.memory.status, JSON.stringify(item.memory),
         )
       }
+      additionalWrite?.(record)
       return record
     })
   }

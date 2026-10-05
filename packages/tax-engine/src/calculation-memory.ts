@@ -30,6 +30,7 @@ export interface CalculationStep {
 }
 
 export interface CalculationMemory {
+  comparisons?: readonly import('./declared-comparison').DeclaredComparison[]
   schemaVersion: 1
   status: CalculationStatus
   reason?: string

@@ -34,6 +34,7 @@ function party(node: XmlObject | undefined, addressKey: string): NormalizedParty
     taxIdType: cnpj ? 'CNPJ' : cpf ? 'CPF' : undefined,
     name: asString(node.xNome),
     stateRegistration: asString(node.IE),
+    stateRegistrationIndicator: asString(node.indIEDest),
     state: address ? asString(address.UF) : undefined,
     taxRegimeCode: asString(node.CRT),
   })

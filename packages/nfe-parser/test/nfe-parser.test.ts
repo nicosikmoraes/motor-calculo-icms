@@ -18,6 +18,11 @@ async function fixture(): Promise<string> {
 }
 
 describe('parseNfeXml', () => {
+  it('normaliza o indicador de contribuinte do destinatário sem inferir pelo número de IE', async () => {
+    const xml = await fixture()
+    expect(normalizeNfeXml(xml).recipient?.stateRegistrationIndicator).toBe('9')
+    expect(normalizeNfeXml(xml.replace('<indIEDest>9</indIEDest>', '<indIEDest>1</indIEDest>')).recipient?.stateRegistrationIndicator).toBe('1')
+  })
   it('extrai a identificação sem converter códigos com zeros à esquerda', async () => {
     const result = parseNfeXml(await fixture())
 
