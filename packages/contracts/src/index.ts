@@ -1,4 +1,5 @@
 export const IPC_CHANNELS = {
+  EXPORT_BATCH_EXCEL: 'report:export-batch-excel',
   SET_BACKUP_RETENTION: 'backup:set-retention',
   RESTORE_BACKUP: 'backup:restore',
   GET_BACKUP_STATUS: 'backup:status',
@@ -491,6 +492,7 @@ export enum CalculationInputTreatmentCode {
 }
 
 export interface ItemCalculationSummary {
+  deferredAmount?: string
   comparisons?: readonly {
     component: 'BASE' | 'ICMS'; calculated: string; declared?: string; difference?: string; tolerance: string
     status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
@@ -592,6 +594,7 @@ export interface RuleAssessmentRunSummary {
 }
 
 export interface BatchDetail {
+  consolidation?: BatchConsolidation
   batch: BatchListItem
   occurrences: readonly BatchOccurrenceSummary[]
   diagnostics: readonly BatchDiagnosticSummary[]
@@ -599,6 +602,44 @@ export interface BatchDetail {
   documents: readonly FiscalDocumentSummary[]
   ruleAssessmentRuns: readonly RuleAssessmentRunSummary[]
   originalAssessmentPack?: { id: string; version: number }
+}
+
+export type ConsolidationPerspective = 'SALES' | 'PURCHASES' | 'UNDETERMINED'
+export interface ConsolidationCounts {
+  documents: number; items: number; calculated: number; pending: number; unsupported: number; excluded: number
+  declaredMissing: number; declaredInvalid: number; deferredMissing: number
+  divergentItems: number; withinToleranceItems: number; comparableItems: number
+}
+export interface ConsolidationTotals {
+  calculatedBase: string; calculatedIcms: string; declaredIcms: string; deferredIcms: string
+  comparedCalculatedIcms: string; comparedDeclaredIcms: string; difference: string; absoluteDifferences: string
+}
+export interface ConsolidationGroup {
+  companyId?: string; companyName?: string; period?: string
+  environment: '1' | '2' | 'UNKNOWN'
+  perspective: ConsolidationPerspective
+  authorization: 'WITH_PROTOCOL' | 'UNVERIFIED'
+  counts: ConsolidationCounts
+  totals: ConsolidationTotals
+  purchaseCredit: 'NOT_CALCULATED'
+}
+export interface ConsolidationEvidence {
+  documentId: string; itemNumber: string; accessKey: string; documentNumber: string
+  companyId?: string; period?: string; environment: '1' | '2' | 'UNKNOWN'
+  perspective: ConsolidationPerspective; authorization: 'WITH_PROTOCOL' | 'UNVERIFIED'
+  status: 'CALCULATED' | 'PENDING' | 'UNSUPPORTED' | 'EXCLUDED'
+  reasons: readonly string[]
+  runId?: string; engineVersion?: string
+  calculatedIcms?: string; declaredIcms?: string; deferredIcms?: string
+  comparison?: NonNullable<ItemCalculationSummary['comparisons']>[number]
+}
+export interface BatchConsolidation {
+  schemaVersion: 1; batchId: string; generatedAt: string
+  basis: 'LATEST_SAVED_CALCULATIONS'
+  character: 'CONFERENCE_ONLY'
+  groups: readonly ConsolidationGroup[]
+  evidence: readonly ConsolidationEvidence[]
+  counts: ConsolidationCounts
 }
 
 export type PackEntity = 'companies' | 'profiles' | 'products' | 'rules'
@@ -690,6 +731,7 @@ export interface DesktopApi {
   cancelBatchOperation(operationId: string): Promise<boolean>
   onBatchProgress(listener: (progress: BatchOperationProgress) => void): () => void
   listBatches(): Promise<readonly BatchListItem[]>
+  exportBatchExcel(batchId: string): Promise<{ path: string } | null>
   getBatchDetail(batchId: string, runId?: string): Promise<BatchDetail>
   reassessBatchRules(batchId: string): Promise<RuleAssessmentRunSummary>
   getItemFiscalContext(batchId: string, documentId: string, itemNumber: string): Promise<ItemFiscalContext>

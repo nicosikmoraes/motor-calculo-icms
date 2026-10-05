@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BatchDetail } from '@motor/contracts'
+import { buildBatchConsolidation } from '../src/consolidation'
 import { buildReportData } from '../src/report-data'
 
 const metadata = { generatedAt: '2026-10-01T20:00:00-03:00', appVersion: '0.1.0' }
@@ -79,4 +80,14 @@ describe('snapshot de dados do relatório', () => {
     expect(() => buildReportData(fixture(), { ...metadata, appVersion: '' })).toThrow(/Metadados/)
     expect(() => buildReportData(fixture(), { ...metadata, generatedAt: '2026-10-01' })).toThrow(/Metadados/)
   })
+})
+
+
+it('preserva a consolidação no snapshot sem congelar ou compartilhar a origem', () => {
+  const source = fixture()
+  source.consolidation = buildBatchConsolidation('batch', [])
+  const report = buildReportData(source, metadata)
+  expect(report.consolidation).toEqual(source.consolidation)
+  expect(report.consolidation).not.toBe(source.consolidation)
+  expect(Object.isFrozen(report.consolidation?.groups)).toBe(true)
 })

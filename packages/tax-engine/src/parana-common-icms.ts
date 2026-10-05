@@ -88,6 +88,7 @@ export function calculateParanaCommonIcms(input: ParanaCommonIcmsInput): Calcula
     const deferredAmount = roundMoney(subtractDecimals(original, due))
     return {
       schemaVersion: 1, status: 'CALCULATED',
+      deferredAmount,
       rule: { id: deferred ? 'PR_COMMON_195_PARTIAL_DEFERRAL_12' : 'PR_COMMON_195', version: 1, legalBasis },
       inputs: inputs.map(entry => ({ ...entry, treatment:
         (entry.name === 'ipiAmount' && input.ipiTreatment !== 'INCLUDED')

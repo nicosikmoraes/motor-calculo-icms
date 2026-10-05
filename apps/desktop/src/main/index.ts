@@ -11,6 +11,7 @@ import { registerBatchInspectionHandlers } from './batch-inspection-handlers'
 import { registerBatchCreateHandler } from './batch-create-handler'
 import { registerBatchQueryHandlers } from './batch-query-handlers'
 import { registerBatchReassessmentHandler } from './batch-reassessment-handler'
+import { registerReportHandlers } from './report-handlers'
 import { registerItemFiscalHandlers } from './item-fiscal-handlers'
 import { batchOperations, closeDatabase, openDatabase, requiredInputText } from './main-services'
 
@@ -65,6 +66,7 @@ function registerIpcHandlers(): void {
   registerBatchQueryHandlers()
   registerBatchReassessmentHandler()
   registerItemFiscalHandlers()
+  registerReportHandlers()
 }
 
 // Uma segunda instância reutiliza a janela já aberta e não concorre pelo SQLite nem pelo estágio.

@@ -45,6 +45,11 @@ jobs:
             Get-ChildItem $destination -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName
             throw 'Executável não instalado na pasta solicitada'
           }
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          $generator = Join-Path $destination 'resources/app/out/main/report-generator.js'
+          & $exe scripts/smoke-installed-excel.mjs $generator
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item Env:ELECTRON_RUN_AS_NODE
           node scripts/smoke-installed-windows.mjs $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:ELECTRON_RUN_AS_NODE = '1'

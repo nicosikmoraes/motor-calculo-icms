@@ -16,8 +16,9 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 O primeiro escopo aprovado e as decisões de precisão, destinação e diferimento
 estão em [escopo-fiscal-parana.md](escopo-fiscal-parana.md). Já existe uma função
 para o ICMS próprio comum PR, ligada às perguntas por item e a execuções
-históricas, reaproveitamento opcional, rateio e conferência do XML. Consolidação e os
-demais tratamentos abaixo continuam pendentes.
+históricas, reaproveitamento opcional, rateio e conferência do XML. A consolidação
+do lote por empresa e mês está disponível (DT-044), assim como sua exportação XLSX
+(DT-045). Apuração mensal entre lotes, créditos e os demais tratamentos seguem pendentes.
 
 1. Fórmulas e condições completas de ICMS próprio.
 2. Base reduzida, cálculo por dentro e composição de frete, seguro, desconto, despesas e IPI.
@@ -30,15 +31,15 @@ demais tratamentos abaixo continuam pendentes.
 9. Arredondamento por componente e tolerâncias de divergência.
 10. Tratamento de valores negativos, zeros e limites de precisão decimal.
 
-## Prioridade 3 — contrato do XLSX
+## Prioridade 3 — extensões do XLSX
 
-1. Abas definitivas e nomes.
-2. Colunas, tipos, ordem, filtros e congelamento de painéis.
-3. Separação entre total definitivo, subtotal provisório, diagnóstico e valores excluídos.
-4. Fórmulas de reconciliação e linhas de total.
-5. Representação de cancelamentos, eventos, divergências e pendências.
-6. Necessidade de uma aba específica `Eventos`.
-7. Formatação monetária, datas, casas decimais e identificação da versão do relatório.
+O layout inicial está implementado na DT-045: Resumo, Itens, Divergências e
+Pendências e exclusões. Inclui filtros, painéis fixos, moeda, datas originais e
+rastreabilidade. Exporta os totais de conferência já salvos, com ambientes e
+protocolos separados, sem fórmulas fiscais ou total definitivo inventado.
+
+1. Decidir se o histórico completo de eventos exige uma aba própria `Eventos`.
+2. Ampliar o relatório quando forem aprovadas a apuração entre lotes e as regras de crédito.
 
 ## Prioridade 4 — persistência local
 
