@@ -9,6 +9,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@motor/contracts": "workspace:*"
+    "@motor/contracts": "workspace:*",
+    "@motor/tax-engine": "workspace:*",
+    "exceljs": "4.4.0"
   }
 }

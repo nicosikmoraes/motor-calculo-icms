@@ -26,6 +26,7 @@ export interface ReportPendency {
 }
 /** Modelo interno de evidências; não define abas, colunas ou totais fiscais. */
 export interface ReportData {
+  consolidation?: BatchDetail['consolidation']
   schemaVersion: 1
   metadata: ReportMetadata
   batch: BatchDetail['batch']
@@ -113,6 +114,7 @@ export function buildReportData(source: BatchDetail, metadata: ReportMetadata): 
       code: 'ARTIFACT_RESPONSE_MISMATCH', artifactId: artifact.id })
   }
   return freeze({ schemaVersion: 1, metadata: { ...metadata }, batch: snapshot.batch,
+    ...(snapshot.consolidation ? { consolidation: snapshot.consolidation } : {}),
     documents, items, pendencies, rules, diagnostics: snapshot.diagnostics,
     occurrences: snapshot.occurrences, artifacts: snapshot.artifacts,
     assessmentHistory: snapshot.ruleAssessmentRuns,

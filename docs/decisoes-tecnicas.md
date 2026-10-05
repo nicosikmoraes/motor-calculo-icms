@@ -804,3 +804,58 @@ R$ 0,01 inclusiva por componente/item; diferença assinada visível, sem alterar
 resultado ou compensar diferenças entre itens. Ausente, inválido, igualdade,
 tolerância e divergência são distintos. Cálculos anteriores e sua versão ficam
 preservados; definições de outra versão precisam de nova confirmação.
+
+## DT-044 — Consolidação de conferência por empresa e mês
+
+Autorizada em 04/10/2026. A tela do lote reúne exclusivamente as últimas memórias
+salvas por documento, agrupando empresa, mês civil de emissão no XML, compras ou
+vendas, ambiente e presença de protocolo de autorização associado. Não converte
+a emissão para UTC nem mistura homologação e produção. É um resumo deste lote,
+não uma apuração mensal que reúne todos os lotes, nem saldo a recolher.
+
+Valores monetários são somados em decimal: base, ICMS calculado, declarado
+nos itens elegíveis e diferimento conhecido. Declaração de itens sem cálculo
+fica separada da comparação, feita apenas sobre pares calculado/declarado.
+Diferença líquida e soma absoluta aparecem juntas, com contagem de divergências
+e tolerância inclusiva de R$ 0,01 por item. Créditos de compras não são apurados.
+
+Cancelamento/denegação já reconhecidos pelo fluxo, ocorrências inelegíveis,
+chaves duplicadas elegíveis, empresa/orientação/ambiente/emissão não identificados
+e eventos que exigem revisão ficam fora dos valores. Sem protocolo confirmado,
+o subtotal aparece separado e provisório. Presença de protocolo não equivale a
+verificação criptográfica. Pendentes, fora do escopo e excluídos permanecem
+rastreáveis por nota, chave, item, execução e versão do motor. Ausência ou
+invalidade de valores declarados e ausência de diferimento têm contadores
+próprios; memórias antigas usam a etapa histórica de diferimento quando presente.
+O snapshot do relatório conserva essa conferência sem recalcular as notas.
+
+## DT-045 — Exportação XLSX da conferência do lote
+
+Autorizada em 04/10/2026. O botão Exportar Excel na tela do lote exporta todas as
+empresas e meses do lote, independentemente dos filtros visuais. O processo
+principal consulta os dados da organização ativa e captura um snapshot antes
+do seletor nativo, sem manter transação aberta durante a escolha do destino.
+Importação em execução exige aguardar ou pausar. Não salva respostas fiscais,
+não recalcula imposto e não cria execuções de cálculo.
+
+Layout XLSX 1, biblioteca ExcelJS 4.4.0, quatro abas: Resumo, Itens, Divergências,
+Pendências e exclusões. Preserva compras/vendas, produção/homologação e protocolos
+em grupos separados. Resumo contém totais da DT-044, contagens e crédito não
+apurado; comparação considera apenas os pares conhecidos. Divergências também
+mostra diferenças dentro da tolerância, com situação e limite explícitos.
+Pendências inclui motivos de exclusão, dados ausentes/inválidos, classificação,
+enquadramento, artefatos, diagnósticos XML e ocorrências não totalizáveis.
+
+Cabeçalhos e primeira coluna fixos, filtros, linhas alternadas e textos ajustados.
+Chaves, números, séries, códigos, NCM, CFOP, IDs e emissão original são textuais.
+Moeda com duas casas; só converte para número quando há no máximo 15 dígitos e
+conversão de ida e volta preserva os centavos. Valores maiores ou inválidos ficam
+textuais, ausentes ficam em branco. Não há fórmulas fiscais no arquivo; texto
+externo nunca é interpretado como fórmula ou hyperlink. Cada aba identifica lote,
+data de exportação, versão do aplicativo e layout, com aviso de conferência sem
+crédito ou saldo a recolher. Abas vazias têm mensagem própria.
+
+Somente destino .xlsx escolhido pelo usuário. Escrita em temporário exclusivo
+na mesma pasta, sincronização e rename preservam o arquivo anterior em falhas;
+limpa temporários. Cancelar ou fechar a janela não gera arquivo. O gerador recusa
+textos e quantidades de linhas acima dos limites do Excel sem truncar dados.

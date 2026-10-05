@@ -21,6 +21,7 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  exportBatchExcel: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_BATCH_EXCEL, batchId),
   exportPack: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_PACK),
   previewPack: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW_PACK),
   importPack: (input) => ipcRenderer.invoke(IPC_CHANNELS.IMPORT_PACK, { token: input.token, choices: { ...input.choices } }),

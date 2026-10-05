@@ -12,7 +12,7 @@ export default defineConfig({
       },
     },
     plugins: [externalizeDepsPlugin({
-      exclude: ['@motor/interchange', '@motor/contracts', '@motor/database', '@motor/domain', '@motor/nfe-parser', '@motor/tax-engine'],
+      exclude: ['@motor/reporting', '@motor/interchange', '@motor/contracts', '@motor/database', '@motor/domain', '@motor/nfe-parser', '@motor/tax-engine'],
     })],
   },
   preload: {

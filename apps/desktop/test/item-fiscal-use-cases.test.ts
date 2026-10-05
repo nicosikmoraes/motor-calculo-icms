@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteDatabase, SqliteOrganizationRepository,
   SqliteCompanyRepository, SqliteFiscalAnswerDefinitionRepository, runSqlMigrations } from '@motor/database'
+import { getBatchConsolidation } from '../src/main/batch-consolidation'
 import { randomUUID } from 'node:crypto'
 import type { NormalizedNfe } from '@motor/domain'
 import type { ItemFiscalAnswers } from '@motor/contracts'
@@ -246,5 +247,30 @@ describe('perguntas fiscais no lote', () => {
     const historic = new SqliteCalculationRepository(db).latestByDocument(docId)!.items[0]!.memory
     expect(buildItemFiscalContext(nfe, nfe.items[0]!, complete, historic, saved.runId, reason).calculation.result).toBeUndefined()
     expect(historic.result?.amount).toBe('120.00')
+  })
+})
+
+
+describe('consolidação integrada aos cálculos persistidos', () => {
+  it('separa ICMS de compras sem conceder crédito e atualiza após salvar respostas', () => {
+    const next = laterNote({ environmentCode: '1' }, { productAmount: '1000' })
+    const before = getBatchConsolidation(db, next.batchId)
+    expect(before.groups[0]).toMatchObject({ perspective: 'PURCHASES', authorization: 'UNVERIFIED',
+      purchaseCredit: 'NOT_CALCULATED', counts: { pending: 1 }, totals: { declaredIcms: '120.00', calculatedIcms: '0.00' } })
+    const saved = saveItemFiscalAnswers(db, { ...next, requestId: 'summary', answers: complete })
+    const after = getBatchConsolidation(db, next.batchId)
+    expect(after.groups[0]).toMatchObject({ counts: { calculated: 1, pending: 0 },
+      totals: { calculatedIcms: '120.00', deferredIcms: '75.00', difference: '0.00' } })
+    expect(after.evidence[0]?.runId).toBe(saved.calculation.runId)
+    expect(before.groups[0]?.totals.calculatedIcms).toBe('0.00')
+  })
+  it('exclui empresa sem vínculo como emitente ou destinatária', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, taxId: '99999999000199' }, recipient: { ...nfe.recipient!, taxId: '88888888000188' } })
+    const summary = getBatchConsolidation(db, next.batchId)
+    expect(summary.counts.excluded).toBe(1)
+    expect(summary.groups[0]?.totals.declaredIcms).toBe('0.00')
+  })
+  it('rejeita lote inexistente', () => {
+    expect(() => getBatchConsolidation(db, 'unknown')).toThrow('Lote não encontrado')
   })
 })

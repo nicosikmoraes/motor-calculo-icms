@@ -6,6 +6,7 @@ import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocume
 import ItemClassificationDetails from '../components/ItemClassificationDetails.vue'
 import RuleAssessmentDetails from '../components/RuleAssessmentDetails.vue'
 import CalculationMemoryDetails from '../components/CalculationMemoryDetails.vue'
+import BatchConsolidationSummary from '../components/BatchConsolidationSummary.vue'
 import ItemFiscalQuestions from '../components/ItemFiscalQuestions.vue'
 
 const route = useRoute()
@@ -13,6 +14,7 @@ const detail = ref<BatchDetail | null>(null)
 const error = ref('')
 const notice = ref('')
 const saving = ref(false)
+const exporting = ref(false)
 const reassessing = ref(false)
 const selectedRunId = ref('')
 const profilesByCompany = ref<Record<string, readonly FiscalProfileSummary[]>>({})
@@ -64,6 +66,17 @@ async function loadDetail(): Promise<void> {
   const entries = await Promise.all(companyIds.map(async (id) => [id, activeCompanies.has(id)
     ? (await window.desktopApi.listFiscalProfiles(id)).filter((profile) => profile.active) : []] as const))
   profilesByCompany.value = Object.fromEntries(entries)
+}
+
+async function exportExcel(): Promise<void> {
+  if (!detail.value || exporting.value) return
+  exporting.value = true; error.value = ''; notice.value = ''
+  try {
+    const result = await window.desktopApi.exportBatchExcel(detail.value.batch.id)
+    if (result) notice.value = `Excel exportado: ${result.path}`
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Não foi possível exportar o Excel.'
+  } finally { exporting.value = false }
 }
 
 async function chooseRun(): Promise<void> {
@@ -147,7 +160,10 @@ onMounted(async () => {
           <h2>{{ detail.batch.originalName || 'Lote fiscal' }}</h2>
           <p class="lead">{{ detail.batch.companyName }} · {{ environment(detail.batch.environmentCode) }} · {{ detail.batch.id }}</p>
         </div>
+        <button class="button secondary" type="button" :disabled="exporting || saving || reassessing" @click="exportExcel">{{ exporting ? 'Exportando…' : 'Exportar Excel' }}</button>
       </header>
+      <p>O Excel contém todas as empresas e meses deste lote, com os últimos cálculos salvos.</p>
+      <BatchConsolidationSummary v-if="detail.consolidation" :summary="detail.consolidation" />
 
       <section class="card reassessment-panel" aria-labelledby="reassessment-title">
         <div>

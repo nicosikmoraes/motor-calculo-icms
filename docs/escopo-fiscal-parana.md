@@ -79,7 +79,9 @@ continua separada do cálculo, preservando seus registros anteriores.
 
 ## Integrações ainda necessárias
 
-Faltam consolidação e ampliação do
+A consolidação de conferência por empresa e mês está disponível na tela do lote
+(DT-044), com compras/vendas, ambientes e protocolos separados. Ela resume apenas
+o lote aberto; não apura créditos nem saldo a recolher. Falta ampliação do
 catálogo fiscal para automatizar o enquadramento sem confirmação manual.
 
 ## Reaproveitamento das respostas
