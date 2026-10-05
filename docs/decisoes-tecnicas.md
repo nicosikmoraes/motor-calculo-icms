@@ -859,3 +859,10 @@ Somente destino .xlsx escolhido pelo usuário. Escrita em temporário exclusivo
 na mesma pasta, sincronização e rename preservam o arquivo anterior em falhas;
 limpa temporários. Cancelar ou fechar a janela não gera arquivo. O gerador recusa
 textos e quantidades de linhas acima dos limites do Excel sem truncar dados.
+
+A verificação do instalador identificou uma dependência transitiva ausente
+(`concat-map`) ao carregar ExcelJS externamente. O gerador e suas dependências
+JavaScript passaram a integrar os chunks compilados. A entrada distribuída
+`report-generator.js` permite ao workflow gerar e inspecionar um XLSX usando o
+executável Electron instalado, antes de verificar renderer e worker, sem importar
+pacotes do checkout.
