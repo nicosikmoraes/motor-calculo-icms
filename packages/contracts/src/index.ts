@@ -47,6 +47,9 @@ export const IPC_CHANNELS = {
   LIST_BATCHES: 'batch:list',
   GET_BATCH_DETAIL: 'batch:get-detail',
   REASSESS_BATCH_RULES: 'batch:reassess-rules',
+  GET_ITEM_FISCAL_CONTEXT: 'batch:get-item-fiscal-context',
+  SAVE_ITEM_FISCAL_ANSWERS: 'batch:save-item-fiscal-answers',
+  APPLY_REUSABLE_FISCAL_ANSWERS: 'batch:apply-reusable-fiscal-answers',
 } as const
 
 export interface OrganizationSummary {
@@ -488,6 +491,10 @@ export enum CalculationInputTreatmentCode {
 }
 
 export interface ItemCalculationSummary {
+  comparisons?: readonly {
+    component: 'BASE' | 'ICMS'; calculated: string; declared?: string; difference?: string; tolerance: string
+    status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
+  }[]
   status: `${CalculationStatusCode}`
   reason?: string
   runId?: string
@@ -497,6 +504,45 @@ export interface ItemCalculationSummary {
   steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
   result?: { base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
+}
+
+export interface ItemFiscalAnswers {
+  destination?: 'RESALE' | 'INDUSTRIALIZATION' | 'FIXED_ASSET' | 'OWN_USE'
+  recipientIsIcmsTaxpayer?: boolean
+  constructionCompany?: boolean
+  petroleumOrFuel?: boolean
+  ordinaryTaxTreatmentConfirmed?: boolean
+  discountTreatment?: 'UNCONDITIONAL' | 'CONDITIONAL'
+  ipiTreatment?: 'INCLUDED' | 'EXCLUDED'
+}
+
+export interface ItemFiscalQuestion {
+  field: keyof ItemFiscalAnswers
+  label: string
+  options: readonly { value: string; label: string }[]
+}
+
+export interface ItemFiscalContext {
+  reuseAvailable?: boolean
+  reuseNotice?: string
+  definitionId?: string
+  answers: ItemFiscalAnswers
+  questions: readonly ItemFiscalQuestion[]
+  blockedReason?: string
+  runId?: string
+  xmlFacts: readonly string[]
+  calculation: ItemCalculationSummary
+}
+
+export interface SaveItemFiscalAnswersInput {
+  reuseScope?: 'CURRENT_ITEM' | 'FUTURE_NOTES'
+  expectedDefinitionId?: string
+  batchId: string
+  documentId: string
+  itemNumber: string
+  requestId: string
+  expectedRunId?: string
+  answers: ItemFiscalAnswers
 }
 
 export interface DocumentArtifactSummary {
@@ -646,4 +692,7 @@ export interface DesktopApi {
   listBatches(): Promise<readonly BatchListItem[]>
   getBatchDetail(batchId: string, runId?: string): Promise<BatchDetail>
   reassessBatchRules(batchId: string): Promise<RuleAssessmentRunSummary>
+  getItemFiscalContext(batchId: string, documentId: string, itemNumber: string): Promise<ItemFiscalContext>
+  saveItemFiscalAnswers(input: SaveItemFiscalAnswersInput): Promise<ItemFiscalContext>
+  applyReusableFiscalAnswers(batchId: string): Promise<number>
 }

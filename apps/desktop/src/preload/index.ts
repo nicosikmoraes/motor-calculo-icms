@@ -115,6 +115,14 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.GET_BATCH_DETAIL, batchId, runId) as Promise<BatchDetail>,
   reassessBatchRules: (batchId) =>
     ipcRenderer.invoke(IPC_CHANNELS.REASSESS_BATCH_RULES, batchId) as Promise<RuleAssessmentRunSummary>,
+  getItemFiscalContext: (batchId, documentId, itemNumber) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_ITEM_FISCAL_CONTEXT, batchId, documentId, itemNumber),
+  saveItemFiscalAnswers: (input) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_ITEM_FISCAL_ANSWERS, {
+    batchId: input.batchId, documentId: input.documentId, itemNumber: input.itemNumber,
+    requestId: input.requestId, expectedRunId: input.expectedRunId, answers: { ...input.answers },
+    reuseScope: input.reuseScope, expectedDefinitionId: input.expectedDefinitionId,
+  }),
+  applyReusableFiscalAnswers: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.APPLY_REUSABLE_FISCAL_ANSWERS, batchId),
 }
 
 contextBridge.exposeInMainWorld('desktopApi', api)

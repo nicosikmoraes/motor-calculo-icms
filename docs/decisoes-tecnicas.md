@@ -731,3 +731,76 @@ parciais de backup próprios acima de 24h e checkpoints de lotes já confirmados
 sem expirar importações pendentes. Remoções são registradas em log JSONL limitado
 a aproximadamente 1 MiB por arquivo, com uma rotação anterior. Homologação de
 restauração e filesystem no Windows permanece pendente.
+
+## DT-040 — Primeiro cálculo comum PR e diferimento parcial
+
+Escopo e método aprovados pelo responsável em 04/10/2026, detalhados em
+[escopo-fiscal-parana.md](escopo-fiscal-parana.md). A função isolada
+`calculateParanaCommonIcms` calcula saídas comuns internas PR do regime normal
+com alíquota nominal de 19,5%, desde 18/03/2024, e carga de 12% por diferimento
+parcial quando satisfeitas suas condições. Entradas desconhecidas permanecem
+pendentes; outros tratamentos ficam fora do escopo. O enquadramento é uma
+entrada confirmada e não é deduzido do valor declarado ou de um CST isolado.
+
+A base usa valores dos itens, sem novo acréscimo do próprio ICMS. IPI e desconto
+não nulos exigem classificação expressa. Aritmética decimal e arredondamento
+HALF_UP a duas casas preservam a reconciliação entre imposto original, devido
+e diferido. A memória conserva também o imposto declarado. Não concede créditos
+de compras nem calcula impostos ST/FCP por essa função. A interface de perguntas,
+a persistência das respostas e a execução nos lotes estão descritas na DT-041;
+rateio e consolidação continuam pendentes.
+
+## DT-041 — Perguntas fiscais por item durante a análise do lote
+
+Incremento autorizado em 04/10/2026. Após importar o lote, o aplicativo abre a
+análise com as perguntas do primeiro item coberto e permite avançar para outros.
+Campos do XML são somente leitura; a ponte aceita respostas enumeradas/booleanas,
+valida lote/documento/item da organização atual e rejeita valores fiscais externos.
+O indicador `indIEDest` passa a ser normalizado, sem deduzir regime do destinatário.
+
+Respostas parciais geram pendências persistentes. Cada gravação cria uma execução
+imutável no repositório de cálculos existente, com respostas, origem, data e
+execução anterior. Preserva resultados dos demais itens e usa identificador de
+solicitação para idempotência. O ID da execução esperado evita sobrescrever uma
+tela concorrente. Não requer migration nova nem cadastro prévio de produto.
+
+A regra comum é confirmada expressamente no fluxo, sem promover regras DRAFT.
+Conflitos de destinação/consumidor final e IPI permanecem pendências; documentos
+não elegíveis, cancelados/denegados associados, tributação específica ou totais
+sem distribuição ficam bloqueados. Esse cálculo é conferência da operação,
+sem apuração definitiva ou crédito automático. Respostas valem para o item atual;
+reaproveitamento em notas futuras está descrito na DT-042; rateio e ampliação do
+escopo ficam pendentes.
+
+## DT-042 — Definições reutilizáveis por empresa, fornecedor e produto
+
+Autorizado em 04/10/2026. O usuário escolhe entre só o item e próximas notas da
+empresa para o produto daquele fornecedor. A migration 15 registra definições
+imutáveis, com contexto fiscal, respostas, datas e execução de origem. A gravação
+da definição e do cálculo é atômica; o ID esperado da definição evita sobrescrita
+concorrente. Reutilização exige empresa ativa, CNPJ do emitente, código do produto
+e respostas completas que permitam calcular o item de origem. Só o item continua
+aceitando respostas parciais e não altera a definição futura.
+
+Ao abrir a análise, uma chamada específica aplica as definições compatíveis e
+persiste os cálculos antes da consulta. O contexto detalhado e as restrições de
+datas estão em escopo-fiscal-parana.md. Mudanças voltam a pedir conferência;
+valores/quantidades diferentes são recalculados com a nova nota. Não substitui
+respostas manuais ou cálculos existentes. A memória mantém o ID da definição e
+da execução de origem, e a aplicação repetida não duplica os resultados.
+
+## DT-043 — Rateio e conferência por item
+
+Autorizado em 04/10/2026 junto à criação e merge do PR deste conjunto. O motor
+PR_COMMON_2 distribui saldo de frete, seguro, desconto e outras despesas entre
+campos ausentes por valor do produto, preservando valores explícitos. Inteiros em
+centavos, pesos decimais exatos e maiores restos (desempate numérico pelo item)
+fecham o total. Inconsistências e composição ambígua de itens excluídos exigem
+revisão; não distribui IPI divergente como despesa. Registra o rateio e sua origem
+na memória sem alterar os dados originais do XML.
+
+Novos cálculos guardam comparação de base e ICMS ao declarado. Tolerância de
+R$ 0,01 inclusiva por componente/item; diferença assinada visível, sem alterar o
+resultado ou compensar diferenças entre itens. Ausente, inválido, igualdade,
+tolerância e divergência são distintos. Cálculos anteriores e sua versão ficam
+preservados; definições de outra versão precisam de nova confirmação.

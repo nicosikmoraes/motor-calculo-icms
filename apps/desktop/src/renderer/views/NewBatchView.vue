@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import type { BatchCompanyCandidate, BatchOperationProgress, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
 import { serializableSources } from '../serializable-sources'
 import { suggestCompanyForDocument } from '../company-assignment'
 
 const sources = ref<SelectedSource[]>([])
+const router = useRouter()
 const selecting = ref(false)
 const inspecting = ref(false)
 const hasSources = computed(() => sources.value.length > 0)
@@ -128,6 +129,9 @@ async function createBatch(): Promise<void> {
       environmentCode: selectedEnvironmentCode.value,
       sources: serializableSources(sources.value),
     })
+    if (!['INTERROMPIDO', 'CANCELADO'].includes(createdBatch.value.status) && createdBatch.value.totalDocuments > 0) {
+      await router.push(`/lotes/${createdBatch.value.id}`)
+    }
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_CREATE
   } finally {
@@ -344,7 +348,7 @@ onUnmounted(() => unsubscribeProgress?.())
         <span>{{ createdBatch.totalFiles }} arquivo(s) · {{ createdBatch.totalDocuments }} nota(s) · {{ createdBatch.totalPendencies }} pendência(s)</span>
         <span v-if="createdBatch.status === 'CANCELADO'">As entradas já lidas e os diagnósticos foram preservados. As demais não foram processadas.</span>
         <RouterLink v-if="createdBatch.status === 'INTERROMPIDO'" class="button secondary" to="/lotes">Retomar pelo histórico</RouterLink>
-        <RouterLink v-else class="button secondary" :to="`/lotes/${createdBatch.id}`">Abrir detalhes do lote</RouterLink>
+        <RouterLink v-else class="button secondary" :to="`/lotes/${createdBatch.id}`">Analisar itens e completar dados fiscais</RouterLink>
       </div>
 
       <details v-if="preparation.issues.length" class="issues-panel">

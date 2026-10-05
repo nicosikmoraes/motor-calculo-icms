@@ -3,8 +3,8 @@ import { IPC_CHANNELS, type BatchDetail, type BatchListItem } from '@motor/contr
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteFiscalCatalogRepository,
   SqliteOrganizationRepository, SqliteCalculationRepository } from '@motor/database'
 import { AppError, AppErrorCode } from '@motor/domain'
-import { pendingCalculation } from '@motor/tax-engine'
 import { classifyFiscalItem } from './fiscal-item-classification'
+import { buildItemFiscalContext, documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-cases'
 import { activeDatabase, requiredInputText } from './main-services'
 
 /** Lista os lotes da organização e monta detalhes para a interface. */
@@ -56,6 +56,8 @@ export function registerBatchQueryHandlers(): void {
         .listByOrganization(organization.id).map((company) => [company.id, company]))
       // Regras fiscais vêm do registro histórico; a classificação cadastral usa o catálogo atual.
       const documents = batches.listNormalizedDocuments(batchId)
+      const documentArtifacts = batches.listDocumentArtifacts(batchId)
+      const fiscalBlocks = new Map(documents.map(document => [document.id, documentFiscalBlock(document, documentArtifacts)] as const))
       const calculations = new SqliteCalculationRepository(connection)
       const latestCalculations = new Map(documents.map((document) => [document.id, calculations.latestByDocument(document.id)] as const))
       const ruleAssessmentRuns = batches.listRuleAssessmentRuns(batchId)
@@ -102,7 +104,7 @@ export function registerBatchQueryHandlers(): void {
           code: diagnostic.code,
           message: diagnostic.message,
         })),
-        artifacts: batches.listDocumentArtifacts(batchId).map(({ id, occurrenceId, documentId, association, normalized }) => ({
+        artifacts: documentArtifacts.map(({ id, occurrenceId, documentId, association, normalized }) => ({
           id, occurrenceId, ...(documentId ? { documentId } : {}), association,
           kind: normalized.kind, envelope: normalized.envelope, accessKey: normalized.accessKey,
           version: normalized.version,
@@ -141,24 +143,9 @@ export function registerBatchQueryHandlers(): void {
               calculation: (() => {
                 const run = latestCalculations.get(id)
                 const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
-                if (saved) return { ...saved.memory, runId: run!.id, engineVersion: run!.engineVersion }
-                return pendingCalculation(
-                  'PENDING_RULE',
-                  'A composição da base, as exceções e o arredondamento ainda aguardam homologação fiscal.',
-                  [
-                    ...(item.productAmount ? [{ name: 'valorProduto', value: item.productAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                    ...(item.freightAmount ? [{ name: 'frete', value: item.freightAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                    ...(item.insuranceAmount ? [{ name: 'seguro', value: item.insuranceAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                    ...(item.discountAmount ? [{ name: 'desconto', value: item.discountAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                    ...(item.otherAmount ? [{ name: 'outrasDespesas', value: item.otherAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                    ...(item.ipiAmount ? [{ name: 'IPI', value: item.ipiAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
-                  ],
-                  {
-                    ...(item.declaredIcms?.baseAmount ? { base: item.declaredIcms.baseAmount } : {}),
-                    ...(item.declaredIcms?.rate ? { rate: item.declaredIcms.rate } : {}),
-                    ...(item.declaredIcms?.amount ? { amount: item.declaredIcms.amount } : {}),
-                  },
-                )
+                const calculation = buildItemFiscalContext(normalized, item, readItemFiscalAnswers(saved?.memory), saved?.memory, run?.id,
+                  fiscalBlocks.get(id)).calculation
+                return saved && run ? { ...calculation, engineVersion: run.engineVersion } : calculation
               })(),
               ...(selectedAssessment ? { ruleAssessment: selectedAssessment } : {}),
               ...(runId && ruleAssessments?.[item.itemNumber]

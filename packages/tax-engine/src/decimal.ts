@@ -40,3 +40,12 @@ export function subtractDecimals(left: string, right: string): FiscalDecimalText
 export function multiplyDecimals(left: string, right: string): FiscalDecimalText {
   return canonical(parse(left).times(parse(right)))
 }
+
+/** Arredondamento monetário aprovado: por componente/item, HALF_UP. */
+export function roundMoney(value: string): FiscalDecimalText {
+  return parse(value).toDecimalPlaces(2, FiscalDecimal.ROUND_HALF_UP).toFixed(2)
+}
+
+export function compareDecimals(left: string, right: string): number {
+  return parse(left).comparedTo(parse(right))
+}

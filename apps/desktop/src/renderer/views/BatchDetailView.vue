@@ -6,6 +6,7 @@ import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocume
 import ItemClassificationDetails from '../components/ItemClassificationDetails.vue'
 import RuleAssessmentDetails from '../components/RuleAssessmentDetails.vue'
 import CalculationMemoryDetails from '../components/CalculationMemoryDetails.vue'
+import ItemFiscalQuestions from '../components/ItemFiscalQuestions.vue'
 
 const route = useRoute()
 const detail = ref<BatchDetail | null>(null)
@@ -16,6 +17,15 @@ const reassessing = ref(false)
 const selectedRunId = ref('')
 const profilesByCompany = ref<Record<string, readonly FiscalProfileSummary[]>>({})
 const selectedProfiles = ref<Record<string, string>>({})
+const fiscalIndex = ref(0)
+const fiscalPendingItems = computed(() => detail.value?.documents.flatMap(document => document.items
+  .filter(item => ['PENDING_DATA', 'PENDING_RULE'].includes(item.calculation.status))
+  .map(item => ({ document, item }))) ?? [])
+const currentFiscalItem = computed(() => fiscalPendingItems.value[Math.min(fiscalIndex.value, Math.max(0, fiscalPendingItems.value.length - 1))])
+const calculatedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
+  .filter(item => item.calculation.status === 'CALCULATED').length ?? 0)
+const unsupportedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
+  .filter(item => item.calculation.status === 'UNSUPPORTED').length ?? 0)
 const itemCount = computed(() => detail.value?.documents.reduce((total, document) => total + document.items.length, 0) ?? 0)
 const comparison = computed(() => {
   if (!selectedRunId.value || !detail.value) return null
@@ -45,6 +55,7 @@ function itemKey(document: FiscalDocumentSummary, item: FiscalItemSummary): stri
 }
 
 async function loadDetail(): Promise<void> {
+  await window.desktopApi.applyReusableFiscalAnswers(String(route.params.id))
   const loaded = await window.desktopApi.getBatchDetail(String(route.params.id), selectedRunId.value || undefined)
   detail.value = loaded
   const companyIds = [...new Set(loaded.documents.map((document) => document.companyId).filter((id): id is string => Boolean(id)))]
@@ -128,8 +139,8 @@ onMounted(async () => {
     <RouterLink class="back-link" to="/lotes">← Voltar ao histórico</RouterLink>
     <p v-if="error" class="form-error notice">{{ error }}</p>
     <p v-if="notice" class="form-success notice">{{ notice }}</p>
-    <p v-else-if="!detail" class="empty-state">Carregando lote…</p>
-    <template v-else>
+    <p v-if="!detail" class="empty-state">Carregando lote…</p>
+    <template v-if="detail">
       <header class="page-header compact detail-header">
         <div>
           <p class="eyebrow">Lote {{ detail.batch.status }}</p>
@@ -162,12 +173,23 @@ onMounted(async () => {
       </div>
 
       <section class="detail-section">
+        <h3>Análise fiscal dos itens</h3>
+        <p>{{ calculatedCount }} calculado(s) · {{ fiscalPendingItems.length }} com dados pendentes · {{ unsupportedCount }} fora do escopo inicial.</p>
+        <article v-if="currentFiscalItem" class="card">
+          <p><strong>NF-e {{ currentFiscalItem.document.number }} · Item {{ currentFiscalItem.item.itemNumber }}</strong> · {{ currentFiscalItem.item.description || currentFiscalItem.item.supplierProductCode }}</p>
+          <ItemFiscalQuestions :key="itemKey(currentFiscalItem.document, currentFiscalItem.item)" :batch-id="detail.batch.id" :document-id="currentFiscalItem.document.id" :item-number="currentFiscalItem.item.itemNumber" expanded @saved="loadDetail" />
+          <button v-if="fiscalPendingItems.length > 1" type="button" class="button secondary" @click="fiscalIndex = (fiscalIndex + 1) % fiscalPendingItems.length">Próximo item pendente</button>
+        </article>
+        <p v-else>Não há perguntas pendentes neste escopo. Consulte abaixo a memória dos cálculos e os motivos dos itens fora do escopo.</p>
+      </section>
+
+      <section class="detail-section">
         <h3>Documentos fiscais</h3>
         <article v-for="document in detail.documents" :key="document.id" class="card document-card">
           <div class="document-heading">
             <div><strong>NF-e {{ document.number }}</strong><span>Série {{ document.series }} · Modelo {{ document.model }}</span></div>
             <span class="status-pill">
-              {{ document.eligibleForProcessing ? 'Apta para cálculo' : 'Pendente' }} · {{ environment(document.environmentCode) }}
+              {{ document.eligibleForProcessing ? 'Importada para análise' : 'Pendente' }} · {{ environment(document.environmentCode) }}
 
             </span>
           </div>
@@ -182,7 +204,7 @@ onMounted(async () => {
           </p>
           <details>
             <summary>{{ document.items.length }} item(ns)</summary>
-            <p>Classificação cadastral, sem cálculo de imposto. O pacote de regras propostas é avaliado separadamente, sem cálculo de imposto. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p>
+            <p>Complete os dados fiscais de cada item para conferir o ICMS da operação. A classificação cadastral e as propostas de regras são exibidas separadamente. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p>
             <div class="table-wrap"><table>
               <thead><tr><th>#</th><th>Produto</th><th>NCM</th><th>CFOP</th><th>Valor</th><th>ICMS declarado</th><th>Classificação</th></tr></thead>
               <tbody>
@@ -197,6 +219,7 @@ onMounted(async () => {
                     <ItemClassificationDetails :item="item" />
                     <RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" />
                     <CalculationMemoryDetails :calculation="item.calculation" />
+                    <ItemFiscalQuestions :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="loadDetail" />
                     <div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action">
                       <select v-model="selectedProfiles[itemKey(document, item)]" aria-label="Perfil fiscal do produto">
                         <option value="">Escolher perfil</option>

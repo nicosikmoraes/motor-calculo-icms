@@ -3,11 +3,15 @@ export * from './rule-selector'
 export * from './versioned-rule-selection'
 export * from './builtin-rule-pack'
 export * from './decimal'
+export * from './proportional-allocation'
+export * from './declared-comparison'
+export * from './parana-common-icms'
 export * from './calculation-memory'
 
 /**
- * Porta do cálculo fiscal. A implementação depende da aprovação de fórmulas,
- * exceções, precisão e arredondamento descritos em `decisoes-pendentes.md`.
+ * Porta geral do cálculo fiscal. O primeiro cálculo comum PR está disponível
+ * em calculateParanaCommonIcms; a integração e os outros tratamentos seguem
+ * o escopo registrado em docs/escopo-fiscal-parana.md.
  */
 export interface TaxCalculator {
   calculate(input: unknown): Promise<import('./calculation-memory').CalculationMemory>

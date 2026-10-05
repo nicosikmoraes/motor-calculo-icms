@@ -13,6 +13,12 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 
 ## Prioridade 2 — contrato fiscal do cálculo
 
+O primeiro escopo aprovado e as decisões de precisão, destinação e diferimento
+estão em [escopo-fiscal-parana.md](escopo-fiscal-parana.md). Já existe uma função
+para o ICMS próprio comum PR, ligada às perguntas por item e a execuções
+históricas, reaproveitamento opcional, rateio e conferência do XML. Consolidação e os
+demais tratamentos abaixo continuam pendentes.
+
 1. Fórmulas e condições completas de ICMS próprio.
 2. Base reduzida, cálculo por dentro e composição de frete, seguro, desconto, despesas e IPI.
 3. ICMS-ST por MVA, MVA ajustada, pauta, PMPF e preço máximo.

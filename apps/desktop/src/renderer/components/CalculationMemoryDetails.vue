@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type { ItemCalculationSummary } from '@motor/contracts'
+import { computed } from 'vue'
 
-defineProps<{ calculation: ItemCalculationSummary }>()
+const props = defineProps<{ calculation: ItemCalculationSummary }>()
+const visibleInputs = computed(() => props.calculation.inputs.filter(input => !['fiscalAnswers', 'answerRequestId', 'answerReuseScope', 'definitionAtSave', 'reuseDefinitionId', 'reuseSourceRunId'].includes(input.name)))
+const reused = computed(() => props.calculation.inputs.some(input => input.name === 'reuseDefinitionId'))
+const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da tolerância', DIFFERENT: 'Divergência', NOT_DECLARED: 'Não informado no XML', INVALID_DECLARED: 'Valor declarado inválido' }
 </script>
 
 <template>
@@ -9,11 +13,12 @@ defineProps<{ calculation: ItemCalculationSummary }>()
     <summary>{{ calculation.status === 'CALCULATED' ? 'Memória do cálculo' : 'Cálculo fiscal pendente' }}</summary>
     <div class="calculation-body">
       <p v-if="calculation.reason">{{ calculation.reason }}</p>
+      <p v-if="reused">Respostas reaproveitadas de uma definição anterior desta empresa e produto do fornecedor.</p>
       <p v-if="calculation.runId">Execução {{ calculation.runId }} · Motor {{ calculation.engineVersion }}</p>
       <p v-if="calculation.rule">Regra {{ calculation.rule.id }} · versão {{ calculation.rule.version }} · {{ calculation.rule.legalBasis }}</p>
-      <p v-if="calculation.inputs.length"><strong>Entradas:</strong></p>
-      <ul v-if="calculation.inputs.length">
-        <li v-for="input in calculation.inputs" :key="input.name">
+      <p v-if="visibleInputs.length"><strong>Entradas:</strong></p>
+      <ul v-if="visibleInputs.length">
+        <li v-for="input in visibleInputs" :key="input.name">
           {{ input.name }}: {{ input.value ?? 'ausente' }} · {{ input.source }} · {{ input.treatment === 'UNDECIDED' ? 'tratamento pendente' : input.treatment === 'INCLUDED' ? 'incluído' : 'excluído' }}
         </li>
       </ul>
@@ -23,6 +28,15 @@ defineProps<{ calculation: ItemCalculationSummary }>()
       </ol>
       <p v-if="calculation.result"><strong>Calculado:</strong> base {{ calculation.result.base }} · alíquota {{ calculation.result.rate }} · ICMS {{ calculation.result.amount }}</p>
       <p v-else>Nenhum valor calculado foi aprovado para este item.</p>
+      <template v-if="calculation.comparisons?.length">
+        <p><strong>Conferência com o XML:</strong> diferença = calculado − declarado.</p>
+        <ul><li v-for="comparison in calculation.comparisons" :key="comparison.component">
+          {{ comparison.component === 'BASE' ? 'Base do ICMS' : 'ICMS devido' }}: {{ comparisonLabels[comparison.status] }}
+          · calculado {{ comparison.calculated }} · declarado {{ comparison.declared ?? '—' }}
+          · diferença {{ comparison.difference ?? '—' }} · tolerância {{ comparison.tolerance }}
+        </li></ul>
+        <p>A tolerância é apenas de conferência; não altera o imposto calculado.</p>
+      </template>
     </div>
   </details>
 </template>
