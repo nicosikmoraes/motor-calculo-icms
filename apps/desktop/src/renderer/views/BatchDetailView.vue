@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RendererErrorMessage } from '../error-messages'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocumentSummary } from '@motor/contracts'
 import ItemClassificationDetails from '../components/ItemClassificationDetails.vue'
@@ -141,6 +141,8 @@ function environment(code?: string): string {
 onMounted(async () => {
   try {
     await loadDetail()
+    await nextTick()
+    if (route.hash) document.getElementById(route.hash.slice(1))?.scrollIntoView()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LOAD
   }
@@ -224,7 +226,7 @@ onMounted(async () => {
             <div class="table-wrap"><table>
               <thead><tr><th>#</th><th>Produto</th><th>NCM</th><th>CFOP</th><th>Valor</th><th>ICMS declarado</th><th>Classificação</th></tr></thead>
               <tbody>
-                <tr v-for="item in document.items" :key="item.itemNumber">
+                <tr v-for="item in document.items" :key="item.itemNumber" :id="`item-${document.id}-${item.itemNumber}`">
                   <td>{{ item.itemNumber }}</td>
                   <td>{{ item.description || item.supplierProductCode || '—' }}<small v-if="item.supplierProductCode"> · {{ item.supplierProductCode }}</small></td>
                   <td>{{ item.ncm || '—' }}</td>
@@ -364,4 +366,8 @@ onMounted(async () => {
 .reassessment-controls label { font-size: 12px; font-weight: 700; }
 .reassessment-controls select { min-width: min(100%, 260px); max-width: 100%; flex: 1; }
 .reassessment-panel .comparison-note { font-weight: 700; }
+</style>
+
+<style scoped>
+tr:target { outline: 2px solid #5675f0; outline-offset: -2px; background: #edf2ff; scroll-margin-top: 24px; }
 </style>

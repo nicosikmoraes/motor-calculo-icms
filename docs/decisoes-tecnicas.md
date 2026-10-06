@@ -866,3 +866,38 @@ JavaScript passaram a integrar os chunks compilados. A entrada distribuída
 `report-generator.js` permite ao workflow gerar e inspecionar um XLSX usando o
 executável Electron instalado, antes de verificar renderer e worker, sem importar
 pacotes do checkout.
+
+
+## DT-046 — Conferência mensal entre lotes
+
+Autorizada em 06/10/2026. A tela Conferência mensal reúne os documentos
+persistidos da organização ativa por empresa e mês civil de emissão. Inclui
+empresas inativas para consulta histórica. Usa as últimas execuções salvas por
+documento e mantém separados compras/vendas, produção/homologação e autorização
+confirmada/subtotal provisório. Créditos e saldo a recolher continuam sem apuração.
+
+Para mesma empresa, ambiente e chave, hashes diferentes excluem todas as
+ocorrências, inclusive quando a outra ocorrência informa outro mês. Hashes
+idênticos conservam a primeira ocorrência elegível por recebimento do lote, ID
+do lote e ID do documento; as demais têm motivo de exclusão e referência à
+origem canônica. Inelegibilidade prévia não é promovida. Bloqueios documentais
+em outra cópia protegem a ocorrência canônica; inelegibilidade apenas por
+repetição não invalida a original. Contadores de documentos representam
+ocorrências importadas, incluindo cópias excluídas; somente elegíveis somam valores.
+
+Eventos com mesma chave e ambiente em outros lotes geram revisão documental
+e excluem os valores provisoriamente. Esta leitura não associa eventos órfãos,
+modifica XMLs ou aplica automaticamente efeitos fiscais. Lotes com eventos
+relacionados também aparecem como origem. Protocolos órfãos não são promovidos
+a autorização. Documentos sem empresa ou mês válido continuam no histórico
+dos lotes, pois não podem ser atribuídos ao filtro escolhido.
+
+Consulta e preparação do XLSX usam transação curta na conexão ativa, recusando
+importação em andamento. A consulta pode ser atualizada após novas importações
+ou cálculos; o Excel captura um novo snapshot antes do diálogo de destino.
+A escolha nativa e a escrita atômica da DT-045 são reaproveitadas. O relatório
+mensal identifica empresa/mês, acrescenta origem nas linhas e a aba Lotes às
+quatro abas da DT-045. Só inclui documentos e evidências atribuíveis ao recorte;
+diagnósticos sem documento permanecem no lote. Não cria um lote no banco: o
+identificador monthly:empresa:mês é exclusivo do snapshot interno do relatório.
+Links na tela abrem e destacam o item no lote original.

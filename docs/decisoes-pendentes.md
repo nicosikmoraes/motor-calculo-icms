@@ -18,7 +18,8 @@ estão em [escopo-fiscal-parana.md](escopo-fiscal-parana.md). Já existe uma fun
 para o ICMS próprio comum PR, ligada às perguntas por item e a execuções
 históricas, reaproveitamento opcional, rateio e conferência do XML. A consolidação
 do lote por empresa e mês está disponível (DT-044), assim como sua exportação XLSX
-(DT-045). Apuração mensal entre lotes, créditos e os demais tratamentos seguem pendentes.
+(DT-045). A conferência mensal entre lotes está disponível (DT-046), com deduplicação e
+exportação por empresa/mês. Apuração fiscal, créditos e os demais tratamentos seguem pendentes.
 
 1. Fórmulas e condições completas de ICMS próprio.
 2. Base reduzida, cálculo por dentro e composição de frete, seguro, desconto, despesas e IPI.

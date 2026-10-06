@@ -34,8 +34,8 @@ function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, colu
   sheet.columns = columns.map(column => ({ width: column.width ?? 24 }))
   for (const [row, value] of [
     [1, `ContabiliNico · ${name}`],
-    [2, 'Conferência do lote, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.'],
-    [3, `Lote: ${report.batch.id} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 1`],
+    [2, `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
+    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 1`],
   ] as const) {
     sheet.mergeCells(row, 1, row, Math.min(4, columns.length))
     sheet.getCell(row, 1).value = value
@@ -83,9 +83,9 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   const companyNames = new Map(summary.groups.map(group => [group.companyId, group.companyName]))
   const identity = (entry: ConsolidationEvidence): Value[] => [companyNames.get(entry.companyId) ?? 'Empresa não identificada', entry.period,
     label(entry.perspective), environment(entry.environment), label(entry.authorization), entry.documentNumber,
-    documents.get(entry.documentId)?.series, entry.accessKey, entry.itemNumber]
+    documents.get(entry.documentId)?.series, entry.accessKey, entry.itemNumber, ...(report.monthly ? [entry.batchId, report.monthly.batches.find(b => b.id === entry.batchId)?.name] : [])]
   const identityColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20),
-    text('Autorização', 38), text('Nota', 16), text('Série', 12), text('Chave de acesso', 50), text('Item', 10)]
+    text('Autorização', 38), text('Nota', 16), text('Série', 12), text('Chave de acesso', 50), text('Item', 10), ...(report.monthly ? [text('Lote de origem', 40), text('Nome do lote', 36)] : [])]
   addSheet(book, report, 'Resumo', [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20), text('Autorização', 38),
     monetary('Base calculada'), monetary('ICMS calculado'), monetary('ICMS declarado elegível'), monetary('ICMS diferido conhecido'),
     monetary('ICMS calculado dos pares'), monetary('ICMS declarado dos pares'), monetary('Diferença líquida dos pares'), monetary('Soma das diferenças absolutas'),
@@ -124,16 +124,19 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
       if (e.declaredIcms === undefined) rows.push([...base, 'Valor declarado', original === undefined ? 'Ausente' : 'Inválido', original, e.documentId])
       if (e.status === 'CALCULATED' && e.deferredIcms === undefined) rows.push([...base, 'Diferimento', 'Sem informação', 'Memória sem valor de diferimento conhecido.', e.documentId])
     }
+    if (report.monthly) rows.forEach(row => row.push(e.batchId))
     return rows
   })
   for (const p of report.pendencies.filter(p => p.scope !== 'CALCULATION')) {
     const d = p.documentId ? documents.get(p.documentId) : undefined
-    pendingRows.push([d?.companyName, d?.issuedAt?.slice(0, 7), d?.number, d?.accessKey, p.itemNumber, label(p.scope), label(p.code), p.detail, p.documentId ?? p.artifactId])
+    pendingRows.push([d?.companyName, d?.issuedAt?.slice(0, 7), d?.number, d?.accessKey, p.itemNumber, label(p.scope), label(p.code), p.detail, p.documentId ?? p.artifactId, ...(report.monthly ? [p.batchId] : [])])
   }
-  for (const d of report.diagnostics) pendingRows.push([undefined, undefined, undefined, undefined, undefined, 'Diagnóstico XML', d.code, d.message, d.source])
+  for (const d of report.diagnostics) pendingRows.push([undefined, undefined, undefined, undefined, undefined, 'Diagnóstico XML', d.code, d.message, d.source, ...(report.monthly ? [d.batchId] : [])])
   for (const o of report.occurrences.filter(o => !o.eligibleForTotals)) pendingRows.push([undefined, undefined, undefined, o.accessKey, undefined,
-    'Ocorrência excluída', `${o.repetition} / ${o.contentConflict}`, o.ingestionStatus, o.relativePath])
+    'Ocorrência excluída', `${o.repetition} / ${o.contentConflict}`, o.ingestionStatus, o.relativePath, ...(report.monthly ? [o.batchId] : [])])
+  if (report.monthly) pendingColumns.push(text('Lote de origem', 40))
   addSheet(book, report, 'Pendências e exclusões', pendingColumns, pendingRows)
+  if (report.monthly) addSheet(book, report, 'Lotes', [text('Lote de origem', 40), text('Nome do lote', 40), text('Situação', 24)], report.monthly.batches.map(b => [b.id, b.name, b.status]))
   return book
 }
 export async function generateExcelReport(report: ReportData): Promise<Uint8Array> {
