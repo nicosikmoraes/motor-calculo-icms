@@ -17,6 +17,7 @@ export interface ReportRuleEvidence extends RuleEvaluationSummary {
   selected: boolean
 }
 export interface ReportPendency {
+  batchId?: string
   scope: 'DOCUMENT' | 'CLASSIFICATION' | 'RULE_SELECTION' | 'CALCULATION' | 'ARTIFACT'
   code: string
   documentId?: string
@@ -26,6 +27,8 @@ export interface ReportPendency {
 }
 /** Modelo interno de evidências; não define abas, colunas ou totais fiscais. */
 export interface ReportData {
+  monthly?: { companyId: string; companyName: string; period: string; batches: readonly { id: string; name: string; status: string }[] }
+
   consolidation?: BatchDetail['consolidation']
   schemaVersion: 1
   metadata: ReportMetadata
@@ -34,8 +37,8 @@ export interface ReportData {
   items: readonly ReportItem[]
   pendencies: readonly ReportPendency[]
   rules: readonly ReportRuleEvidence[]
-  diagnostics: readonly BatchDiagnosticSummary[]
-  occurrences: readonly BatchOccurrenceSummary[]
+  diagnostics: readonly (BatchDiagnosticSummary & { batchId?: string })[]
+  occurrences: readonly (BatchOccurrenceSummary & { batchId?: string })[]
   artifacts: readonly DocumentArtifactSummary[]
   assessmentHistory: BatchDetail['ruleAssessmentRuns']
   originalAssessmentPack?: BatchDetail['originalAssessmentPack']

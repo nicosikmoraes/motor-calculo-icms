@@ -74,3 +74,37 @@ describe('exportação de lote com destino nativo', () => {
     expect(await readdir(directory)).toEqual(['destino.xlsx'])
   })
 })
+
+
+describe('conferência mensal via IPC', () => {
+  const monthly = (channel: string, input: unknown = { companyId, period: '2026-10' }, ev: unknown = event) => state.handlers.get(channel)!(ev, input)
+  it('consulta e exporta um mês com identificação e origem sem recalcular', async () => {
+    const summary = await monthly(IPC_CHANNELS.GET_MONTHLY_CONFERENCE)
+    expect(summary.summary.counts.documents).toBe(1)
+    expect(summary.summary.evidence[0].batchId).toBe(batchId)
+    expect(await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).toEqual({ path })
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
+    expect(book.worksheets).toHaveLength(5)
+    expect(book.getWorksheet('Itens')!.getCell('J6').value).toBe(batchId)
+    expect(book.getWorksheet('Itens')!.getCell('A3').value).toContain('Mês: 2026-10')
+    expect(state.database.get('SELECT count(*) AS total FROM execucoes_calculo').total).toBe(0)
+  })
+  it('recusa iframe, empresa desconhecida, mês inválido e importação ativa', async () => {
+    expect(() => monthly(IPC_CHANNELS.GET_MONTHLY_CONFERENCE, { companyId, period: '2026-10' }, { ...event, senderFrame: {} })).toThrow('inválida')
+    await expect(monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL, { companyId: 'outra', period: '2026-10' })).rejects.toThrow('organização')
+    await expect(monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL, { companyId, period: '2026-00' })).rejects.toThrow('válido')
+    state.busy = true
+    expect(() => monthly(IPC_CHANNELS.GET_MONTHLY_CONFERENCE)).toThrow('pause')
+    await expect(monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).rejects.toThrow('pause')
+    expect(state.saveDialog).not.toHaveBeenCalled()
+  })
+  it('cancela sem alterar destino e captura snapshot antes do diálogo', async () => {
+    await writeFile(path, 'anterior'); state.saveDialog.mockResolvedValueOnce({ canceled: true, filePath: path })
+    expect(await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).toBeNull()
+    expect(await readFile(path, 'utf8')).toBe('anterior')
+    state.saveDialog.mockImplementationOnce(async () => { state.database.run('UPDATE empresas SET razao_social = ? WHERE id = ?', 'Alterada', companyId); return { canceled: false, filePath: path } })
+    await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
+    expect(book.getWorksheet('Itens')!.getCell('A6').value).toBe('Empresa')
+  })
+})

@@ -20,3 +20,5 @@ export interface ReportGenerator {
 export * from './report-data'
 export * from './consolidation'
 export * from './excel-report'
+
+export * from './monthly-consolidation'

@@ -322,3 +322,31 @@ de lotes já gravados. Snapshots referenciados por checkpoints e importações
 pendentes são preservados. A tela informa a última limpeza e eventuais falhas;
 remoções são registradas no log local `maintenance.jsonl`, com rotação limitada.
 Esta política não apaga documentos fiscais nem arquivos de origem.
+
+
+## Conferência mensal entre lotes
+
+Abra **Conferência mensal**, escolha a empresa e o mês de emissão e clique
+em **Consultar / atualizar**. O mês vem da data original do XML, mesmo quando
+a nota foi importada em outro mês. Empresas inativas também podem ser consultadas.
+
+A tela reúne os últimos cálculos salvos em todos os lotes. Compras, vendas,
+ambientes e protocolos permanecem separados. Os contadores mostram ocorrências
+de notas; cópias excluídas aparecem no detalhamento, mas não somam valores.
+Cópias idênticas são contabilizadas uma vez. A mesma chave com conteúdos
+diferentes fica fora dos valores até revisão. Eventos relacionados em outros
+lotes também exigem revisão documental, sem associação automática.
+
+Em **Rastreabilidade**, use **Abrir nota e item no lote de origem** para
+conferir a memória e as respostas do item destacado. Retorne à tela mensal e
+clique em **Consultar / atualizar** para refletir alterações de cálculos.
+Notas sem empresa ou data válida devem ser revisadas no histórico dos lotes.
+
+**Exportar Excel mensal** consulta novamente os resultados e salva apenas
+a empresa e o mês selecionados. Há cinco abas: Resumo, Itens, Divergências,
+Pendências e exclusões e Lotes. As linhas detalhadas identificam o lote de
+origem. Cancelar o seletor mantém o destino anterior. Conclua ou pause a
+importação antes de consultar ou exportar.
+
+A conferência mensal não concede créditos de compras nem informa saldo final
+a recolher. Esses tratamentos dependem de definição e validação fiscal.

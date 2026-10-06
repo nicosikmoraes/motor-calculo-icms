@@ -2,6 +2,8 @@ import type { BatchConsolidation, ConsolidationCounts, ConsolidationEvidence, Co
 import { addDecimals, roundMoney, compareDeclared, type CalculationMemory } from '@motor/tax-engine'
 
 export interface ConsolidationDocument {
+  batchId?: string
+
   documentId: string; accessKey: string; documentNumber: string
   companyId?: string | undefined; companyName?: string | undefined; issuedAt?: string | undefined
   perspective: ConsolidationGroup['perspective']; environment: ConsolidationGroup['environment']
@@ -57,7 +59,7 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
     for (const item of doc.items) {
       group.counts.items++
       const memory = item.memory
-      const entry: ConsolidationEvidence = { documentId: doc.documentId, accessKey: doc.accessKey, documentNumber: doc.documentNumber,
+      const entry: ConsolidationEvidence = { documentId: doc.documentId, ...(doc.batchId ? { batchId: doc.batchId } : {}), accessKey: doc.accessKey, documentNumber: doc.documentNumber,
         itemNumber: item.itemNumber, ...(doc.companyId ? { companyId: doc.companyId } : {}), ...(period ? { period } : {}), environment: doc.environment,
         perspective: doc.perspective, authorization: doc.authorization, status: 'PENDING', reasons: [], ...(doc.runId ? { runId: doc.runId } : {}), ...(doc.engineVersion ? { engineVersion: doc.engineVersion } : {}) }
       if (exclusion) { entry.status = 'EXCLUDED'; entry.reasons = [exclusion]; group.counts.excluded++; evidence.push(entry); continue }

@@ -456,6 +456,7 @@ mas nenhum é considerado concluído sem contrato fiscal e casos aprovados.
 - [ ] vincular complementar, devolução e substituição;
 - [ ] reprocessar sem sobrescrever histórico;
 - [ ] separar situação documental, cálculo, caráter e participação no total;
+- [x] reunir conferência mensal entre lotes por empresa, deduplicar cópias e rastrear origens (DT-046);
 - [ ] consolidar definitivo, provisório, diagnóstico e excluído;
 - [ ] preservar explicação de toda exclusão ou pendência.
 

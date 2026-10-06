@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  GET_MONTHLY_CONFERENCE: 'report:monthly-conference',
+  EXPORT_MONTHLY_EXCEL: 'report:export-monthly-excel',
   EXPORT_BATCH_EXCEL: 'report:export-batch-excel',
   SET_BACKUP_RETENTION: 'backup:set-retention',
   RESTORE_BACKUP: 'backup:restore',
@@ -623,7 +625,17 @@ export interface ConsolidationGroup {
   totals: ConsolidationTotals
   purchaseCredit: 'NOT_CALCULATED'
 }
+export interface MonthlyConferenceInput { companyId: string; period: string }
+export interface MonthlyConference {
+  companyId: string; companyName: string; period: string
+  batches: readonly { id: string; name: string; status: string }[]
+  summary: BatchConsolidation
+  documents: readonly { id: string; batchId: string }[]
+}
+
 export interface ConsolidationEvidence {
+  batchId?: string
+
   documentId: string; itemNumber: string; accessKey: string; documentNumber: string
   companyId?: string; period?: string; environment: '1' | '2' | 'UNKNOWN'
   perspective: ConsolidationPerspective; authorization: 'WITH_PROTOCOL' | 'UNVERIFIED'
@@ -684,6 +696,9 @@ export interface BackupStatus {
 }
 
 export interface DesktopApi {
+  getMonthlyConference(input: MonthlyConferenceInput): Promise<MonthlyConference>
+  exportMonthlyExcel(input: MonthlyConferenceInput): Promise<{ path: string } | null>
+
   exportPack(): Promise<PackExportResult | null>
   previewPack(): Promise<PackImportPreview | null>
   importPack(input: PackImportInput): Promise<PackImportResult>
