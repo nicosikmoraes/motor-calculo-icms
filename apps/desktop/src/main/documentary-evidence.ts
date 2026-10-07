@@ -1,16 +1,22 @@
+import { conflictEvidence, conflictKey } from './conflict-evidence'
+import type { Company } from '@motor/domain'
 import { createHash } from 'node:crypto'
 import type { DocumentaryStatus, DocumentArtifactSummary, DocumentReviewSummary } from '@motor/contracts'
-import { SqliteBatchRepository, SqliteCompanyRepository, SqliteDocumentReviewRepository, SqliteOrganizationRepository,
-  type DocumentArtifactRecord, type DocumentReviewRecord, type FiscalBatchRecord,
+import { SqliteConflictResolutionRepository, SqliteBatchRepository, SqliteCompanyRepository, SqliteDocumentReviewRepository, SqliteOrganizationRepository,
+  type ConflictResolutionRecord, type FileOccurrenceRecord, type DocumentArtifactRecord, type DocumentReviewRecord, type FiscalBatchRecord,
   type NormalizedFiscalDocumentRecord, type SqliteDatabase } from '@motor/database'
 
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const key = (accessKey: string, environment?: string) => JSON.stringify([accessKey, environment])
 export interface DocumentaryIndex {
+  conflictHistories: Map<string, ConflictResolutionRecord[]>
+  occurrences: Map<string, FileOccurrenceRecord>
+  companies: Map<string, Company>
   organizationId: string
   batches: Map<string, FiscalBatchRecord>
   documents: Map<string, NormalizedFiscalDocumentRecord>
   documentsByKey: Map<string, NormalizedFiscalDocumentRecord[]>
+  terminalArtifactsByKey: Map<string, DocumentArtifactRecord[]>
   eventsByKey: Map<string, DocumentArtifactRecord[]>
   artifacts: Map<string, DocumentArtifactRecord>
   histories: Map<string, DocumentReviewRecord[]>
@@ -22,12 +28,14 @@ export interface DocumentaryIndex {
 export function readDocumentaryIndex(database: SqliteDatabase): DocumentaryIndex {
   const organizationId = new SqliteOrganizationRepository(database).findSingle()?.id ?? ''
   const repository = new SqliteBatchRepository(database)
-  const index: DocumentaryIndex = { organizationId, batches: new Map(), documents: new Map(), documentsByKey: new Map(),
-    eventsByKey: new Map(), artifacts: new Map(), histories: new Map(), companyNames: new Map(), invalidOccurrences: new Set() }
+  const index: DocumentaryIndex = { organizationId, conflictHistories: new Map(), occurrences: new Map(), companies: new Map(), batches: new Map(), documents: new Map(), documentsByKey: new Map(),
+    terminalArtifactsByKey: new Map(), eventsByKey: new Map(), artifacts: new Map(), histories: new Map(), companyNames: new Map(), invalidOccurrences: new Set() }
   if (!organizationId) return index
+  index.companies = new Map(new SqliteCompanyRepository(database).listByOrganization(organizationId).map(c => [c.id, c]))
   index.companyNames = new Map(new SqliteCompanyRepository(database).listByOrganization(organizationId).map(c => [c.id, c.legalName]))
   for (const batch of repository.listByOrganization(organizationId)) {
     index.batches.set(batch.id, batch)
+    for (const occurrence of repository.listOccurrences(batch.id)) index.occurrences.set(occurrence.id, occurrence)
     for (const diagnostic of repository.listDiagnostics(batch.id)) {
       if (diagnostic.occurrenceId && ['ARTEFATO_XSD_INVALIDO', 'XML_NAO_IDENTIFICADO'].includes(diagnostic.code)) index.invalidOccurrences.add(diagnostic.occurrenceId)
     }
@@ -38,6 +46,10 @@ export function readDocumentaryIndex(database: SqliteDatabase): DocumentaryIndex
     }
     for (const artifact of repository.listDocumentArtifacts(batch.id)) {
       index.artifacts.set(artifact.id, artifact)
+      if (['101', '151', '110', '301', '302'].includes(artifact.normalized.statusCode ?? '')) {
+        const group = key(artifact.normalized.accessKey, artifact.normalized.environmentCode)
+        index.terminalArtifactsByKey.set(group, [...(index.terminalArtifactsByKey.get(group) ?? []), artifact])
+      }
       if (artifact.normalized.kind !== 'EVENT') continue
       const group = key(artifact.normalized.accessKey, artifact.normalized.environmentCode)
       index.eventsByKey.set(group, [...(index.eventsByKey.get(group) ?? []), artifact])
@@ -45,6 +57,10 @@ export function readDocumentaryIndex(database: SqliteDatabase): DocumentaryIndex
   }
   for (const review of new SqliteDocumentReviewRepository(database).listByOrganization(organizationId)) {
     index.histories.set(review.artifactId, [...(index.histories.get(review.artifactId) ?? []), review])
+  }
+  for (const review of new SqliteConflictResolutionRepository(database).listByOrganization(organizationId)) {
+    const group = conflictKey(review.accessKey, review.environmentCode)
+    index.conflictHistories.set(group, [...(index.conflictHistories.get(group) ?? []), review])
   }
   return index
 }
@@ -56,12 +72,17 @@ function candidates(index: DocumentaryIndex, artifact: DocumentArtifactRecord): 
     .sort((a, b) => (index.batches.get(a.batchId)!.receivedAt.localeCompare(index.batches.get(b.batchId)!.receivedAt))
       || a.batchId.localeCompare(b.batchId) || a.id.localeCompare(b.id))
 }
-function associatedDocument(index: DocumentaryIndex, artifact: DocumentArtifactRecord): NormalizedFiscalDocumentRecord | undefined {
+function originalAssociatedDocument(index: DocumentaryIndex, artifact: DocumentArtifactRecord): NormalizedFiscalDocumentRecord | undefined {
   const id = index.histories.get(artifact.id)?.[0]?.documentId
     ?? (artifact.association === 'ASSOCIATED' ? artifact.documentId : undefined)
   const document = id ? index.documents.get(id) : undefined
   return document && document.normalized.accessKey === artifact.normalized.accessKey
     && document.normalized.environmentCode === artifact.normalized.environmentCode ? document : undefined
+}
+function associatedDocument(index: DocumentaryIndex, artifact: DocumentArtifactRecord): NormalizedFiscalDocumentRecord | undefined {
+  const document = originalAssociatedDocument(index, artifact)
+  const resolution = document && conflictEvidence(index, document)
+  return resolution?.status === 'RESOLVED' && !resolution.selected ? undefined : document
 }
 export function isLinked(index: DocumentaryIndex, artifact: DocumentArtifactRecord, document: NormalizedFiscalDocumentRecord): boolean {
   const linked = associatedDocument(index, artifact)
@@ -96,12 +117,15 @@ export function documentaryState(index: DocumentaryIndex, document: NormalizedFi
 } {
   const events = relatedEvents(index, document)
   // Conserva o bloqueio já aplicado na ingestão, inclusive em registros antigos.
-  const cancellation = events.find(e => isLinked(index, e, document) && e.normalized.responseMatches !== false
-    && e.normalized.eventType === '110111' && ['135', '155'].includes(e.normalized.statusCode ?? ''))
+  const cancellation = [...events, ...(index.terminalArtifactsByKey.get(key(document.normalized.accessKey, document.normalized.environmentCode)) ?? [])].find(e => Boolean(originalAssociatedDocument(index, e)) && e.normalized.responseMatches !== false
+    && ((e.normalized.eventType === '110111' && ['135', '155'].includes(e.normalized.statusCode ?? ''))
+      || ['101', '151', '110', '301', '302'].includes(e.normalized.statusCode ?? '')))
   if (cancellation) return { status: 'CANCELED', canceled: true,
-    reason: `Documento cancelado: evento ${cancellation.id}, lote ${cancellation.batchId}. Cálculos conservados para auditoria; valores excluídos dos totais.` }
+    reason: `Documento cancelado ou denegado: evidência ${cancellation.id}, lote ${cancellation.batchId}. Cálculos conservados para auditoria; valores excluídos dos totais.` }
+  const resolution = conflictEvidence(index, document)
+  if (resolution && (resolution.status !== 'RESOLVED' || !resolution.selected)) return { status: 'CONFLICT', canceled: false, reason: resolution.reason }
   if (!events.length) return { status: 'CLEAR', canceled: false }
-  if (new Set(candidates(index, events[0]!).map(d => d.contentHash)).size > 1) return {
+  if (new Set(candidates(index, events[0]!).map(d => d.contentHash)).size > 1 && resolution?.status !== 'RESOLVED') return {
     status: 'CONFLICT', canceled: false, reason: 'Mesma chave e ambiente com conteúdos diferentes entre lotes. Revisão documental bloqueada.' }
   const unlinked = events.find(e => !isLinked(index, e, document))
   if (unlinked) return { status: 'ASSOCIATION_PENDING', canceled: false,
@@ -133,7 +157,10 @@ export function artifactSummary(index: DocumentaryIndex, artifact: DocumentArtif
     reviewHistory: index.histories.get(artifact.id) ?? [] }
 }
 export function buildDocumentReview(index: DocumentaryIndex, artifact: DocumentArtifactRecord): DocumentReviewSummary {
-  const docs = candidates(index, artifact), history = index.histories.get(artifact.id) ?? []
+  const allDocs = candidates(index, artifact)
+  const resolution = allDocs[0] && conflictEvidence(index, allDocs[0])
+  const docs = resolution?.status === 'RESOLVED' ? allDocs.filter(d => d.contentHash === resolution.chosenContentHash) : allDocs
+  const history = index.histories.get(artifact.id) ?? []
   const linked = associatedDocument(index, artifact)
   const document = linked ?? docs.find(d => d.eligibleForProcessing) ?? docs[0]
   const events = index.eventsByKey.get(key(artifact.normalized.accessKey, artifact.normalized.environmentCode)) ?? []
@@ -145,7 +172,7 @@ export function buildDocumentReview(index: DocumentaryIndex, artifact: DocumentA
   const canApprove = Boolean(linked && document && !blockedReason && isLatest && artifact.normalized.correctionText?.trim()
     && state.status === 'CCE_PENDING' && events.every(e => isLinked(index, e, document) && !validationProblem(index, e))
     && events.every(e => e.normalized.eventType === '110110') && history[0]?.action !== 'APPROVE_CCE')
-  const status = blockedReason && docs.length && new Set(docs.map(d => d.contentHash)).size > 1 ? 'CONFLICT' : state.status
+  const status = state.status !== 'CANCELED' && blockedReason && docs.length && new Set(docs.map(d => d.contentHash)).size > 1 ? 'CONFLICT' : state.status
   return { artifact: artifactSummary(index, artifact), candidates: docs.map(d => ({ id: d.id, batchId: d.batchId,
     batchName: index.batches.get(d.batchId)?.originalName ?? 'Lote sem nome', ...(d.companyId ? { companyId: d.companyId } : {}),
     ...(index.companyNames.get(d.companyId ?? '') ? { companyName: index.companyNames.get(d.companyId!)! } : {}), number: d.normalized.number, series: d.normalized.series,
@@ -154,6 +181,6 @@ export function buildDocumentReview(index: DocumentaryIndex, artifact: DocumentA
       ? 'Revisão da CC-e concluída: uso do XML original autorizado na conferência. Demais pendências fiscais e documentais continuam aplicáveis.' : `${state.reason ?? ''} ${pendingEffect}`.trim(),
     ...(blockedReason ? { blockedReason } : {}), canAssociate: !linked && !blockedReason, canApproveCce: canApprove,
     canReopenCce: Boolean(linked && isLatest && artifact.normalized.eventType === '110110' && history[0]?.action === 'APPROVE_CCE'),
-    snapshot: digest({ artifactId: artifact.id, documents: docs.map(d => [d.id, d.contentHash, d.eligibleForProcessing, d.pendingReason]),
+    snapshot: digest({ conflictRevision: allDocs[0] ? index.conflictHistories.get(conflictKey(allDocs[0].normalized.accessKey, allDocs[0].normalized.environmentCode))?.[0]?.id : undefined, artifactId: artifact.id, documents: docs.map(d => [d.id, d.contentHash, d.eligibleForProcessing, d.pendingReason]),
       events: events.map(e => [e.id, e.contentHash, e.association, e.documentId, index.histories.get(e.id)?.[0]?.id]).sort() }), history }
 }

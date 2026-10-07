@@ -148,6 +148,7 @@ describe("migrations e repositórios centrais", () => {
       "organizacoes",
       "perfis_fiscais",
       "produtos_fornecedor",
+      "resolucoes_conflitos",
       "resultados_item_calculo",
       "revisoes_documentais",
       "revogacoes_regras_fiscais",

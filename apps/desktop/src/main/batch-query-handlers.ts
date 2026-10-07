@@ -7,6 +7,7 @@ import { AppError, AppErrorCode } from '@motor/domain'
 import { classifyFiscalItem } from './fiscal-item-classification'
 import { buildItemFiscalContext, documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-cases'
 import { activeDatabase, requiredInputText } from './main-services'
+import { conflictEvidence, effectiveProcessingDocument } from './conflict-evidence'
 import { artifactSummary, documentaryState, readDocumentaryIndex, relatedEvents, type DocumentaryIndex } from './documentary-evidence'
 
 /** Lista os lotes da organização e monta detalhes para a interface. */
@@ -69,7 +70,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
   const documentArtifacts = batches.listDocumentArtifacts(batchId)
   const relatedArtifacts = new Map(documentArtifacts.map(a => [a.id, a]))
   for (const document of documents) for (const event of relatedEvents(evidence, document)) relatedArtifacts.set(event.id, event)
-  const fiscalBlocks = new Map(documents.map(document => [document.id, documentFiscalBlock(document, documentArtifacts)] as const))
+  const fiscalBlocks = new Map(documents.map(document => [document.id, documentFiscalBlock(effectiveProcessingDocument(evidence, document), documentArtifacts)] as const))
   const calculations = new SqliteCalculationRepository(connection)
   const latestCalculations = new Map(documents.map((document) => [document.id, calculations.latestByDocument(document.id)] as const))
   const ruleAssessmentRuns = batches.listRuleAssessmentRuns(batchId)
@@ -135,8 +136,10 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
       series: normalized.series,
       ...(normalized.issuedAt ? { issuedAt: normalized.issuedAt } : {}),
       ...(normalized.environmentCode ? { environmentCode: normalized.environmentCode } : {}),
-      eligibleForProcessing,
-      ...(pendingReason ? { pendingReason } : {}),
+      ...(() => { const document = effectiveProcessingDocument(evidence, evidence.documents.get(id)!)
+        const resolution = conflictEvidence(evidence, document)
+        return { eligibleForProcessing: document.eligibleForProcessing, ...(document.pendingReason ? { pendingReason: document.pendingReason } : {}),
+          ...(resolution ? { conflictResolution: resolution } : {}) } })(),
       ...(normalized.issuer.name ? { issuerName: normalized.issuer.name } : {}),
       ...(normalized.issuer.taxId ? { issuerTaxId: normalized.issuer.taxId } : {}),
       ...(normalized.recipient?.name ? { recipientName: normalized.recipient.name } : {}),

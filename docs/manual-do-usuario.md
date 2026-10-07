@@ -379,3 +379,38 @@ O Excel inclui **Eventos e revisões** quando há eventos relacionados: protocol
 data, texto, origem e decisões. Em **Itens**, as colunas de valores salvos para
 auditoria conservam base e ICMS, inclusive em notas excluídas. Esses valores não
 são acrescentados aos totais do resumo.
+
+
+## Conflitos entre versões da mesma nota
+
+Abra **Conflitos de notas** para encontrar arquivos de mesma chave e ambiente
+com conteúdos diferentes, dentro de um lote ou entre lotes. Filtre por empresa,
+situação, chave, número ou arquivo. Histórico, Conferência mensal e Revisão
+documental oferecem acesso à comparação.
+
+1. Clique em **Comparar versões** e escolha os dois arquivos nos seletores.
+   Confira origem, empresa, datas e as diferenças por campo. Os itens são
+   alinhados pelo número; **Não informado** permanece diferente de zero.
+2. Use **Escolher primeira versão** ou **Escolher segunda versão**. Registre a
+   justificativa e confirme expressamente a escolha antes de gravar.
+3. Atualize a conferência mensal. Só o conteúdo escolhido pode participar dos
+   totais, e suas cópias idênticas são contadas uma vez por empresa. A ocorrência
+   escolhida é preferida quando elegível; cada lote mantém seu resumo próprio.
+4. Use **Reabrir conflito** para suspender a escolha, explicando o motivo.
+   As decisões anteriores permanecem no histórico com data, usuário e computador.
+
+A escolha vale para o conteúdo da mesma chave e ambiente na organização atual.
+Uma nova versão diferente exige nova análise. Uma cópia idêntica não desfaz a
+escolha. A entrada de arquivos ou decisões durante a conferência da tela exige
+atualizar e comparar novamente antes de salvar.
+
+Escolher uma versão não altera o XML nem cria cálculo. Quando a única restrição
+era a ocorrência conflitante, a versão escolhida pode seguir para análise fiscal.
+Perguntas fiscais e outras pendências continuam aplicáveis. Cancelamento ou
+denegação reconhecidos em qualquer versão mantêm a exclusão. CC-e vinculada a
+um conteúdo descartado exige confirmar o vínculo à versão escolhida e revisá-la
+novamente. Nenhum arquivo ou cálculo anterior é removido.
+
+O Excel acrescenta **Conflitos e decisões** quando houver conflitos relacionados,
+com conteúdo, arquivo e lote de cada ocorrência, escolha vigente e histórico.
+Memórias salvas para auditoria continuam separadas dos valores totalizados.

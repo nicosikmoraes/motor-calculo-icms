@@ -19,3 +19,5 @@ export interface Repository<TEntity extends { id: string }> {
 }
 
 export * from './interchange-repository'
+
+export * from './conflict-resolution-repository'

@@ -450,12 +450,13 @@ mas nenhum é considerado concluído sem contrato fiscal e casos aprovados.
 
 - [ ] validar autorização e protocolo;
 - [ ] aplicar cancelamento, rejeição, denegação e inutilização;
-- [ ] relacionar e revisar CC-e;
+- [x] relacionar e revisar cancelamento/CC-e entre lotes com decisões auditadas (DT-047);
 - [ ] processar manifestações do destinatário;
 - [ ] tratar contingência;
 - [ ] vincular complementar, devolução e substituição;
 - [ ] reprocessar sem sobrescrever histórico;
 - [ ] separar situação documental, cálculo, caráter e participação no total;
+- [x] comparar versões da mesma chave/ambiente e resolver conflitos com justificativa, reabertura e histórico (DT-048);
 - [x] reunir conferência mensal entre lotes por empresa, deduplicar cópias e rastrear origens (DT-046);
 - [ ] consolidar definitivo, provisório, diagnóstico e excluído;
 - [ ] preservar explicação de toda exclusão ou pendência.

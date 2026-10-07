@@ -13,6 +13,7 @@ import registrationLifecycleSql from '../migrations/0012_ciclo_vida_cadastros.sq
 import versionedFiscalRulesSql from '../migrations/0013_regras_fiscais_versionadas.sql?raw'
 import documentArtifactsSql from '../migrations/0014_artefatos_documentais.sql?raw'
 import fiscalAnswerDefinitionsSql from '../migrations/0015_definicoes_respostas_fiscais.sql?raw'
+import conflictResolutionsSql from '../migrations/0017_resolucoes_conflitos.sql?raw'
 import documentReviewsSql from '../migrations/0016_revisoes_documentais.sql?raw'
 import { createSqlMigration, type SqlMigration } from './migrations'
 
@@ -101,4 +102,6 @@ export const CORE_MIGRATIONS: readonly SqlMigration[] = [
   }),
   createSqlMigration({ version: 16, name: 'revisoes_documentais',
     fileName: '0016_revisoes_documentais.sql', sql: documentReviewsSql }),
+  createSqlMigration({ version: 17, name: 'resolucoes_conflitos',
+    fileName: '0017_resolucoes_conflitos.sql', sql: conflictResolutionsSql }),
 ]
