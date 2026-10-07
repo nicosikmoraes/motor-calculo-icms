@@ -143,7 +143,8 @@ onMounted(initialize)
         <button :aria-pressed="activePanel === 'items'" :class="{ active: activePanel === 'items' }" @click="activePanel = 'items'">Itens para conferir <span>{{ counts.items }}</span></button>
         <button :aria-pressed="activePanel === 'batches'" :class="{ active: activePanel === 'batches' }" @click="activePanel = 'batches'">Lotes de origem <span>{{ conference.batches.length }}</span></button>
       </nav>
-      <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { companyId: conference.companyId } }">Revisar eventos relacionados às notas da empresa →</RouterLink>
+      <div class="monthly-review-links"><RouterLink class="text-button" :to="{ path: '/conflitos-notas', query: { companyId: conference.companyId } }">Resolver conflitos →</RouterLink>
+          <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { companyId: conference.companyId } }">Revisar eventos relacionados às notas da empresa →</RouterLink></div>
 
       <section v-show="activePanel === 'summary'" class="panel-stack" aria-label="Resumo do mês">
         <aside class="conference-note"><span class="info-icon" aria-hidden="true">i</span><div><strong>Conferência dos resultados salvos</strong><p>Compras e vendas são conferidas separadamente. Créditos de compras e saldo de ICMS a recolher ainda não são apurados.</p></div></aside>
@@ -181,6 +182,7 @@ onMounted(initialize)
 </template>
 
 <style scoped>
+.monthly-review-links { display: flex; gap: 18px; flex-wrap: wrap; margin: 18px 0; }
 .monthly-conference { color: #243650; }
 .monthly-header { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 28px; }
 .monthly-header h2 { margin: 12px 0 10px; color: #15243d; font-size: clamp(26px, 2.6vw, 34px); font-weight: 750; letter-spacing: -.035em; }

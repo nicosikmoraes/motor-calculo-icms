@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  LIST_DOCUMENT_CONFLICTS: 'documents:list-conflicts',
+  SAVE_CONFLICT_RESOLUTION: 'documents:save-conflict',
   LIST_DOCUMENT_REVIEWS: 'documents:list-reviews',
   SAVE_DOCUMENT_REVIEW: 'documents:save-review',
   GET_MONTHLY_CONFERENCE: 'report:monthly-conference',
@@ -621,6 +623,7 @@ export interface DocumentArtifactSummary {
 }
 
 export interface FiscalDocumentSummary {
+  conflictResolution?: DocumentConflictEvidence
   documentaryStatus?: string
   documentaryReason?: string
   companyId?: string
@@ -751,6 +754,8 @@ export interface BackupStatus {
 }
 
 export interface DesktopApi {
+  listDocumentConflicts(): Promise<readonly DocumentConflictSummary[]>
+  saveConflictResolution(input: SaveConflictResolutionInput): Promise<DocumentConflictSummary>
   listDocumentReviews(): Promise<readonly DocumentReviewSummary[]>
   saveDocumentReview(input: SaveDocumentReviewInput): Promise<DocumentReviewSummary>
   getMonthlyConference(input: MonthlyConferenceInput): Promise<MonthlyConference>
@@ -809,4 +814,37 @@ export interface DesktopApi {
   getItemFiscalContext(batchId: string, documentId: string, itemNumber: string): Promise<ItemFiscalContext>
   saveItemFiscalAnswers(input: SaveItemFiscalAnswersInput): Promise<ItemFiscalContext>
   applyReusableFiscalAnswers(batchId: string): Promise<number>
+}
+
+export interface ConflictResolutionAudit {
+  id: string; revision: number; action: 'SELECT' | 'REOPEN'; documentId: string
+  reason: string; computer: string; systemUser: string; createdAt: string
+}
+export interface DocumentConflictEvidence {
+  contentHash: string; sourceBatchId: string; sourceBatchName: string; sourceFileName: string
+  status: 'PENDING' | 'RESOLVED' | 'STALE'
+  chosenDocumentId?: string
+  chosenContentHash?: string
+  selected: boolean
+  reason: string
+  history: readonly ConflictResolutionAudit[]
+}
+export interface ConflictComparisonField {
+  path: string; label: string; values: readonly (string | null)[]; different: boolean
+}
+export interface ConflictVersion {
+  id: string; batchId: string; batchName: string; fileName: string; receivedAt: string
+  companyId?: string; companyName?: string; number: string; series: string; issuedAt?: string
+  contentHash: string; canSelect: boolean; blockedReason?: string
+  protocol?: string; protocolStatus?: string; itemCount: number
+}
+export interface DocumentConflictSummary {
+  accessKey: string; environmentCode: string; status: DocumentConflictEvidence['status']
+  versions: readonly ConflictVersion[]; fields: readonly ConflictComparisonField[]
+  chosenDocumentId?: string; chosenContentHash?: string
+  snapshot: string; canReopen: boolean; history: readonly ConflictResolutionAudit[]
+}
+export interface SaveConflictResolutionInput {
+  accessKey: string; environmentCode: string; documentId: string; action: 'SELECT' | 'REOPEN'
+  reason: string; expectedSnapshot: string; requestId: string
 }

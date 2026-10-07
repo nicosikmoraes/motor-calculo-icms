@@ -4,7 +4,7 @@ Este é o backlog oficial de decisões do MVP. Itens aprovados devem ser retirad
 
 ## Prioridade 1 — concluir ingestão e ciclo do documento
 
-1. **Duplicidade:** política aprovada na DT-019; falta detalhar a interface de resolução do conflito, sem alterar sua consequência fiscal.
+1. **Duplicidade:** escolha justificada da versão válida, comparação de campos e reabertura implementadas na DT-048. A nova versão diferente exige outra decisão; cópias idênticas não duplicam o total mensal. Ampliações da política permanecem sujeitas a decisão.
 2. **Eventos órfãos:** associação confirmada entre lotes e revisão de cancelamento/CC-e implementadas na DT-047, sem modificar XMLs ou cálculos históricos. Faltam a resolução de eventos inconsistentes e a ampliação dos tipos de evento e protocolos órfãos.
 3. **Conflitos e precedência:** ordem final entre cancelamento, rejeição, denegação, manifestações, CC-e, contingência e pendências fiscais.
 4. **Validação do XML 4.00:** pacote inicial `PL_010f_v1.04`, bibliotecas e catálogo inicial de severidades aprovados nas DT-020 e DT-021; falta ampliar campos necessários durante a normalização fiscal. Assinatura não será validada no MVP.

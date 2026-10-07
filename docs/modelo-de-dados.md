@@ -206,6 +206,16 @@ exclusão das decisões e exigem evento e nota da mesma organização, chave e
 ambiente. A aplicação revalida as evidências dentro da transação antes de gravar.
 A migration participa do backup automático anterior à atualização do banco.
 
+### Resoluções de conflitos implementadas (migration `0017`)
+
+A tabela `resolucoes_conflitos` guarda decisões `SELECT` e `REOPEN` por
+organização, chave e ambiente. Cada registro identifica a ocorrência escolhida,
+a solicitação idempotente, a revisão, o motivo, o conjunto de hashes revisado,
+o snapshot da tela, usuário, computador e instante UTC. Uma versão de conteúdo
+nova invalida a escolha anterior; uma nova cópia de conteúdo já revisado não.
+Triggers impedem UPDATE/DELETE e referências de outra organização/chave/ambiente.
+A migration usa a mesma proteção de backup prévio das demais atualizações.
+
 ### Regras gerais
 
 - Chave de acesso não é restrição única: ocorrências repetidas ou conflitantes são

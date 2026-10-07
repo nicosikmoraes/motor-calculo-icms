@@ -939,3 +939,43 @@ permanecem intactos. O XLSX acrescenta a aba Eventos e revisões quando há even
 incluindo texto, protocolo, origem e decisões. Colunas de base e ICMS salvos
 para auditoria mantêm visíveis as memórias mesmo em itens excluídos; não somam
 esses valores ao resumo. Créditos e saldo a recolher permanecem sem apuração.
+
+
+## DT-048 — Resolução auditada de conflitos de conteúdo
+
+Implementação autorizada em 06/10/2026, como continuação da DT-047 e da política
+DT-019. A tela Conflitos de notas reúne versões da organização atual pela chave
+e ambiente, compara campos normalizados, itens alinhados pelo número e protocolos
+associados. Seletores permitem comparar qualquer par e exibir só diferenças.
+Dados ausentes, vazios e zero permanecem distintos. Hashes distintos podem não
+apresentar diferenças nos campos normalizados; as origens permanecem visíveis.
+
+A escolha seleciona uma ocorrência e seu hash com justificativa e confirmação
+expressa. Vale para esse conteúdo na mesma chave/ambiente da organização, inclusive
+em lotes e empresas analisadas diferentes. A conferência mensal usa uma ocorrência
+por empresa, preferindo a escolhida se elegível e, nas demais empresas, a primeira
+elegível do conteúdo escolhido. Não mescla compras/vendas, ambientes ou meses.
+Resumos individuais dos lotes continuam próprios do lote. Conteúdos descartados
+não participam dos totais; cópias do escolhido não duplicam a conferência mensal.
+
+A migration 17 guarda decisões SELECT/REOPEN imutáveis e auditadas com usuário,
+computador, data, solicitação idempotente, revisão e snapshots. Triggers protegem
+escopo e histórico. O snapshot da tela inclui ocorrências, restrições, eventos e
+últimas decisões; gravação transacional recusa confirmação desatualizada. O
+conjunto de hashes revisado define a vigência da escolha: uma versão nova a
+invalida, enquanto outra cópia de hash já revisado mantém a decisão. Reabertura
+suspende a escolha e preserva o registro anterior.
+
+A projeção só remove a restrição de ocorrência quando empresa, ambiente e demais
+condições de ingestão são compatíveis. Classificações, documentos normalizados,
+XMLs e execuções salvas não são reescritos. A decisão não recalcula imposto.
+Cancelamento/denegação associados a qualquer versão da chave e ambiente continuam
+bloqueando os totais e novos cálculos. CC-e ligada a conteúdo descartado exige
+novo vínculo e revisão, sem herdar aprovação anterior. Demais bloqueios fiscais,
+protocolos e efeitos ainda não cobertos continuam aplicáveis.
+
+Histórico e conferências consultam a decisão atual. Relatórios já capturados
+permanecem intactos. O XLSX inclui Conflitos e decisões com identificação de cada
+ocorrência, conteúdo escolhido, motivo, origem e histórico. Valores salvos para
+auditoria permanecem separados dos totais. Esta entrega depende do PR #36; não
+altera o escopo de ICMS comum nem implementa créditos ou saldo a recolher.

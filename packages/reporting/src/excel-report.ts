@@ -147,6 +147,12 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
     a.eventType, a.sequence, environment(a.environmentCode ?? ''), a.protocolNumber, a.occurredAt, a.statusCode, a.statusReason,
     a.correctionText ?? a.justification, a.association, a.sourceBatchId ?? report.batch.id, a.sourceBatchName, a.documentId, a.targetBatchId,
     a.reviewHistory?.map(r => `${r.revision} · ${r.action} · ${r.createdAt}\n${r.reason}\n${r.computer} · ${r.systemUser}`).join('\n\n')]))
+  const conflicts = report.documents.filter(d => d.conflictResolution)
+  if (conflicts.length) addSheet(book, report, 'Conflitos e decisões', [text('Chave de acesso', 50), text('Ambiente', 18), text('Documento', 40),
+    text('Situação do conflito', 22), text('Versão escolhida', 40), text('Conteúdo escolhido', 68), text('Participação / motivo', 65), text('Histórico das decisões', 100), text('Conteúdo desta ocorrência', 68), text('Lote desta ocorrência', 40), text('Nome do lote', 36), text('Arquivo de origem', 50)],
+    conflicts.map(d => [d.accessKey, environment(d.environmentCode ?? ''), d.id, d.conflictResolution!.status,
+      d.conflictResolution!.chosenDocumentId, d.conflictResolution!.chosenContentHash, d.conflictResolution!.reason,
+      d.conflictResolution!.history.map(r => `${r.revision} · ${r.action} · ${r.documentId} · ${r.createdAt}\n${r.reason}\n${r.computer} · ${r.systemUser}`).join('\n\n'), d.conflictResolution!.contentHash, d.conflictResolution!.sourceBatchId, d.conflictResolution!.sourceBatchName, d.conflictResolution!.sourceFileName]))
   return book
 }
 export async function generateExcelReport(report: ReportData): Promise<Uint8Array> {

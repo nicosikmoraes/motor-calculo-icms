@@ -21,6 +21,11 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  listDocumentConflicts: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_DOCUMENT_CONFLICTS),
+  saveConflictResolution: input => ipcRenderer.invoke(IPC_CHANNELS.SAVE_CONFLICT_RESOLUTION, {
+    accessKey: input.accessKey, environmentCode: input.environmentCode, documentId: input.documentId,
+    action: input.action, reason: input.reason, expectedSnapshot: input.expectedSnapshot, requestId: input.requestId,
+  }),
   listDocumentReviews: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_DOCUMENT_REVIEWS),
   saveDocumentReview: input => ipcRenderer.invoke(IPC_CHANNELS.SAVE_DOCUMENT_REVIEW, {
     artifactId: input.artifactId, documentId: input.documentId, action: input.action, reason: input.reason,

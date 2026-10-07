@@ -82,6 +82,7 @@ export function buildReportData(source: BatchDetail, metadata: ReportMetadata): 
     unique(document.items.map((item) => item.itemNumber), 'item do documento')
     const { items: documentItems, ...header } = document
     documents.push(header)
+    if (document.conflictResolution && (document.conflictResolution.status !== 'RESOLVED' || !document.conflictResolution.selected)) pendencies.push({ scope: 'DOCUMENT', code: 'DOCUMENT_CONFLICT', documentId: document.id, detail: document.conflictResolution.reason })
     if (document.documentaryReason) pendencies.push({ scope: 'DOCUMENT', code: document.documentaryStatus ?? 'DOCUMENTARY_REVIEW',
       documentId: document.id, detail: document.documentaryReason })
     if (!document.eligibleForProcessing || document.pendingReason) {

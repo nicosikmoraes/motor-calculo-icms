@@ -13,6 +13,7 @@ import { registerBatchQueryHandlers } from './batch-query-handlers'
 import { registerBatchReassessmentHandler } from './batch-reassessment-handler'
 import { registerReportHandlers } from './report-handlers'
 import { registerItemFiscalHandlers } from './item-fiscal-handlers'
+import { registerConflictResolutionHandlers } from './conflict-resolution-handlers'
 import { registerDocumentReviewHandlers } from './document-review-handlers'
 import { batchOperations, closeDatabase, openDatabase, requiredInputText } from './main-services'
 
@@ -68,6 +69,7 @@ function registerIpcHandlers(): void {
   registerBatchReassessmentHandler()
   registerItemFiscalHandlers()
   registerDocumentReviewHandlers()
+  registerConflictResolutionHandlers()
   registerReportHandlers()
 }
 
