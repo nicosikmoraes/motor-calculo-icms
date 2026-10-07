@@ -4,7 +4,7 @@ import { parseDocumentArtifactXml } from '../src/document-artifacts'
 
 const key = '1'.repeat(44)
 const event = `<evento versao="1.00"><infEvento><tpAmb>2</tpAmb><chNFe>${key}</chNFe><dhEvento>2026-09-15T12:00:00-03:00</dhEvento><tpEvento>110111</tpEvento><nSeqEvento>1</nSeqEvento><detEvento><xJust>Teste</xJust></detEvento></infEvento></evento>`
-const response = `<retEvento versao="1.00"><infEvento><chNFe>${key}</chNFe><tpEvento>110111</tpEvento><nSeqEvento>1</nSeqEvento><cStat>135</cStat><xMotivo>Evento registrado</xMotivo><nProt>135260000000001</nProt></infEvento></retEvento>`
+const response = `<retEvento versao="1.00"><infEvento><tpAmb>2</tpAmb><chNFe>${key}</chNFe><tpEvento>110111</tpEvento><nSeqEvento>1</nSeqEvento><cStat>135</cStat><xMotivo>Evento registrado</xMotivo><nProt>135260000000001</nProt></infEvento></retEvento>`
 
 describe('protocolos e eventos XML', () => {
   it('extrai o protocolo embutido em nfeProc sem alterar a nota', () => {
@@ -32,5 +32,11 @@ describe('protocolos e eventos XML', () => {
   it('recusa versão não suportada e DTD', () => {
     expect(() => parseDocumentArtifactXml(event.replace('versao="1.00"', 'versao="2.00"'))).toThrow(/Versão 2.00/)
     expect(() => parseDocumentArtifactXml(`<!DOCTYPE evento>${event}`)).toThrow(/DTD/)
+  })
+  it('não aceita retorno de outro ambiente nem retorno sem ambiente', () => {
+    for (const different of [response.replace('<tpAmb>2</tpAmb>', '<tpAmb>1</tpAmb>'), response.replace('<tpAmb>2</tpAmb>', '')]) {
+      expect(parseDocumentArtifactXml(`<procEventoNFe versao="1.00">${event}${different}</procEventoNFe>`))
+        .toMatchObject({ kind: 'EVENT', artifact: { responseMatches: false } })
+    }
   })
 })

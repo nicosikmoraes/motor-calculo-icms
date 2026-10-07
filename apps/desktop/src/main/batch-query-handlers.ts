@@ -7,6 +7,7 @@ import { AppError, AppErrorCode } from '@motor/domain'
 import { classifyFiscalItem } from './fiscal-item-classification'
 import { buildItemFiscalContext, documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-cases'
 import { activeDatabase, requiredInputText } from './main-services'
+import { artifactSummary, documentaryState, readDocumentaryIndex, relatedEvents, type DocumentaryIndex } from './documentary-evidence'
 
 /** Lista os lotes da organização e monta detalhes para a interface. */
 export function registerBatchQueryHandlers(): void {
@@ -53,7 +54,7 @@ export function registerBatchQueryHandlers(): void {
 }
 
 /** Consulta compartilhada pela tela e pela exportação, com escopo da organização ativa. */
-export function queryBatchDetail(connection: SqliteDatabase, batchId: string, runId?: string): BatchDetail {
+export function queryBatchDetail(connection: SqliteDatabase, batchId: string, runId?: string, evidence = readDocumentaryIndex(connection)): BatchDetail {
   const organization = new SqliteOrganizationRepository(connection).findSingle()
   const batches = new SqliteBatchRepository(connection)
   const batch = batches.findById(batchId)
@@ -66,6 +67,8 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
   const documents = batches.listNormalizedDocuments(batchId)
   const occurrences = batches.listOccurrences(batchId)
   const documentArtifacts = batches.listDocumentArtifacts(batchId)
+  const relatedArtifacts = new Map(documentArtifacts.map(a => [a.id, a]))
+  for (const document of documents) for (const event of relatedEvents(evidence, document)) relatedArtifacts.set(event.id, event)
   const fiscalBlocks = new Map(documents.map(document => [document.id, documentFiscalBlock(document, documentArtifacts)] as const))
   const calculations = new SqliteCalculationRepository(connection)
   const latestCalculations = new Map(documents.map((document) => [document.id, calculations.latestByDocument(document.id)] as const))
@@ -93,7 +96,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
       totalDocuments: batch.totalDocuments,
       totalPendencies: batch.totalPendencies,
     },
-    consolidation: getBatchConsolidation(connection, batchId),
+    consolidation: getBatchConsolidation(connection, batchId, evidence),
     occurrences: occurrences.map((occurrence) => ({
       id: occurrence.id,
       originalName: occurrence.originalName,
@@ -114,24 +117,16 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
       code: diagnostic.code,
       message: diagnostic.message,
     })),
-    artifacts: documentArtifacts.map(({ id, occurrenceId, documentId, association, normalized }) => ({
-      id, occurrenceId, ...(documentId ? { documentId } : {}), association,
-      kind: normalized.kind, envelope: normalized.envelope, accessKey: normalized.accessKey,
-      version: normalized.version,
-      ...(normalized.eventType ? { eventType: normalized.eventType } : {}),
-      ...(normalized.sequence ? { sequence: normalized.sequence } : {}),
-      ...(normalized.statusCode ? { statusCode: normalized.statusCode } : {}),
-      ...(normalized.statusReason ? { statusReason: normalized.statusReason } : {}),
-      ...(normalized.protocolNumber ? { protocolNumber: normalized.protocolNumber } : {}),
-      ...(normalized.occurredAt ? { occurredAt: normalized.occurredAt } : {}),
-      ...(normalized.responseMatches !== undefined ? { responseMatches: normalized.responseMatches } : {}),
-    })),
+    artifacts: [...relatedArtifacts.values()].map(artifact => artifactSummary(evidence, artifact,
+      documents.find(d => d.normalized.accessKey === artifact.normalized.accessKey && d.normalized.environmentCode === artifact.normalized.environmentCode))),
     ruleAssessmentRuns,
     ...(originalAssessment ? { originalAssessmentPack: { id: originalAssessment.packId, version: originalAssessment.packVersion } } : {}),
     documents: documents.map(({
       id, companyId, normalized, ruleAssessments, eligibleForProcessing, pendingReason,
     }) => ({
       id,
+      ...(() => { const state = documentaryState(evidence, evidence.documents.get(id)!)
+        return { documentaryStatus: state.status, ...(state.reason ? { documentaryReason: state.reason } : {}) } })(),
       ...(companyId ? { companyId } : {}),
       ...(companyId && companies.get(companyId) ? { companyName: companies.get(companyId)!.legalName } : {}),
       accessKey: normalized.accessKey,
@@ -155,7 +150,8 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
             const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
             const calculation = buildItemFiscalContext(normalized, item, readItemFiscalAnswers(saved?.memory), saved?.memory, run?.id,
               fiscalBlocks.get(id)).calculation
-            return saved && run ? { ...calculation, engineVersion: run.engineVersion } : calculation
+            // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
+            return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion } : calculation
           })(),
           ...(selectedAssessment ? { ruleAssessment: selectedAssessment } : {}),
           ...(runId && ruleAssessments?.[item.itemNumber]

@@ -1,4 +1,6 @@
 export const IPC_CHANNELS = {
+  LIST_DOCUMENT_REVIEWS: 'documents:list-reviews',
+  SAVE_DOCUMENT_REVIEW: 'documents:save-review',
   GET_MONTHLY_CONFERENCE: 'report:monthly-conference',
   EXPORT_MONTHLY_EXCEL: 'report:export-monthly-excel',
   EXPORT_BATCH_EXCEL: 'report:export-batch-excel',
@@ -549,7 +551,58 @@ export interface SaveItemFiscalAnswersInput {
   answers: ItemFiscalAnswers
 }
 
+export type DocumentReviewAction = 'ASSOCIATE' | 'APPROVE_CCE' | 'REOPEN_CCE'
+export interface DocumentReviewAudit {
+  id: string
+  revision: number
+  action: DocumentReviewAction
+  reason: string
+  computer: string
+  systemUser: string
+  createdAt: string
+}
+export interface DocumentReviewCandidate {
+  id: string
+  batchId: string
+  batchName: string
+  companyId?: string
+  companyName?: string
+  number: string
+  series: string
+  issuedAt?: string
+  contentHash: string
+}
+export type DocumentaryStatus = 'UNMATCHED' | 'CONFLICT' | 'ASSOCIATION_PENDING' | 'CANCELED' | 'CCE_PENDING' | 'CCE_APPROVED' | 'REVIEW_PENDING' | 'CLEAR'
+export interface DocumentReviewSummary {
+  artifact: DocumentArtifactSummary
+  candidates: readonly DocumentReviewCandidate[]
+  documentId?: string
+  status: DocumentaryStatus
+  effect: string
+  blockedReason?: string
+  canAssociate: boolean
+  canApproveCce: boolean
+  canReopenCce: boolean
+  snapshot: string
+  history: readonly DocumentReviewAudit[]
+}
+export interface SaveDocumentReviewInput {
+  artifactId: string
+  documentId: string
+  action: DocumentReviewAction
+  reason: string
+  expectedSnapshot: string
+  requestId: string
+}
+
 export interface DocumentArtifactSummary {
+  targetBatchId?: string
+  sourceBatchId?: string
+  sourceBatchName?: string
+  environmentCode?: string
+  correctionText?: string
+  justification?: string
+  reviewHistory?: readonly DocumentReviewAudit[]
   id: string
   occurrenceId: string
   documentId?: string
@@ -568,6 +621,8 @@ export interface DocumentArtifactSummary {
 }
 
 export interface FiscalDocumentSummary {
+  documentaryStatus?: string
+  documentaryReason?: string
   companyId?: string
   companyName?: string
   id: string
@@ -696,6 +751,8 @@ export interface BackupStatus {
 }
 
 export interface DesktopApi {
+  listDocumentReviews(): Promise<readonly DocumentReviewSummary[]>
+  saveDocumentReview(input: SaveDocumentReviewInput): Promise<DocumentReviewSummary>
   getMonthlyConference(input: MonthlyConferenceInput): Promise<MonthlyConference>
   exportMonthlyExcel(input: MonthlyConferenceInput): Promise<{ path: string } | null>
 

@@ -21,6 +21,11 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  listDocumentReviews: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_DOCUMENT_REVIEWS),
+  saveDocumentReview: input => ipcRenderer.invoke(IPC_CHANNELS.SAVE_DOCUMENT_REVIEW, {
+    artifactId: input.artifactId, documentId: input.documentId, action: input.action, reason: input.reason,
+    expectedSnapshot: input.expectedSnapshot, requestId: input.requestId,
+  }),
   getMonthlyConference: (input) => ipcRenderer.invoke(IPC_CHANNELS.GET_MONTHLY_CONFERENCE, { companyId: input.companyId, period: input.period }),
   exportMonthlyExcel: (input) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL, { companyId: input.companyId, period: input.period }),
   exportBatchExcel: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_BATCH_EXCEL, batchId),

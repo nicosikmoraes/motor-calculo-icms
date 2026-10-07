@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import InterchangeView from './views/InterchangeView.vue'
 import MonthlyConferenceView from './views/MonthlyConferenceView.vue'
+import DocumentReviewView from './views/DocumentReviewView.vue'
 import BackupView from './views/BackupView.vue'
 import DashboardView from './views/DashboardView.vue'
 import CompaniesView from './views/CompaniesView.vue'
@@ -15,6 +16,7 @@ export const router = createRouter({
   history: createWebHashHistory(),
   scrollBehavior() { return { top: 0 } },
   routes: [
+    { path: '/revisao-documental', component: DocumentReviewView },
     { path: '/conferencia-mensal', component: MonthlyConferenceView },
     { path: '/backup', component: BackupView },
     { path: '/', component: DashboardView },

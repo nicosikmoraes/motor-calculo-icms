@@ -901,3 +901,41 @@ quatro abas da DT-045. Só inclui documentos e evidências atribuíveis ao recor
 diagnósticos sem documento permanecem no lote. Não cria um lote no banco: o
 identificador monthly:empresa:mês é exclusivo do snapshot interno do relatório.
 Links na tela abrem e destacam o item no lote original.
+
+## DT-047 — Revisão documental entre lotes
+
+Incremento autorizado em 06/10/2026 após o merge das telas no PR #35. A tela
+Revisão documental reúne eventos da organização atual, localiza notas por chave
+e ambiente e registra confirmação de associação, conclusão de CC-e e reabertura.
+Cada decisão exige justificativa e fica em registro imutável, com revisão,
+data, usuário e computador. A migration 16 integra esses registros ao SQLite
+e aos backups; a associação da importação original permanece intacta.
+
+Confirmação exige retorno registrado consistente, protocolo, sequência e
+ausência de erro estrutural XML/XSD. Novos retornos de evento também conferem
+igualdade do ambiente entre solicitação e retorno. Eventos de chave/ambiente
+sem nota, conteúdos diferentes da nota ou do mesmo evento e efeitos ainda não
+cobertos continuam pendentes. Não promove protocolo órfão nem consulta a SEFAZ.
+
+Cancelamento confirmado exclui os valores em todas as cópias de conteúdo
+idêntico da nota e conserva as memórias. Bloqueios de cancelamento já reconhecidos
+na ingestão permanecem. A CC-e de maior sequência exige confirmação do vínculo
+de todos os eventos relacionados e revisão expressa do texto antes de autorizar
+o uso do XML original na conferência. Nenhum texto altera campos fiscais.
+Nova CC-e exige revisão nova; cancelamento, evento desconhecido, conflito ou
+inconsistência continua impedindo os totais. Reabrir a CC-e mais recente preserva
+a decisão anterior e recoloca a pendência. Demais restrições fiscais, documentais,
+de vigência e deduplicação continuam aplicáveis.
+
+Associação e revisão usam transação curta, snapshot dos documentos/eventos e
+últimas decisões, com identificação idempotente da solicitação. Uma importação
+ou decisão posterior invalida uma confirmação antiga. A ponte recusa campos
+externos, nota de outra chave/ambiente/organização e chamadas de subframes.
+Importação em andamento exige aguardar ou pausar.
+
+Histórico e consolidações consultam a mesma evidência atual. Nenhuma execução
+de cálculo é criada pela revisão, e snapshots de relatórios já capturados
+permanecem intactos. O XLSX acrescenta a aba Eventos e revisões quando há eventos,
+incluindo texto, protocolo, origem e decisões. Colunas de base e ICMS salvos
+para auditoria mantêm visíveis as memórias mesmo em itens excluídos; não somam
+esses valores ao resumo. Créditos e saldo a recolher permanecem sem apuração.

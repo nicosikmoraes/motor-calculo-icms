@@ -143,6 +143,7 @@ onMounted(initialize)
         <button :aria-pressed="activePanel === 'items'" :class="{ active: activePanel === 'items' }" @click="activePanel = 'items'">Itens para conferir <span>{{ counts.items }}</span></button>
         <button :aria-pressed="activePanel === 'batches'" :class="{ active: activePanel === 'batches' }" @click="activePanel = 'batches'">Lotes de origem <span>{{ conference.batches.length }}</span></button>
       </nav>
+      <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { companyId: conference.companyId } }">Revisar eventos relacionados às notas da empresa →</RouterLink>
 
       <section v-show="activePanel === 'summary'" class="panel-stack" aria-label="Resumo do mês">
         <aside class="conference-note"><span class="info-icon" aria-hidden="true">i</span><div><strong>Conferência dos resultados salvos</strong><p>Compras e vendas são conferidas separadamente. Créditos de compras e saldo de ICMS a recolher ainda não são apurados.</p></div></aside>

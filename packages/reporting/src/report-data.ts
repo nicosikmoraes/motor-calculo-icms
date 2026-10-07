@@ -82,6 +82,8 @@ export function buildReportData(source: BatchDetail, metadata: ReportMetadata): 
     unique(document.items.map((item) => item.itemNumber), 'item do documento')
     const { items: documentItems, ...header } = document
     documents.push(header)
+    if (document.documentaryReason) pendencies.push({ scope: 'DOCUMENT', code: document.documentaryStatus ?? 'DOCUMENTARY_REVIEW',
+      documentId: document.id, detail: document.documentaryReason })
     if (!document.eligibleForProcessing || document.pendingReason) {
       pendencies.push({ scope: 'DOCUMENT', code: 'DOCUMENT_PROCESSING_PENDING', documentId: document.id,
         ...(document.pendingReason ? { detail: document.pendingReason } : {}) })
@@ -106,11 +108,12 @@ export function buildReportData(source: BatchDetail, metadata: ReportMetadata): 
     }
   }
   for (const artifact of snapshot.artifacts) {
-    if (!occurrenceIds.has(artifact.occurrenceId)) throw new Error('Artefato referencia ocorrência ausente.')
-    if (artifact.association === 'ASSOCIATED' && (!artifact.documentId || !documentIds.has(artifact.documentId))) {
+    if (!occurrenceIds.has(artifact.occurrenceId) && (!artifact.sourceBatchId || artifact.sourceBatchId === snapshot.batch.id)) throw new Error('Artefato referencia ocorrência ausente.')
+    const externalTarget = artifact.targetBatchId && artifact.targetBatchId !== snapshot.batch.id
+    if (artifact.association === 'ASSOCIATED' && (!artifact.documentId || (!documentIds.has(artifact.documentId) && !externalTarget))) {
       throw new Error('Artefato associado referencia documento ausente.')
     }
-    if (artifact.documentId && !documentIds.has(artifact.documentId)) throw new Error('Documento do artefato ausente.')
+    if (artifact.documentId && !documentIds.has(artifact.documentId) && !externalTarget) throw new Error('Documento do artefato ausente.')
     if (artifact.association !== 'ASSOCIATED') pendencies.push({ scope: 'ARTIFACT',
       code: artifact.association, artifactId: artifact.id })
     if (artifact.responseMatches === false) pendencies.push({ scope: 'ARTIFACT',
