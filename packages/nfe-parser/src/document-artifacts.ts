@@ -59,6 +59,7 @@ function event(node: XmlObject, response: XmlObject | undefined, envelope: Artif
   if (response) version(response, '1.00', 'retorno de evento NF-e')
   const responseMatches = responseInfo !== undefined && asString(responseInfo.chNFe) === accessKey
     && asString(responseInfo.tpEvento) === eventType && asString(responseInfo.nSeqEvento) === sequence
+    && asString(responseInfo.tpAmb) === asString(info?.tpAmb)
   const details = asObject(info?.detEvento)
   return {
     kind: DocumentArtifactKindCode.EVENT, envelope, version: eventVersion, accessKey,

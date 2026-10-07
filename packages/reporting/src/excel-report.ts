@@ -100,14 +100,16 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   addSheet(book, report, 'Itens', [...identityColumns, text('Código do produto'), text('Produto', 50), text('NCM', 14), text('CFOP', 14),
     text('Emissão original no XML', 30), text('Situação fiscal'), monetary('Base calculada'), monetary('ICMS calculado'),
     monetary('ICMS declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
-    text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra')],
+    text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra'),
+    monetary('Base salva para auditoria'), monetary('ICMS salvo para auditoria')],
     summary.evidence.map(entry => {
       const item = items.get(JSON.stringify([entry.documentId, entry.itemNumber]))
       if (!item || !documents.has(entry.documentId)) throw new Error('Evidência referencia item ou documento ausente.')
       return [...identity(entry), item.supplierProductCode, item.description, item.ncm, item.cfop, documents.get(entry.documentId)?.issuedAt,
         label(entry.status), entry.status === 'CALCULATED' ? item.calculation.result?.base : undefined, entry.calculatedIcms,
         item.declaredIcmsAmount, entry.deferredIcms, entry.comparison?.difference, entry.comparison ? label(entry.comparison.status) : 'Sem comparação',
-        entry.reasons.join('\n'), entry.runId, entry.engineVersion, item.calculation.rule?.id, item.calculation.rule?.version]
+        entry.reasons.join('\n'), entry.runId, entry.engineVersion, item.calculation.rule?.id, item.calculation.rule?.version,
+        item.calculation.result?.base, item.calculation.result?.amount]
     }))
   addSheet(book, report, 'Divergências', [...identityColumns, monetary('ICMS calculado'), monetary('ICMS declarado'),
     monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor')],
@@ -137,6 +139,14 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   if (report.monthly) pendingColumns.push(text('Lote de origem', 40))
   addSheet(book, report, 'Pendências e exclusões', pendingColumns, pendingRows)
   if (report.monthly) addSheet(book, report, 'Lotes', [text('Lote de origem', 40), text('Nome do lote', 40), text('Situação', 24)], report.monthly.batches.map(b => [b.id, b.name, b.status]))
+  const events = [...new Map(report.artifacts.filter(a => a.kind === 'EVENT').map(a => [JSON.stringify([a.id, a.documentId]), a])).values()]
+  if (events.length) addSheet(book, report, 'Eventos e revisões', [text('Chave de acesso', 50), text('Tipo do evento', 20), text('Sequência', 12),
+    text('Ambiente', 20), text('Protocolo', 30), text('Data original do evento', 30), text('Código SEFAZ', 16), text('Motivo SEFAZ', 50),
+    text('Texto da correção / justificativa', 70), text('Associação', 24), text('Lote do evento', 40), text('Nome do lote do evento', 36),
+    text('Documento associado', 40), text('Lote da nota', 40), text('Histórico das decisões locais', 100)], events.map(a => [a.accessKey,
+    a.eventType, a.sequence, environment(a.environmentCode ?? ''), a.protocolNumber, a.occurredAt, a.statusCode, a.statusReason,
+    a.correctionText ?? a.justification, a.association, a.sourceBatchId ?? report.batch.id, a.sourceBatchName, a.documentId, a.targetBatchId,
+    a.reviewHistory?.map(r => `${r.revision} · ${r.action} · ${r.createdAt}\n${r.reason}\n${r.computer} · ${r.systemUser}`).join('\n\n')]))
   return book
 }
 export async function generateExcelReport(report: ReportData): Promise<Uint8Array> {

@@ -13,6 +13,7 @@ import { registerBatchQueryHandlers } from './batch-query-handlers'
 import { registerBatchReassessmentHandler } from './batch-reassessment-handler'
 import { registerReportHandlers } from './report-handlers'
 import { registerItemFiscalHandlers } from './item-fiscal-handlers'
+import { registerDocumentReviewHandlers } from './document-review-handlers'
 import { batchOperations, closeDatabase, openDatabase, requiredInputText } from './main-services'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
@@ -66,6 +67,7 @@ function registerIpcHandlers(): void {
   registerBatchQueryHandlers()
   registerBatchReassessmentHandler()
   registerItemFiscalHandlers()
+  registerDocumentReviewHandlers()
   registerReportHandlers()
 }
 

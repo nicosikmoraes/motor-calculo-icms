@@ -3,6 +3,7 @@ import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepos
 import { buildMonthlyConsolidation, fiscalPeriod, buildReportData, type ReportData } from '@motor/reporting'
 import { getBatchConsolidationDocuments } from './batch-consolidation'
 import { queryBatchDetail } from './batch-query-handlers'
+import { readDocumentaryIndex, type DocumentaryIndex } from './documentary-evidence'
 
 export function validateMonthlyInput(raw: unknown): MonthlyConferenceInput {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Seleção mensal inválida.')
@@ -17,23 +18,15 @@ export function queryMonthlyConference(connection: SqliteDatabase, input: Monthl
   return connection.transaction(() => readMonthlyConference(connection, validateMonthlyInput(input)))
 }
 
-function readMonthlyConference(connection: SqliteDatabase, input: MonthlyConferenceInput): MonthlyConference {
+function readMonthlyConference(connection: SqliteDatabase, input: MonthlyConferenceInput, index = readDocumentaryIndex(connection)): MonthlyConference {
   const organization = new SqliteOrganizationRepository(connection).findSingle()
   const company = organization && new SqliteCompanyRepository(connection).listByOrganization(organization.id).find(c => c.id === input.companyId)
   if (!company) throw new Error('Empresa não encontrada nesta organização.')
   const repository = new SqliteBatchRepository(connection)
   const batches = repository.listByOrganization(organization!.id)
   const events = batches.flatMap(batch => repository.listDocumentArtifacts(batch.id).filter(a => a.normalized.kind === 'EVENT'))
-  const documents = batches.flatMap(batch => getBatchConsolidationDocuments(connection, batch.id, company.id)
+  const documents = batches.flatMap(batch => getBatchConsolidationDocuments(connection, batch.id, company.id, index)
     .filter(d => d.companyId === company.id).map(d => ({ ...d, batchId: batch.id, receivedAt: batch.receivedAt })))
-  const eventsByKey = new Map(events.map(a => [JSON.stringify([a.normalized.environmentCode, a.normalized.accessKey]), a]))
-  for (const doc of documents) {
-    const event = eventsByKey.get(JSON.stringify([doc.environment, doc.accessKey]))
-    if (event) {
-      doc.reviewReason = `Evento desta chave no lote ${event.batchId} exige revisão documental antes da totalização.`
-      doc.exclusionReason = doc.reviewReason
-    }
-  }
   const summary = buildMonthlyConsolidation(company.id, input.period, documents)
   const selectedDocuments = documents.filter(d => fiscalPeriod(d.issuedAt) === input.period)
   const sourceIds = new Set(selectedDocuments.map(d => d.batchId))
@@ -47,15 +40,18 @@ function readMonthlyConference(connection: SqliteDatabase, input: MonthlyConfere
 
 export function queryMonthlyReport(connection: SqliteDatabase, input: MonthlyConferenceInput, appVersion: string): ReportData {
   return connection.transaction(() => {
-    const monthly = readMonthlyConference(connection, validateMonthlyInput(input))
+    const index = readDocumentaryIndex(connection)
+    const monthly = readMonthlyConference(connection, validateMonthlyInput(input), index)
     const ids = new Set(monthly.documents.map(d => d.id))
     const reports = monthly.batches.map(batch => {
-      const detail = queryBatchDetail(connection, batch.id)
+      const detail = queryBatchDetail(connection, batch.id, undefined, index)
       const documents = detail.documents.filter(d => ids.has(d.id))
       // Diagnósticos e ocorrências sem documento não são atribuídos artificialmente a uma empresa/mês.
       const repository = new SqliteBatchRepository(connection)
       const occurrenceIds = new Set(repository.listNormalizedDocuments(batch.id).filter(d => ids.has(d.id)).map(d => d.occurrenceId))
-      const artifacts = detail.artifacts.filter(a => a.documentId && ids.has(a.documentId))
+      const keys = new Set(documents.map(d => JSON.stringify([d.environmentCode, d.accessKey])))
+      const artifacts = detail.artifacts.filter(a => (a.documentId && documents.some(d => d.id === a.documentId))
+        || (!a.documentId && keys.has(JSON.stringify([a.environmentCode, a.accessKey]))))
       artifacts.forEach(a => occurrenceIds.add(a.occurrenceId))
       const diagnosticIds = new Set(repository.listDiagnostics(batch.id).filter(d => d.occurrenceId && occurrenceIds.has(d.occurrenceId)).map(d => d.id))
       const { consolidation: _consolidation, ...source } = detail

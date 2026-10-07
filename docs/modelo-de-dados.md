@@ -193,6 +193,21 @@ totalNovos, totalIgnorados, totalAtualizados, totalConflitos, resultado
 
 ## Restrições importantes
 
+### Revisões documentais implementadas (migration `0016`)
+
+A tabela `revisoes_documentais` acrescenta decisões locais sobre eventos sem
+alterar os artefatos importados, os documentos normalizados ou os cálculos salvos.
+Cada registro contém identificador, solicitação idempotente, artefato, documento,
+revisão, ação, justificativa, snapshot das evidências, computador, usuário e data
+UTC. As ações são `ASSOCIATE`, `APPROVE_CCE` e `REOPEN_CCE`.
+
+Há unicidade por solicitação e por artefato/revisão. Triggers proíbem alteração ou
+exclusão das decisões e exigem evento e nota da mesma organização, chave e
+ambiente. A aplicação revalida as evidências dentro da transação antes de gravar.
+A migration participa do backup automático anterior à atualização do banco.
+
+### Regras gerais
+
 - Chave de acesso não é restrição única: ocorrências repetidas ou conflitantes são
   preservadas e relacionadas dentro do lote. Índices devem permitir localizar
   rapidamente todas as ocorrências da mesma chave.

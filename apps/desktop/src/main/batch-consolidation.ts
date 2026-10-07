@@ -1,13 +1,14 @@
 import { buildBatchConsolidation, type ConsolidationDocument } from '@motor/reporting'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
 import { documentFiscalBlock } from './item-fiscal-use-cases'
+import { documentaryState, readDocumentaryIndex, type DocumentaryIndex } from './documentary-evidence'
 
 /** Lê evidências persistidas da organização ativa; não executa cálculo fiscal. */
-export function getBatchConsolidation(connection: SqliteDatabase, batchId: string) {
-  return buildBatchConsolidation(batchId, getBatchConsolidationDocuments(connection, batchId))
+export function getBatchConsolidation(connection: SqliteDatabase, batchId: string, index?: DocumentaryIndex) {
+  return buildBatchConsolidation(batchId, getBatchConsolidationDocuments(connection, batchId, undefined, index))
 }
 
-export function getBatchConsolidationDocuments(connection: SqliteDatabase, batchId: string, companyId?: string): readonly (ConsolidationDocument & { contentHash: string; reviewReason?: string | undefined })[] {
+export function getBatchConsolidationDocuments(connection: SqliteDatabase, batchId: string, companyId?: string, evidence = readDocumentaryIndex(connection)): readonly (ConsolidationDocument & { contentHash: string; reviewReason?: string | undefined })[] {
   const organization = new SqliteOrganizationRepository(connection).findSingle()
   const batches = new SqliteBatchRepository(connection)
   const batch = batches.findById(batchId)
@@ -31,18 +32,18 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
       && artifact.normalized.accessKey === nfe.accessKey && artifact.normalized.environmentCode === nfe.environmentCode
       && artifact.normalized.responseMatches !== false && Boolean(artifact.normalized.protocolNumber)
       && ['100', '150'].includes(artifact.normalized.statusCode ?? ''))
-    const lifecycleReview = documentArtifacts.some(artifact => artifact.documentId === document.id
-      && artifact.normalized.kind === 'EVENT')
+    const lifecycle = documentaryState(evidence, document)
+    const documentaryReason = lifecycle.reason
     return {
       batchId, contentHash: document.contentHash, documentId: document.id, accessKey: nfe.accessKey, documentNumber: nfe.number,
       companyId: company?.id, companyName: company?.legalName, issuedAt: nfe.issuedAt,
       perspective: issuer === recipient ? 'UNDETERMINED' : issuer ? 'SALES' : 'PURCHASES',
       environment: nfe.environmentCode === '1' || nfe.environmentCode === '2' ? nfe.environmentCode : 'UNKNOWN',
       authorization: authorized ? 'WITH_PROTOCOL' : 'UNVERIFIED',
-      reviewReason: (document.pendingReason === 'OCORRENCIA_INELEGIVEL' ? undefined : fiscalBlocks.get(document.id)) ?? (lifecycleReview ? 'Evento fiscal associado requer revisão antes da totalização.' : undefined),
-      exclusionReason: fiscalBlocks.get(document.id) ?? (!occurrence?.eligibleForTotalsByOccurrencePolicy
+      reviewReason: (document.pendingReason === 'OCORRENCIA_INELEGIVEL' ? undefined : fiscalBlocks.get(document.id)) ?? documentaryReason,
+      exclusionReason: documentaryReason ?? fiscalBlocks.get(document.id) ?? (!occurrence?.eligibleForTotalsByOccurrencePolicy
         ? 'Ocorrência duplicada, conflitante ou inelegível para totalização.'
-        : lifecycleReview ? 'Evento fiscal associado requer revisão antes da totalização.' : undefined),
+        : undefined),
       runId: run?.id, engineVersion: run?.engineVersion,
       items: nfe.items.map(item => ({ itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
         memory: run?.items.find(saved => saved.itemNumber === item.itemNumber)?.memory })),

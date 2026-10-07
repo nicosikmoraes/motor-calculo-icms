@@ -343,10 +343,39 @@ clique em **Consultar / atualizar** para refletir alterações de cálculos.
 Notas sem empresa ou data válida devem ser revisadas no histórico dos lotes.
 
 **Exportar Excel mensal** consulta novamente os resultados e salva apenas
-a empresa e o mês selecionados. Há cinco abas: Resumo, Itens, Divergências,
-Pendências e exclusões e Lotes. As linhas detalhadas identificam o lote de
+a empresa e o mês selecionados. As abas básicas são Resumo, Itens, Divergências,
+Pendências e exclusões e Lotes. Quando há eventos relacionados, também aparece
+Eventos e revisões. As linhas detalhadas identificam o lote de
 origem. Cancelar o seletor mantém o destino anterior. Conclua ou pause a
 importação antes de consultar ou exportar.
 
 A conferência mensal não concede créditos de compras nem informa saldo final
 a recolher. Esses tratamentos dependem de definição e validação fiscal.
+
+## Revisão documental entre lotes
+
+Abra **Revisão documental** para conferir eventos, mesmo quando a nota foi
+importada em outro lote. A lista oferece busca por chave, nota, protocolo ou texto,
+filtros por empresa e situação e acesso ao lote do evento e à nota original.
+O Histórico e a Conferência mensal também oferecem links para essa revisão.
+
+1. Em **Conferir associação**, confira chave, ambiente, protocolo e nota. Registre
+   uma justificativa e confirme. Cancelamento confirmado mantém a nota fora dos
+   totais; a memória salva permanece disponível para auditoria.
+2. Para CC-e, leia o texto, confira a nota e use **Concluir revisão de CC-e**.
+   Confirme expressamente o uso do XML original e registre o motivo. O aplicativo
+   não transforma o texto da correção em alterações dos dados fiscais.
+3. Use **Reabrir revisão** na CC-e mais recente para recolocar a pendência.
+   Decisões anteriores permanecem no histórico com data, usuário e computador.
+4. Consulte novamente o mês para ver os totais atualizados. A exportação sempre
+   captura uma conferência nova; planilhas já exportadas permanecem intactas.
+
+Uma nova CC-e exige nova revisão. Cancelamento, conflito de conteúdo, erro XML/XSD,
+retorno inconsistente ou evento com efeito ainda não coberto mantém a exclusão.
+Revisão concluída não elimina outras pendências nem duplica notas entre lotes.
+A tela usa evidências locais e não consulta a SEFAZ nem verifica assinaturas.
+
+O Excel inclui **Eventos e revisões** quando há eventos relacionados: protocolo,
+data, texto, origem e decisões. Em **Itens**, as colunas de valores salvos para
+auditoria conservam base e ICMS, inclusive em notas excluídas. Esses valores não
+são acrescentados aos totais do resumo.

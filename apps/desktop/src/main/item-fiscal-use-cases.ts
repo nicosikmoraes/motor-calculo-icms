@@ -4,6 +4,7 @@ import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationR
   type NormalizedFiscalDocumentRecord, type DocumentArtifactRecord, SqliteFiscalAnswerDefinitionRepository,
   type FiscalAnswerDefinitionKey, SqliteCompanyRepository } from '@motor/database'
 import { randomUUID } from 'node:crypto'
+import { documentaryState, readDocumentaryIndex } from './documentary-evidence'
 import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared, calculateParanaCommonIcms, compareDecimals, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
 
 const answersInputName = 'fiscalAnswers'
@@ -195,7 +196,9 @@ function target(database: SqliteDatabase, batchId: string, documentId: string, i
   const document = batches.listNormalizedDocuments(batchId).find(entry => entry.id === documentId)
   const item = document?.normalized.items.find(entry => entry.itemNumber === itemNumber)
   if (!document || !item) throw new Error('Item não encontrado neste lote.')
+  const documentary = documentaryState(readDocumentaryIndex(database), document)
   const externalBlock = documentFiscalBlock(document, batches.listDocumentArtifacts(batchId))
+    ?? (documentary.canceled ? documentary.reason : undefined)
   return { document, item, externalBlock, batch }
 }
 
@@ -308,10 +311,12 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
   const batch = batches.findById(batchId)
   if (!organization || !batch || batch.organizationId !== organization.id) throw new Error('Lote não encontrado.')
   const artifacts = batches.listDocumentArtifacts(batchId)
+  const evidence = readDocumentaryIndex(database)
   const repository = new SqliteCalculationRepository(database)
   let applied = 0
   for (const document of batches.listNormalizedDocuments(batchId)) {
-    const block = documentFiscalBlock(document, artifacts)
+    const documentary = documentaryState(evidence, document)
+    const block = documentFiscalBlock(document, artifacts) ?? (documentary.canceled ? documentary.reason : undefined)
     if (block) continue
     const latest = repository.latestByDocument(document.id)
     let changed = 0
