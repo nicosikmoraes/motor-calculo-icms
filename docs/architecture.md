@@ -152,168 +152,44 @@ produto não cadastra usuários nem papéis no MVP. Pedido e pagamento permanece
 separados porque um pedido pode continuar pendente, falhar, ser reembolsado ou
 receber nova tentativa; o estado definitivo depende do gateway.
 
-```mermaid
-erDiagram
-    ORGANIZATIONS ||--o{ COMPANIES : possui
-    ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
-    ORGANIZATIONS ||--o{ TAX_RULES : mantém
-    TAX_PROFILES ||--o{ SUPPLIER_PRODUCTS : classifica
-    TAX_PROFILES ||--o{ TAX_RULES : orienta
+### Cadastros fiscais
 
-    ORGANIZATIONS {
-        string id PK
-        string name
-        string installationId
-    }
-    COMPANIES {
-        string id PK
-        string organizationId FK
-        string cnpj
-        string legalName
-        string state
-    }
-    TAX_PROFILES {
-        string id PK
-        string organizationId FK
-        string name
-        string ncm
-        string cest
-    }
-    SUPPLIER_PRODUCTS {
-        string id PK
-        string supplierCnpj
-        string supplierCode
-        string taxProfileId FK
-    }
-    TAX_RULES {
-        string id PK
-        string organizationId FK
-        string taxProfileId FK
-        string version
-        datetime validFrom
-        datetime validTo
-        string status
-    }
-```
+| Entidade | Campos e relações |
+| :--- | :--- |
+| `ORGANIZATIONS` | `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras. |
+| `COMPANIES` | `id` (PK), `organizationId` (FK), `cnpj`, `legalName`, `state`; pertence a uma organização. |
+| `TAX_PROFILES` | `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`; pertence a uma organização e classifica produtos de fornecedores e regras. |
+| `SUPPLIER_PRODUCTS` | `id` (PK), `supplierCnpj`, `supplierCode`, `taxProfileId` (FK); vincula produto de fornecedor a um perfil fiscal. |
+| `TAX_RULES` | `id` (PK), `organizationId` (FK), `taxProfileId` (FK), `version`, `validFrom`, `validTo`, `status`; pertence à organização e pode seguir um perfil fiscal. |
 
 ### Ingestão fiscal
 
-```mermaid
-erDiagram
-    ORGANIZATIONS ||--o{ BATCHES : recebe
-    COMPANIES ||--o{ BATCHES : analisada_em
-    BATCHES ||--|{ FILE_OCCURRENCES : contém
-    FILE_OCCURRENCES ||--o| FISCAL_DOCUMENTS : origina
-    FISCAL_DOCUMENTS ||--|{ DOCUMENT_ITEMS : detalha
-
-    ORGANIZATIONS {
-        string id PK
-    }
-    COMPANIES {
-        string id PK
-        string cnpj
-        string legalName
-    }
-    BATCHES {
-        string id PK
-        string organizationId FK
-        string companyId FK
-        string status
-        datetime receivedAt
-    }
-    FILE_OCCURRENCES {
-        string id PK
-        string batchId FK
-        string contentHash
-        int position
-        string ingestionStatus
-    }
-    FISCAL_DOCUMENTS {
-        string id PK
-        string batchId FK
-        string fileOccurrenceId FK
-        string accessKey
-        string issuerCnpj
-        string status
-    }
-    DOCUMENT_ITEMS {
-        string id PK
-        string documentId FK
-        string productCode
-        string declaredValues
-    }
-```
+| Entidade | Campos e relações |
+| :--- | :--- |
+| `BATCHES` | `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo. |
+| `FILE_OCCURRENCES` | `id` (PK), `batchId` (FK), `contentHash`, `position`, `ingestionStatus`; pertence a um lote e pode originar um documento fiscal. |
+| `FISCAL_DOCUMENTS` | `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `status`; detalha-se em itens. |
+| `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal. |
 
 ### Cálculo e pendências
 
-```mermaid
-erDiagram
-    FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
-    CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
-    DOCUMENT_ITEMS ||--o{ ITEM_RESULTS : recebe
-    TAX_RULES ||--o{ ITEM_RESULTS : fundamenta
-    FISCAL_DOCUMENTS ||--o{ ISSUES : apresenta
-
-    FISCAL_DOCUMENTS {
-        string id PK
-        string accessKey
-        string status
-    }
-    DOCUMENT_ITEMS {
-        string id PK
-        string documentId FK
-        string productCode
-    }
-    CALCULATION_RUNS {
-        string id PK
-        string documentId FK
-        string previousRunId FK
-        string engineVersion
-        string status
-    }
-    ITEM_RESULTS {
-        string id PK
-        string calculationRunId FK
-        string itemId FK
-        string taxRuleId FK
-        string calculatedValues
-    }
-    TAX_RULES {
-        string id PK
-        string version
-        string status
-    }
-    ISSUES {
-        string id PK
-        string documentId FK
-        string type
-        string status
-        string resolution
-    }
-```
+| Entidade | Campos e relações |
+| :--- | :--- |
+| `FISCAL_DOCUMENTS` | `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo. |
+| `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere. |
+| `CALCULATION_RUNS` | `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução. |
+| `ITEM_RESULTS` | `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`; resultado de um item calculado com uma regra fiscal. |
+| `TAX_RULES` | `id` (PK), `version`, `status`; regra fiscal usada no cálculo do item. |
+| `ISSUES` | `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento. |
 
 ### Doações e pagamentos
 
-```mermaid
-erDiagram
-    DONATION_ORDERS ||--o{ PAYMENTS : recebe
+| Entidade | Campos e relações |
+| :--- | :--- |
+| `DONATION_ORDERS` | `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento. |
+| `PAYMENTS` | `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido. |
 
-    DONATION_ORDERS {
-        string id PK
-        decimal amount
-        string currency
-        string status
-    }
-    PAYMENTS {
-        string id PK
-        string donationOrderId FK
-        string gatewayId
-        string status
-        datetime confirmedAt
-    }
-```
-
-Os diagramas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
+As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
 modelo fiscal detalhado e suas restrições permanecem em
 [`modelo-de-dados.md`](modelo-de-dados.md).
