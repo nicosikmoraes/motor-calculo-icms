@@ -28,17 +28,15 @@ por arquivo e nenhum serviço externo obrigatório para a conferência fiscal.
 
 ## 2. Stack
 
-| Parte | Tecnologia e linha | Escopo e motivo |
-| :--- | :--- | :--- |
-| Interface desktop | Electron 38+ e Vue 3+ | A interface existente já usa Vue; a escolha reduz a troca de contexto e mantém o app instalável. |
-| Linguagem | TypeScript 5.9+ | Compartilha tipos entre interface, pacotes locais e API. |
-| Backend | NestJS 12+ | API REST apenas para o fluxo independente de doações e pagamentos. |
-| Persistência da API | Prisma ORM 7+ e PostgreSQL 18+ | Registra pedidos de doação e eventos de pagamento no serviço da API. |
-| Persistência fiscal local | SQLite | Mantém empresas, lotes, XMLs normalizados, regras, cálculos e histórico na instalação. |
-| Integração de pagamento | Stripe API e webhooks | Processa a doação sem guardar dados de cartão e sem enviar dados fiscais. |
-| Gerenciador de pacotes | pnpm 10+ | Já organiza o monorepo e seus pacotes de domínio. |
-| Testes | Vitest 3+ | Já é o executor de testes do projeto. |
-| Lint | Oxlint 1+ | Comando planejado para validar os pacotes da API e da interface. |
+- **Interface desktop — Electron 38+ e Vue 3+:** a interface existente já usa Vue; a escolha reduz a troca de contexto e mantém o app instalável.
+- **Linguagem — TypeScript 5.9+:** compartilha tipos entre interface, pacotes locais e API.
+- **Backend — NestJS 12+:** API REST apenas para o fluxo independente de doações e pagamentos.
+- **Persistência da API — Prisma ORM 7+ e PostgreSQL 18+:** registra pedidos de doação e eventos de pagamento no serviço da API.
+- **Persistência fiscal local — SQLite:** mantém empresas, lotes, XMLs normalizados, regras, cálculos e histórico na instalação.
+- **Integração de pagamento — Stripe API e webhooks:** processa a doação sem guardar dados de cartão e sem enviar dados fiscais.
+- **Gerenciador de pacotes — pnpm 10+:** já organiza o monorepo e seus pacotes de domínio.
+- **Testes — Vitest 3+:** já é o executor de testes do projeto.
+- **Lint — Oxlint 1+:** comando planejado para validar os pacotes da API e da interface.
 
 As linhas foram conferidas nas documentações oficiais em 11/10/2026. Prisma ORM
 8 ainda estava em release candidate na data da consulta, então a linha estável
@@ -118,11 +116,9 @@ não são mesclados nem sincronizados. Valores monetários são decimais exatos;
 estado `pago` só é confirmado por webhook válido. Uma repetição do evento não
 cria uma segunda confirmação.
 
-| Ambiente da API | Onde roda | Conexão |
-| :--- | :--- | :--- |
-| Local | PostgreSQL em Docker na máquina de desenvolvimento | `DATABASE_URL` em `.env` fora do Git. O SQLite fiscal continua no diretório de dados da aplicação. |
-| CI | PostgreSQL em container no GitHub Actions | `DATABASE_URL` definido pelo workflow para o serviço de teste. |
-| Produção | Neon, região São Paulo | `DATABASE_URL` em secret da plataforma. |
+- **Local:** PostgreSQL em Docker na máquina de desenvolvimento; `DATABASE_URL` em `.env` fora do Git. O SQLite fiscal continua no diretório de dados da aplicação.
+- **CI:** PostgreSQL em container no GitHub Actions; `DATABASE_URL` definido pelo workflow para o serviço de teste.
+- **Produção:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma.
 
 O repositório contém somente o nome da variável. Valores de conexão e chaves do
 Stripe vivem fora do Git. XMLs, CNPJ, regras, memória de cálculo e relatórios
@@ -130,22 +126,20 @@ fiscais nunca são enviados à API.
 
 ### Glossário técnico e modelo conceitual
 
-| Termo de produto | Entidade/tabela | Dados principais |
-| :--- | :--- | :--- |
-| Organização | `organizations` (SQLite) | `id`, `name`, `installationId` |
-| Empresa | `companies` (SQLite) | `id`, `organizationId`, `cnpj`, `legalName`, `state`, `status` |
-| Perfil fiscal | `tax_profiles` (SQLite) | `id`, `organizationId`, `name`, `category`, `ncm`, `cest`, `version` |
-| Produto de fornecedor | `supplier_products` (SQLite) | `id`, `supplierCnpj`, `supplierCode`, `taxProfileId`, `status` |
-| Regra fiscal | `tax_rules` (SQLite) | `id`, `organizationId`, `version`, `validFrom`, `validTo`, `status`, `legalBasis` |
-| Lote | `batches` (SQLite) | `id`, `organizationId`, `companyId`, `status`, `receivedAt` |
-| Ocorrência de arquivo | `file_occurrences` (SQLite) | `id`, `batchId`, `contentHash`, `position`, `ingestionStatus` |
-| Nota/documento fiscal | `fiscal_documents` (SQLite) | `id`, `batchId`, `fileOccurrenceId`, `accessKey`, `issuerCnpj`, `status` |
-| Item da nota | `document_items` (SQLite) | `id`, `documentId`, `productCode`, `declaredValues` |
-| Execução de cálculo | `calculation_runs` (SQLite) | `id`, `documentId`, `previousRunId`, `engineVersion`, `status` |
-| Resultado do item | `item_results` (SQLite) | `id`, `calculationRunId`, `itemId`, `taxRuleId`, `calculatedValues`, `calculationMemory` |
-| Pendência | `issues` (SQLite) | `id`, `batchId`, `documentId`, `itemId`, `type`, `status`, `resolution` |
-| Pedido de doação | `donation_orders` (PostgreSQL) | `id`, `amount`, `currency`, `status`, `createdAt` |
-| Pagamento | `payments` (PostgreSQL) | `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt` |
+- **Organização — `organizations` (SQLite):** `id`, `name`, `installationId`.
+- **Empresa — `companies` (SQLite):** `id`, `organizationId`, `cnpj`, `legalName`, `state`, `status`.
+- **Perfil fiscal — `tax_profiles` (SQLite):** `id`, `organizationId`, `name`, `category`, `ncm`, `cest`, `version`.
+- **Produto de fornecedor — `supplier_products` (SQLite):** `id`, `supplierCnpj`, `supplierCode`, `taxProfileId`, `status`.
+- **Regra fiscal — `tax_rules` (SQLite):** `id`, `organizationId`, `version`, `validFrom`, `validTo`, `status`, `legalBasis`.
+- **Lote — `batches` (SQLite):** `id`, `organizationId`, `companyId`, `status`, `receivedAt`.
+- **Ocorrência de arquivo — `file_occurrences` (SQLite):** `id`, `batchId`, `contentHash`, `position`, `ingestionStatus`.
+- **Nota/documento fiscal — `fiscal_documents` (SQLite):** `id`, `batchId`, `fileOccurrenceId`, `accessKey`, `issuerCnpj`, `status`.
+- **Item da nota — `document_items` (SQLite):** `id`, `documentId`, `productCode`, `declaredValues`.
+- **Execução de cálculo — `calculation_runs` (SQLite):** `id`, `documentId`, `previousRunId`, `engineVersion`, `status`.
+- **Resultado do item — `item_results` (SQLite):** `id`, `calculationRunId`, `itemId`, `taxRuleId`, `calculatedValues`, `calculationMemory`.
+- **Pendência — `issues` (SQLite):** `id`, `batchId`, `documentId`, `itemId`, `type`, `status`, `resolution`.
+- **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `amount`, `currency`, `status`, `createdAt`.
+- **Pagamento — `payments` (PostgreSQL):** `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt`.
 
 “Horário de pico” é regra de negócio, não entidade. “Cancelamento” é estado ou
 evento relacionado ao documento/pagamento e não ganha tabela genérica própria. O
@@ -180,13 +174,11 @@ erDiagram
     }
 ```
 
-| Entidade | Campos e relações |
-| :--- | :--- |
-| `ORGANIZATIONS` | `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras. |
-| `COMPANIES` | `id` (PK), `organizationId` (FK), `cnpj`, `legalName`, `state`; pertence a uma organização. |
-| `TAX_PROFILES` | `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`; pertence a uma organização e classifica produtos de fornecedores e regras. |
-| `SUPPLIER_PRODUCTS` | `id` (PK), `supplierCnpj`, `supplierCode`, `taxProfileId` (FK); vincula produto de fornecedor a um perfil fiscal. |
-| `TAX_RULES` | `id` (PK), `organizationId` (FK), `taxProfileId` (FK), `version`, `validFrom`, `validTo`, `status`; pertence à organização e pode seguir um perfil fiscal. |
+- **`ORGANIZATIONS`:** `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras.
+- **`COMPANIES`:** `id` (PK), `organizationId` (FK), `cnpj`, `legalName`, `state`; pertence a uma organização.
+- **`TAX_PROFILES`:** `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`; pertence a uma organização e classifica produtos de fornecedores e regras.
+- **`SUPPLIER_PRODUCTS`:** `id` (PK), `supplierCnpj`, `supplierCode`, `taxProfileId` (FK); vincula produto de fornecedor a um perfil fiscal.
+- **`TAX_RULES`:** `id` (PK), `organizationId` (FK), `taxProfileId` (FK), `version`, `validFrom`, `validTo`, `status`; pertence à organização e pode seguir um perfil fiscal.
 
 ### Ingestão fiscal
 
@@ -218,12 +210,10 @@ erDiagram
     }
 ```
 
-| Entidade | Campos e relações |
-| :--- | :--- |
-| `BATCHES` | `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo. |
-| `FILE_OCCURRENCES` | `id` (PK), `batchId` (FK), `contentHash`, `position`, `ingestionStatus`; pertence a um lote e pode originar um documento fiscal. |
-| `FISCAL_DOCUMENTS` | `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `status`; detalha-se em itens. |
-| `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal. |
+- **`BATCHES`:** `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo.
+- **`FILE_OCCURRENCES`:** `id` (PK), `batchId` (FK), `contentHash`, `position`, `ingestionStatus`; pertence a um lote e pode originar um documento fiscal.
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `status`; detalha-se em itens.
+- **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal.
 
 ### Cálculo e pendências
 
@@ -255,14 +245,12 @@ erDiagram
     }
 ```
 
-| Entidade | Campos e relações |
-| :--- | :--- |
-| `FISCAL_DOCUMENTS` | `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo. |
-| `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere. |
-| `CALCULATION_RUNS` | `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução. |
-| `ITEM_RESULTS` | `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`, `calculationMemory`; resultado e memória do cálculo do item. |
-| `TAX_RULES` | `id` (PK), `version`, `status`; regra fiscal usada no cálculo do item. |
-| `ISSUES` | `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento. |
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo.
+- **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere.
+- **`CALCULATION_RUNS`:** `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução.
+- **`ITEM_RESULTS`:** `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`, `calculationMemory`; resultado e memória do cálculo do item.
+- **`TAX_RULES`:** `id` (PK), `version`, `status`; regra fiscal usada no cálculo do item.
+- **`ISSUES`:** `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento.
 
 ### Doações e pagamentos
 
@@ -278,10 +266,8 @@ erDiagram
     }
 ```
 
-| Entidade | Campos e relações |
-| :--- | :--- |
-| `DONATION_ORDERS` | `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento. |
-| `PAYMENTS` | `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido. |
+- **`DONATION_ORDERS`:** `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento.
+- **`PAYMENTS`:** `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido.
 
 As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
