@@ -92,9 +92,10 @@ Na API, controllers traduzem HTTP para chamadas de serviço; services aplicam as
 regras do fluxo; repositórios encapsulam Prisma. DTOs validam toda entrada. O
 `ValidationPipe` global rejeita campos inválidos e desconhecidos. Um filtro global
 converte erros não tratados para resposta HTTP estável, sem expor stack trace ou
-segredos; erros de negócio usam códigos e mensagens acionáveis. Swagger documenta
-os endpoints REST. O NestJS organiza essas responsabilidades em módulos por
-domínio. No frontend, toda chamada remota passa pela camada de serviço.
+segredos; erros de negócio usam códigos e mensagens acionáveis. Um interceptor
+global padroniza o envelope das respostas de sucesso. Swagger documenta os
+endpoints REST. O NestJS organiza essas responsabilidades em módulos por domínio.
+No frontend, toda chamada remota passa pela camada de serviço.
 
 ## 4. Frontend
 
@@ -259,7 +260,7 @@ erDiagram
 | `FISCAL_DOCUMENTS` | `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo. |
 | `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere. |
 | `CALCULATION_RUNS` | `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução. |
-| `ITEM_RESULTS` | `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`; resultado de um item calculado com uma regra fiscal. |
+| `ITEM_RESULTS` | `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`, `calculationMemory`; resultado e memória do cálculo do item. |
 | `TAX_RULES` | `id` (PK), `version`, `status`; regra fiscal usada no cálculo do item. |
 | `ISSUES` | `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento. |
 
