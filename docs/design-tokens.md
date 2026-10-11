@@ -1,12 +1,12 @@
 # Tokens de Design
 
 **Projeto:** ContabiliNico
-**Versão:** 0.1.0 — baseline da interface atual
-**Última atualização:** 16/09/2026
+**Versão:** 0.2.0 — baseline aplicada ao protótipo
+**Última atualização:** 11/10/2026
 
 > Os valores abaixo foram extraídos da interface já implementada. Eles formam uma
-> baseline coerente, mas ainda precisam ser lidos e ratificados pelo autor antes de
-> serem tratados como decisão visual definitiva.
+> baseline aplicada ao protótipo acadêmico. O autor revisa essa identidade antes
+> de tratá-la como decisão visual definitiva da aplicação.
 
 ## Paleta
 
@@ -71,18 +71,26 @@ Uma única progressão deve orientar margens, preenchimentos e intervalos:
 
 ## Protótipo
 
-**Link:** pendente — não há link de Figma, Stitch ou equivalente aprovado.
-**Telas necessárias:** visão geral; novo lote; acompanhamento do lote; pendências;
-resultado e exportação.
+**Link público:** [ContabiliNico — protótipo da Entrega 1](https://contabilinico-prototipo.balmygrove128.chatgpt.site).
 
-Atualmente existem telas funcionais iniciais de visão geral e novo lote no
-aplicativo. O protótipo acadêmico ainda precisa cobrir de três a cinco telas das
-jornadas documentadas acima.
+Cinco telas principais:
+
+1. **Visão geral:** lotes, lista vazia, cadastro assistido de empresa e detalhe de perfil — US01.
+2. **Novo lote:** seleção de exemplos, diagnóstico individual, reconhecimento e confirmação da empresa — US03.
+3. **Conferência:** resultados, memória, pendências, reprocessamento, repetições, conflitos e prévia do XLSX — US04 (Draft), US05, US06 e US07.
+4. **Regras fiscais:** versão publicada, rascunho, aprovação simulada e nova versão — US02.
+5. **Apoiar o projeto:** pedido, recusa, nova tentativa, retorno pendente e confirmação idempotente simulada — US09.
+
+As três jornadas de `user-flows.md` têm um caminho navegável correspondente.
+O protótipo usa os tokens deste documento em variáveis CSS, títulos Georgia e
+corpo Inter/system UI. Usa somente dados fictícios: não lê XMLs, não calcula
+tributos reais, não gera XLSX e não realiza pagamentos. A publicação demonstra
+a concepção visual, sem ampliar a stack prevista para a aplicação.
 
 ## Pendências de ratificação
 
 - confirmar a paleta como identidade definitiva do produto;
 - confirmar a escala única de espaçamento;
 - escolher se a fonte Georgia permanece nos títulos;
-- produzir e informar o link do protótipo com três a cinco telas;
-- validar contraste e foco com uma ferramenta de acessibilidade.
+- homologar a política completa de campos complementares antes de implementar US05;
+- verificar manualmente foco, legibilidade e estados antes de gravar o vídeo.

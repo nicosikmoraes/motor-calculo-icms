@@ -10,10 +10,12 @@ divergências com rastreabilidade.
 
 ## Estado do projeto
 
-O projeto está em desenvolvimento. A fundação do monorepo, o aplicativo desktop,
-o parser de NF-e/NFC-e 4.00, a validação XSD offline, a normalização inicial,
-a importação de XML/ZIP e a persistência local em SQLite já estão implementados.
-Fórmulas fiscais homologadas e geração do XLSX ainda fazem parte do roadmap.
+O projeto está em desenvolvimento. Este repositório já contém uma implementação
+desktop anterior à revisão acadêmica. A Entrega 1 registra a concepção e o
+planejamento; a API de doações descrita na arquitetura ainda será implementada.
+
+- [Protótipo público — cinco telas com dados fictícios](https://contabilinico-prototipo.balmygrove128.chatgpt.site)
+- [Kanban público — histórias vinculadas ao PRD](https://github.com/users/nicosikmoraes/projects/2)
 
 ## Stack
 
@@ -24,32 +26,15 @@ Fórmulas fiscais homologadas e geração do XLSX ainda fazem parte do roadmap.
 - PostgreSQL;
 - SQLite.
 
-O backend NestJS com Prisma e PostgreSQL atende somente ao fluxo de doações. Os
-dados fiscais e o cálculo continuam locais no aplicativo desktop. Os detalhes
-estão em [docs/architecture.md](docs/architecture.md).
-
 ## Em produção
 
-- **Aplicação:** ainda não publicada;
-- **Distribuição:** instalador Windows pendente de homologação.
+A partir da Entrega 3. O protótipo público demonstra a navegação com dados
+fictícios; não representa uma aplicação fiscal em produção.
 
 ## Quick Start
 
-Pré-requisitos:
-
-- Node.js 22 ou superior;
-- pnpm 10.
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Para verificar tipagem, testes e build de produção:
-
-```bash
-pnpm check
-```
+A partir da Entrega 2. As instruções técnicas da implementação desktop existente
+permanecem no [guia de desenvolvimento](docs/desenvolvimento.md).
 
 ## Documentação de produto
 
@@ -60,12 +45,10 @@ Estes documentos resumem os requisitos, as jornadas e a arquitetura do produto:
 - [Tokens de design](docs/design-tokens.md)
 - [Software Design Document — Arquitetura](docs/architecture.md)
 
-O [checklist da disciplina](docs/checklist.md) é mantido apenas como referência
-acadêmica histórica e não direciona a arquitetura ou o roadmap do ContabiliNico.
-
-As histórias permanecem em `Draft` até a leitura e promoção explícita pelo autor.
-O aceite do tema pelo professor e a decisão sobre o requisito acadêmico de
-pagamento estão registrados como pendências no PRD.
+O [checklist da disciplina](docs/checklist.md) registra as evidências acadêmicas
+de cada entrega. US01–US03 e US05–US09 estão `Ready`; US04 continua `Draft` até
+ser dividida por componente fiscal. O PRD é a fonte dos critérios de aceite;
+as Issues apontam para ele.
 
 ## Documentação do produto
 

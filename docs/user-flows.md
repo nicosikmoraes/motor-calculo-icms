@@ -1,15 +1,17 @@
 # Jornadas de Usuário
 
 **Projeto:** ContabiliNico
-**Versão:** 0.1.0 — rascunho acadêmico
-**Última atualização:** 16/09/2026
+**Versão:** 0.2.0 — revisão da Entrega 1
+**Última atualização:** 11/10/2026
 
 > Este documento descreve o que a pessoa vive durante as histórias mais críticas.
 > Regras fiscais permanecem no PRD e em `regras-de-negocio.md`.
 
+<a id="jornada-lote"></a>
 ## Jornada 1 — Importar, processar e resolver um lote
 
-**Stories:** US03 — Importar um lote; US05 — Investigar e resolver pendências
+**Stories:** [US03](prd.md#us03), [US04 — Draft](prd.md#us04), [US05](prd.md#us05), [US06](prd.md#us06) e [US07](prd.md#us07).
+**Protótipo:** Novo lote → Conferência → Pendências → nova execução → prévia do XLSX.
 **Critérios que ela marca:** depende do tempo; pode ser abandonada no meio.
 
 ```mermaid
@@ -31,7 +33,7 @@ flowchart TD
     J --> K["«pessoa» solicita o reprocessamento"]
     K --> F
 
-    style X1 fill:#ffe0e0,stroke:#c62828,stroke-width:2px
+    style X1 fill:#ffe0e0,color:#7f1d1d,stroke:#c62828,stroke-width:2px
 ```
 
 **O que decidimos sobre o nó vermelho:** quando faltam informações, o sistema não
@@ -42,9 +44,15 @@ o total definitivo. O usuário pode voltar posteriormente, informar apenas os
 campos autorizados e solicitar um novo cálculo; o XML original e a execução
 anterior permanecem preservados.
 
+O protótipo permite explorar também a lista vazia, o CNPJ ainda não cadastrado,
+um arquivo inválido, uma repetição e um conflito com justificativa. As decisões
+correspondem aos critérios de US01, US03 e US06 e às regras RN-003, RN-024 e RN-035.
+
+<a id="jornada-regras"></a>
 ## Jornada 2 — Publicar uma regra fiscal sem alterar o passado
 
-**Story:** US02 — Criar e versionar regras fiscais
+**Story:** [US02 — Criar e versionar regras fiscais](prd.md#us02).
+**Protótipo:** Regras fiscais → criar rascunho → simular validação → publicar outra versão.
 **Critérios que ela marca:** depende de outra pessoa agir; pode ser abandonada no meio.
 
 ```mermaid
@@ -59,7 +67,7 @@ flowchart TD
     F -->|"sim"| G["«pessoa» publica a versão"]
     G --> H["Sistema preserva a versão<br/>para cálculos e auditoria"]
 
-    style X1 fill:#ffe0e0,stroke:#c62828,stroke-width:2px
+    style X1 fill:#ffe0e0,color:#7f1d1d,stroke:#c62828,stroke-width:2px
 ```
 
 **O que decidimos sobre o nó vermelho:** uma regra incompleta ou não homologada
@@ -67,6 +75,35 @@ permanece como rascunho e não participa da seleção usada pelos lotes. O conta
 pode abandonar a edição e retomá-la depois, mas somente uma versão explicitamente
 publicada e vigente pode afetar cálculos. Depois de publicada, uma correção cria
 outra versão; o sistema não reescreve silenciosamente os resultados anteriores.
+
+<a id="jornada-doacao"></a>
+## Jornada 3 — Doar sem confundir intenção com pagamento
+
+**Story:** [US09 — Fazer doação pelo Stripe](prd.md#us09).
+**Protótipo:** Apoiar o projeto → criar pedido → simular recusa → nova tentativa → confirmação.
+
+```mermaid
+flowchart TD
+    A["Pessoa escolhe valor positivo em BRL"] --> B["Sistema cria pedido e tentativa pendentes"]
+    B --> C["Pessoa abre Checkout de testes"]
+    C --> D{"O gateway recusou a tentativa?"}
+    D -->|"sim"| X[["Trava — pagamento recusado"]]
+    X --> N["Pessoa inicia nova tentativa no mesmo pedido"]
+    N --> C
+    D -->|"não"| E["Pessoa retorna ao aplicativo"]
+    E --> F{"Chegou webhook válido de confirmação?"}
+    F -->|"não"| G["Pedido continua pendente"]
+    G --> F
+    F -->|"sim"| H["Sistema confirma pagamento uma única vez"]
+    H --> I["Pessoa vê a doação confirmada"]
+    style X fill:#ffe0e0,color:#7f1d1d,stroke:#c62828,stroke-width:2px
+```
+
+**Decisão no nó vermelho:** recusar uma tentativa não apaga o pedido nem o
+histórico. A pessoa pode tentar novamente. O retorno do Checkout mantém o
+pedido pendente; somente a confirmação válida muda seu estado para pago.
+Repetir a mesma notificação não duplica a confirmação. São as regras RN-036 a
+RN-039 do PRD. Os botões do protótipo simulam esses estados sem acessar Stripe.
 
 ## Dúvidas em aberto
 

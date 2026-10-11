@@ -1,6 +1,6 @@
 # Arquitetura do ContabiliNico
 
-**Versão:** 0.2.0 — arquitetura acadêmica e implementação local-first
+**Versão:** 0.3.0 — revisão da concepção e rastreabilidade
 
 **Última atualização:** 11/10/2026
 
@@ -59,6 +59,10 @@ escolhida.
 O monorepo pnpm existente é estendido com a API. A API não importa diretamente
 pacotes de persistência do desktop.
 
+Esta é a estrutura alvo. `apps/api` e `packages/payments` estão planejados;
+a revisão da Entrega 1 não os gera. O código desktop já existente tem seu
+próprio histórico anterior à revisão.
+
 ```text
 apps/
   desktop/            Electron, Vue, preload e processo principal
@@ -95,6 +99,11 @@ global padroniza o envelope das respostas de sucesso. Swagger documenta os
 endpoints REST. O NestJS organiza essas responsabilidades em módulos por domínio.
 No frontend, toda chamada remota passa pela camada de serviço.
 
+Comandos registrados da raiz: `pnpm test` executa a suíte atual e `pnpm check`
+agrega tipagem, testes e build desktop. `pnpm lint`, com Oxlint, é o comando alvo
+da estrutura acadêmica e será acrescentado junto à API; não está disponível no
+workspace atual. Nenhum desses comandos comprova a API ainda planejada.
+
 ## 4. Frontend
 
 Vue 3+ permanece como framework de interface, dentro do renderer Electron. A
@@ -116,8 +125,10 @@ não são mesclados nem sincronizados. Valores monetários são decimais exatos;
 estado `pago` só é confirmado por webhook válido. Uma repetição do evento não
 cria uma segunda confirmação.
 
+Ambientes planejados para a API; sua infraestrutura nasce nas entregas seguintes:
+
 - **Local:** PostgreSQL em Docker na máquina de desenvolvimento; `DATABASE_URL` em `.env` fora do Git. O SQLite fiscal continua no diretório de dados da aplicação.
-- **CI:** PostgreSQL em container no GitHub Actions; `DATABASE_URL` definido pelo workflow para o serviço de teste.
+- **CI:** PostgreSQL em container no GitHub Actions; `DATABASE_URL` será definida pelo workflow para o serviço de teste.
 - **Produção:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma.
 
 O repositório contém somente o nome da variável. Valores de conexão e chaves do
@@ -126,14 +137,21 @@ fiscais nunca são enviados à API.
 
 ### Glossário técnico e modelo conceitual
 
+Os nomes em inglês descrevem entidades e contratos alvo. O esquema físico
+SQLite preexistente mantém nomes em português documentados em
+`modelo-de-dados.md`; a correspondência conceitual não renomeia migrations nem
+dados instalados. Essa compatibilidade deve ser preservada ao implementar novos
+contratos. Os diagramas representam o recorte acadêmico inicial; detalhes de
+eventos e auditoria existentes continuam no modelo físico.
+
 - **Organização — `organizations` (SQLite):** `id`, `name`, `installationId`.
 - **Empresa — `companies` (SQLite):** `id`, `organizationId`, `cnpj`, `legalName`, `state`, `status`.
-- **Perfil fiscal — `tax_profiles` (SQLite):** `id`, `organizationId`, `name`, `category`, `ncm`, `cest`, `version`.
+- **Perfil fiscal — `tax_profiles` (SQLite):** `id`, `organizationId`, `name`, `category`, `ncm`, `cest`, `validFrom`, `validTo`, `status`, `version`.
 - **Produto de fornecedor — `supplier_products` (SQLite):** `id`, `supplierCnpj`, `supplierCode`, `taxProfileId`, `status`.
-- **Regra fiscal — `tax_rules` (SQLite):** `id`, `organizationId`, `version`, `validFrom`, `validTo`, `status`, `legalBasis`.
+- **Regra fiscal — `tax_rules` (SQLite):** `id`, `organizationId`, `taxProfileId` opcional, `version`, `validFrom`, `validTo`, `status`, `legalBasis`.
 - **Lote — `batches` (SQLite):** `id`, `organizationId`, `companyId`, `status`, `receivedAt`.
 - **Ocorrência de arquivo — `file_occurrences` (SQLite):** `id`, `batchId`, `contentHash`, `position`, `ingestionStatus`.
-- **Nota/documento fiscal — `fiscal_documents` (SQLite):** `id`, `batchId`, `fileOccurrenceId`, `accessKey`, `issuerCnpj`, `status`.
+- **Nota/documento fiscal — `fiscal_documents` (SQLite):** `id`, `batchId`, `fileOccurrenceId`, `accessKey`, `issuerCnpj`, `documentStatus`, `calculationStatus`, `resultKind`, `includedInTotals`, `exclusionReason`.
 - **Item da nota — `document_items` (SQLite):** `id`, `documentId`, `productCode`, `declaredValues`.
 - **Execução de cálculo — `calculation_runs` (SQLite):** `id`, `documentId`, `previousRunId`, `engineVersion`, `status`.
 - **Resultado do item — `item_results` (SQLite):** `id`, `calculationRunId`, `itemId`, `taxRuleId`, `calculatedValues`, `calculationMemory`.
@@ -141,11 +159,14 @@ fiscais nunca são enviados à API.
 - **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `amount`, `currency`, `status`, `createdAt`.
 - **Pagamento — `payments` (PostgreSQL):** `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt`.
 
-“Horário de pico” é regra de negócio, não entidade. “Cancelamento” é estado ou
-evento relacionado ao documento/pagamento e não ganha tabela genérica própria. O
-produto não cadastra usuários nem papéis no MVP. Pedido e pagamento permanecem
-separados porque um pedido pode continuar pendente, falhar, ser reembolsado ou
-receber nova tentativa; o estado definitivo depende do gateway.
+“Valor declarado” é um atributo do item; “memória de cálculo” é uma evidência do
+resultado; “resultado definitivo” é um estado e uma condição de elegibilidade.
+Nenhum deles precisa de uma entidade independente neste recorte. Reprocessamento
+é uma ação que cria outra `calculation_runs` vinculada à anterior. Cancelamentos
+documentais são eventos no modelo físico; não são uma entidade genérica de
+cancelamento de doação. O produto não cadastra usuários nem papéis no MVP.
+Pedido e pagamento permanecem separados porque um pedido pode receber nova
+tentativa sem apagar a recusa anterior; o estado definitivo depende do gateway.
 
 ### Cadastros fiscais
 
@@ -171,8 +192,8 @@ erDiagram
     ORGANIZATIONS ||--o{ COMPANIES : possui
     ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
     ORGANIZATIONS ||--o{ TAX_RULES : mantém
-    TAX_PROFILES ||--o{ SUPPLIER_PRODUCTS : classifica
-    TAX_PROFILES ||--o{ TAX_RULES : orienta
+    TAX_PROFILES |o--o{ SUPPLIER_PRODUCTS : classifica
+    TAX_PROFILES |o--o{ TAX_RULES : orienta
 
     ORGANIZATIONS {
         string id PK
@@ -182,18 +203,22 @@ erDiagram
     }
     TAX_PROFILES {
         string id PK
+        string status
+        date validFrom
     }
     SUPPLIER_PRODUCTS {
         string id PK
     }
     TAX_RULES {
         string id PK
+        string version
+        string status
     }
 ```
 
 - **`ORGANIZATIONS`:** `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras.
 - **`COMPANIES`:** `id` (PK), `organizationId` (FK), `cnpj`, `legalName`, `state`; pertence a uma organização.
-- **`TAX_PROFILES`:** `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`; pertence a uma organização e classifica produtos de fornecedores e regras.
+- **`TAX_PROFILES`:** `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`, `validFrom`, `validTo`, `status`, `version`; pertence a uma organização e pode classificar produtos e regras.
 - **`SUPPLIER_PRODUCTS`:** `id` (PK), `supplierCnpj`, `supplierCode`, `taxProfileId` (FK); vincula produto de fornecedor a um perfil fiscal.
 - **`TAX_RULES`:** `id` (PK), `organizationId` (FK), `taxProfileId` (FK), `version`, `validFrom`, `validTo`, `status`; pertence à organização e pode seguir um perfil fiscal.
 
@@ -235,9 +260,13 @@ erDiagram
     }
     FILE_OCCURRENCES {
         string id PK
+        string contentHash
+        string ingestionStatus
     }
     FISCAL_DOCUMENTS {
         string id PK
+        boolean includedInTotals
+        string exclusionReason
     }
     DOCUMENT_ITEMS {
         string id PK
@@ -246,7 +275,7 @@ erDiagram
 
 - **`BATCHES`:** `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo.
 - **`FILE_OCCURRENCES`:** `id` (PK), `batchId` (FK), `contentHash`, `position`, `ingestionStatus`; pertence a um lote e pode originar um documento fiscal.
-- **`FISCAL_DOCUMENTS`:** `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `status`; detalha-se em itens.
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `documentStatus`, `calculationStatus`, `resultKind`, `includedInTotals`, `exclusionReason`; separa situação documental, cálculo e inclusão nos totais, conforme RN-032.
 - **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal.
 
 ### Cálculo e pendências
@@ -284,19 +313,23 @@ erDiagram
     }
     CALCULATION_RUNS {
         string id PK
+        string previousRunId FK
     }
     ITEM_RESULTS {
         string id PK
+        string calculationMemory
     }
     TAX_RULES {
         string id PK
     }
     ISSUES {
         string id PK
+        string type
+        string status
     }
 ```
 
-- **`FISCAL_DOCUMENTS`:** `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo.
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `accessKey`, `documentStatus`, `calculationStatus`, `includedInTotals`; documento processado nas execuções de cálculo.
 - **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere.
 - **`CALCULATION_RUNS`:** `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução.
 - **`ITEM_RESULTS`:** `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`, `calculationMemory`; resultado e memória do cálculo do item.
@@ -328,14 +361,26 @@ erDiagram
 
     DONATION_ORDERS {
         string id PK
+        decimal amount
+        string status
     }
     PAYMENTS {
         string id PK
+        string donationOrderId FK
+        string status
     }
 ```
 
 - **`DONATION_ORDERS`:** `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento.
 - **`PAYMENTS`:** `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido.
+
+### Como as regras aparecem nos dados
+
+- RN-003 e RN-032: `includedInTotals` e `exclusionReason` impedem que uma nota pendente entre silenciosamente no resumo definitivo.
+- RN-014: `tax_rules.version` e `status` preservam a versão publicada e distinguem rascunhos.
+- RN-035: `calculation_runs.previousRunId` liga o reprocessamento à execução anterior; `item_results.calculationMemory` conserva a evidência.
+- US06: `file_occurrences.contentHash` identifica repetições e conteúdos conflitantes sem apagar ocorrências.
+- RN-036 a RN-039: `donation_orders.status`, `payments.status` e a relação 1:N permitem recusa e nova tentativa sem confundir intenção com confirmação.
 
 As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
