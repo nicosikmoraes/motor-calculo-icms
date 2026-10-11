@@ -289,25 +289,5 @@ modelo fiscal detalhado e suas restrições permanecem em
 
 ## 6. Mapa de domínios e comandos
 
-| Domínio | Responsabilidade |
-| :--- | :--- |
-| Interface desktop | Navegação, formulários e estados acessíveis em português. |
-| Ingestão fiscal | Inventariar ocorrências, inspecionar ZIP, proteger XML, validar XSD e normalizar documentos. |
-| Regras e cálculo | Versionar regras aprovadas, selecionar regra determinística, calcular e guardar memória. |
-| Histórico e relatórios | Preservar lotes, execuções e pendências; exportar XLSX auditável. |
-| Doações | Criar pedido, abrir Checkout e confirmar pagamento por webhook Stripe. |
-
-Comandos previstos, executados da raiz do monorepo:
-
-- Testes: `pnpm test`.
-- Verificação completa atual: `pnpm check` (tipagem, testes e build do desktop).
-- Lint: `pnpm lint` (comando alvo da atividade; será adicionado ao workspace junto
-  com a API e o fluxo de geração de código).
 
 ## 7. Histórico
-
-| Data | Mudança |
-| :--- | :--- |
-| 16/09/2026 | Arquitetura local-first inicial: Electron, Vue e SQLite. |
-| 25/09/2026 | PRD inclui fluxo de doação em ambiente de testes com Stripe. |
-| 11/10/2026 | Registra a stack acadêmica NestJS, Prisma e PostgreSQL para doações, mantendo dados e cálculo fiscais no desktop local. |
