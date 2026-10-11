@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 
 **Projeto:** ContabiliNico
-**Versão:** 0.2.0 — backlog preparado
-**Última atualização:** 25/09/2026
+**Versão:** 0.3.0 — revisão da Entrega 1
+**Última atualização:** 11/10/2026
 
 > Este documento apresenta o que o produto faz em formato acadêmico. As regras
 > fiscais completas continuam em [Regras de negócio](regras-de-negocio.md), sem
@@ -30,6 +30,9 @@ preencher manualmente os dados tributários de cada nota.
 
 | Termo | Significa | Não confundir com |
 | :--- | :--- | :--- |
+| Organização | Contexto do escritório; uma organização por instalação no MVP | Conta em servidor ou tenant em nuvem |
+| Empresa | Pessoa jurídica analisada nas notas de um lote | Escritório responsável pela instalação |
+| Produto de fornecedor | Produto identificado por CNPJ do fornecedor e seu código | Perfil fiscal reutilizável |
 | Lote | Um envio confirmado de XMLs, pasta ou ZIP, com identidade e histórico próprios | Uma única nota fiscal |
 | Ocorrência | Uma aparição de um arquivo dentro de um lote, inclusive quando repetido | Documento fiscal deduplicado |
 | Nota | NF-e modelo 55 ou NFC-e modelo 65 representada pelo XML | DANFE ou PDF |
@@ -42,6 +45,10 @@ preencher manualmente os dados tributários de cada nota.
 | Memória de cálculo | Evidência da regra, fórmula, entradas e etapas usadas no resultado | Apenas o total final |
 | Resultado definitivo | Resultado completo e elegível para consolidação | Subtotal provisório ou diagnóstico |
 | Reprocessamento | Nova execução após mudança autorizada, preservando a anterior | Alteração do XML original |
+| Execução de cálculo | Registro identificado de uma tentativa de cálculo de um documento | Sobrescrita do resultado anterior |
+| Resultado do item | Valores, estado e memória produzidos para um item em uma execução | Valor declarado pelo emissor |
+| Pedido de doação | Intenção identificada de doar um valor em BRL | Pagamento confirmado |
+| Pagamento | Tentativa no gateway, com identificador e estado próprios | Um campo booleano no pedido |
 
 ## 3. Atores e Permissões
 
@@ -60,6 +67,7 @@ responsabilidades de negócio.
 > As histórias com critérios definidos foram promovidas para `🟡 Ready` por
 > solicitação do autor. US04 permanece `⚪ Draft` até ser dividida por componente fiscal.
 
+<a id="us01"></a>
 ### US01 — Manter empresas e perfis fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** cadastrar empresas e perfis fiscais
@@ -76,6 +84,7 @@ responsabilidades de negócio.
 
 **Regras relacionadas:** RN-006, RN-014, RN-015 a RN-019.
 
+<a id="us02"></a>
 ### US02 — Criar e versionar regras fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** cadastrar e publicar regras fiscais
@@ -89,6 +98,7 @@ com vigência e fundamento **para que** os cálculos sejam consistentes e audit�
 
 **Regras relacionadas:** RN-006 a RN-014, RN-028 a RN-031.
 
+<a id="us03"></a>
 ### US03 — Importar um lote de documentos fiscais · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** enviar XMLs ou um ZIP **para que** as
@@ -109,6 +119,7 @@ notas sejam inventariadas, validadas e preparadas para cálculo em conjunto.
 
 **Regras relacionadas:** RN-001, RN-003, RN-032 a RN-035 e DT-018 a DT-022.
 
+<a id="us04"></a>
 ### US04 — Recalcular o ICMS por item · `Must Have` · `L` · Status: `⚪ Draft`
 
 **Como** contador responsável, **eu quero** que cada item seja recalculado pela
@@ -125,6 +136,7 @@ regra vigente **para que** eu possa comparar o imposto esperado com o declarado.
 > **Atenção:** esta história é obrigatória e grande. Antes de promovê-la para
 > `Ready`, deve ser dividida verticalmente por componente fiscal homologável.
 
+<a id="us05"></a>
 ### US05 — Investigar e resolver pendências · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** contador responsável, **eu quero** visualizar o motivo de cada pendência
@@ -139,6 +151,7 @@ sem modificar o XML.
 
 **Regras relacionadas:** RN-003, RN-004, RN-024, RN-032, RN-033 e RN-035.
 
+<a id="us06"></a>
 ### US06 — Tratar ocorrências repetidas e conflitantes · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** ser avisado sobre notas repetidas ou
@@ -152,6 +165,7 @@ conflitantes **para que** o lote não duplique valores nem esconda documentos.
 
 **Regras relacionadas:** DT-019 e regras de estado da seção 9 de `regras-de-negocio.md`.
 
+<a id="us07"></a>
 ### US07 — Exportar relatório auditável · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** usuário operacional, **eu quero** exportar um XLSX consolidado **para que**
@@ -165,6 +179,7 @@ eu possa analisar, compartilhar e arquivar os resultados do lote.
 
 **Regras relacionadas:** RN-002 a RN-005 e seção 10 de `regras-de-negocio.md`.
 
+<a id="us08"></a>
 ### US08 — Exportar e importar configurações · `Should Have` · `M` · Status: `🟡 Ready`
 
 **Como** responsável pela instalação, **eu quero** transportar cadastros e regras
@@ -179,6 +194,7 @@ configuração sem mesclar bancos.
 
 **Regras relacionadas:** manual, seções 10 e 11.
 
+<a id="us09"></a>
 ### US09 — Fazer doação pelo Stripe · `Must Have` · `M` · Status: `🟡 Ready`
 
 **Como** apoiador do projeto, **eu quero** fazer uma doação pelo Stripe
@@ -219,9 +235,14 @@ configuração sem mesclar bancos.
 | RN-025 | A tolerância de comparação é configurável por componente. |
 | RN-032 | Situação documental, cálculo, caráter do resultado e inclusão no total são armazenados separadamente. |
 | RN-035 | Complemento manual autorizado não altera o XML e gera nova execução auditável. |
+| RN-036 | Doação exige valor positivo em BRL; criar o pedido não confirma o pagamento. |
+| RN-037 | Somente webhook válido confirma o pagamento, uma única vez por confirmação do gateway. |
+| RN-038 | Cancelamento, recusa ou retorno do Checkout sem webhook não tornam o pedido pago; uma nova tentativa não apaga a anterior. |
+| RN-039 | Doações armazenam apenas identificadores, valor, moeda e estado; não incluem cartão, XML ou dados fiscais. |
 
-O catálogo completo RN-001 a RN-035 está em
-[Regras de negócio detalhadas](regras-de-negocio.md).
+O catálogo fiscal RN-001 a RN-035 está em
+[Regras de negócio detalhadas](regras-de-negocio.md). RN-036 a RN-039 resumem
+os critérios de doação já definidos na US09.
 
 ## 6. Fora de Escopo
 
@@ -249,11 +270,32 @@ O catálogo completo RN-001 a RN-035 está em
 | # | Decisão pendente | Responsável |
 | :--- | :--- | :--- |
 | 1 | Confirmar se o tema é único na turma | Autor, consultando a planilha do Moodle |
-| 2 | Confirmar com o professor se o pedido de doação e a confirmação via Stripe atendem ao critério acadêmico de pedido e pagamento | Autor e professor |
-| 3 | Dividir US04 em fatias fiscais menores antes de iniciar sua implementação | Autor |
+| 2 | Confirmar com o professor a adequação acadêmica do pedido de doação e da confirmação via Stripe | Autor e professor |
+| 3 | Dividir US04 em fatias fiscais menores antes de promover a história acadêmica para Ready | Autor |
 
 O autor informou em 25/09/2026 que o tema ContabiliNico foi aprovado pelo
 professor e definiu Stripe básico para doações como fluxo de pagamento.
+
+## Rastreabilidade da Entrega 1
+
+[Kanban público](https://github.com/users/nicosikmoraes/projects/2).
+Cada Issue aponta para a âncora estável da história; os critérios permanecem
+neste PRD. Os estados do quadro são de planejamento acadêmico e não certificam
+a cobertura do código desktop preexistente.
+
+- **US01 → Issue #5 → Visão geral / cadastro e perfil:** `companies`, `tax_profiles`.
+- **US02 → Issue #6 → Jornada 2 → Regras fiscais:** `tax_rules`; rascunho não calcula e publicação preserva versões.
+- **US03 → Issue #7 → Jornada 1 → Novo lote:** `batches`, `file_occurrences`, `fiscal_documents`.
+- **US04 → Draft → Jornada 1 → Conferência:** `document_items`, `calculation_runs`, `item_results`; interação ilustrativa, sem fórmula homologada no protótipo.
+- **US05 → Issue #8 → Jornada 1 → Conferência / Pendências:** `issues`, nova `calculation_runs`; XML e execução anterior preservados.
+- **US06 → Issue #9 → Jornada 1 → Conferência / Arquivos e conflitos:** hash da ocorrência, exclusão dos totais e decisão justificada.
+- **US07 → Issue #10 → Jornada 1 → Conferência / prévia do XLSX:** resultados, pendências, versões aplicadas e erros; somente elegíveis no resumo.
+- **US08 → Issue #11:** transporte de configurações; `Should Have`, permanece fora das cinco telas principais desta revisão.
+- **US09 → Issue #12 → Jornada 3 → Apoiar o projeto:** `donation_orders`, `payments`; recusa, tentativa e confirmação são estados distintos.
+
+Protótipo: [ContabiliNico — cinco telas](https://contabilinico-prototipo.balmygrove128.chatgpt.site).
+US04 e a política completa de campos complementares continuam exigindo decisão
+fiscal. A tela demonstra a interação esperada, não prova uma implementação.
 
 ## 9. Histórico
 
@@ -261,3 +303,4 @@ professor e definiu Stripe básico para doações como fluxo de pagamento.
 | :--- | :--- | :--- |
 | 16/09/2026 | 0.1.0 | Rascunho acadêmico organizado a partir das decisões documentadas no projeto |
 | 25/09/2026 | 0.2.0 | Aceite do tema informado pelo autor; histórias US01–US03 e US05–US09 promovidas a Ready; doação Stripe definida como fluxo independente |
+| 11/10/2026 | 0.3.0 | Revisão da rastreabilidade; âncoras estáveis por história; glossário de cadastros e doações; RN-036 a RN-039 explicitam US09; vínculo do protótipo às jornadas |

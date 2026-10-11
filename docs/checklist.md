@@ -1,14 +1,13 @@
 # ✅ Checklist — a ficha da disciplina
 
-> **Status: referência acadêmica histórica, não normativa para o produto.**
-> O ContabiliNico é um aplicativo desktop Windows, local-first, construído com
-> Electron e SQLite e capaz de funcionar sem servidor obrigatório. Os requisitos
-> abaixo foram preservados para consulta, mas não orientam a arquitetura, o
-> roadmap, os critérios de aceite nem as decisões técnicas do produto.
+> **Status: evidências acadêmicas da Entrega 1 — Concepção e Planejamento.**
+> A revisão confere documentos, rastreabilidade e protótipo. Os itens de código
+> permanecem desmarcados nesta entrega. O desktop fiscal é local; a API planejada
+> NestJS, Prisma e PostgreSQL atende ao fluxo independente de doações.
 >
-> Não use este checklist para introduzir NestJS, Prisma, PostgreSQL, autenticação,
-> pagamento ou implantação web no ContabiliNico sem uma nova decisão explícita
-> do responsável pelo produto.
+> O repositório contém código desktop anterior à revisão. Sua presença não
+> comprova automaticamente os critérios acadêmicos das Entregas 2 e 3.
+> Cada item marcado deve ser explicado pelo autor no vídeo e na arguição.
 
 ## 📐 Regras da disciplina
 
@@ -27,10 +26,11 @@
 
 ## RA1 — Arquitetura, Engenharia de Requisitos com IA e Gestão Ágil
 
-- [ ] **ID1:** Estruturou o PRD e o SDD (Diagrama Mermaid) de forma clara, utilizando a IA para modelar o negócio.
+- [x] **ID1:** Estruturou o PRD e o SDD (Diagrama Mermaid) de forma clara, utilizando a IA para modelar o negócio.
   > No ID1, "SDD" é o *Software Design Document* — neste repositório ele se chama `docs/architecture.md`, porque a sigla já significa Spec-Driven Development (o guia explica).
 - [ ] **ID2:** A aplicação foi estruturada em formato de Monorepo (Front + Back) no GitHub.
-- [ ] **ID3:** Mapeou o PRD em Histórias de Usuário no GitHub Projects, criando um backlog rastreável de Issues.
+- [x] **ID3:** Mapeou o PRD em Histórias de Usuário no GitHub Projects, criando um backlog rastreável de Issues.
+  > Evidência: [Kanban público](https://github.com/users/nicosikmoraes/projects/2), Issues #5 a #12 das oito histórias Ready; US04 permanece Draft.
 - [ ] **ID4:** Para as histórias implementadas, registrou no repositório a especificação e o plano derivados da Issue antes da codificação.
 - [ ] **ID5:** Demonstrou domínio do GitHub Flow, isolando features em branches curtas e utilizando Pull Requests para integração na main.
 
@@ -75,7 +75,7 @@ pontuada**.
 
 | Entrega | O que sobe | Vídeo |
 | --- | --- | --- |
-| **E1 — Planejamento e Setup** | `docs/prd.md`, `docs/user-flows.md`, `docs/design-tokens.md` e `docs/architecture.md` commitados; Kanban no GitHub Projects com as Issues das stories `Ready`; PR do `/utf-setup` mesclado (monorepo verde, `main` protegida — o que exige repositório público na conta gratuita —, Portão de Entendimento ativo) | Vídeo 1: regras de negócio, a jornada com o nó vermelho, o Diagrama ER, o Kanban e a suíte rodando verde |
+| **E1 — Concepção e Planejamento** | Documentos revisados; PR de revisão mesclado; tag anotada `entrega-1`; Kanban e protótipo públicos | Vídeo individual: vitrine e gestão; produto, jornada e protótipo; modelo de dados; uma decisão do autor |
 | **E2 — Backend e TDD** | API NestJS com Prisma, JWT e testes; specs em `specs/` e PRs com os pareceres dos revisores e as decisões de triagem | Vídeo 2: uma spec derivada da Issue, o TDD rodando e a estrutura de Controllers, Services e Guards |
 | **E3 — Frontend, Pagamento e Deploy** | Front consumindo a API, pagamento sandbox (ordem criada no servidor + webhook), GitHub Actions e deploy público | Vídeo 3: sistema em produção e um pedido mudando de estado pela notificação do gateway |
 
