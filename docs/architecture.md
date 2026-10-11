@@ -154,6 +154,31 @@ receber nova tentativa; o estado definitivo depende do gateway.
 
 ### Cadastros fiscais
 
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ COMPANIES : possui
+    ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
+    ORGANIZATIONS ||--o{ TAX_RULES : mantém
+    TAX_PROFILES ||--o{ SUPPLIER_PRODUCTS : classifica
+    TAX_PROFILES ||--o{ TAX_RULES : orienta
+
+    ORGANIZATIONS {
+        string id PK
+    }
+    COMPANIES {
+        string id PK
+    }
+    TAX_PROFILES {
+        string id PK
+    }
+    SUPPLIER_PRODUCTS {
+        string id PK
+    }
+    TAX_RULES {
+        string id PK
+    }
+```
+
 | Entidade | Campos e relações |
 | :--- | :--- |
 | `ORGANIZATIONS` | `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras. |
@@ -164,6 +189,34 @@ receber nova tentativa; o estado definitivo depende do gateway.
 
 ### Ingestão fiscal
 
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ BATCHES : recebe
+    COMPANIES ||--o{ BATCHES : analisada_em
+    BATCHES ||--|{ FILE_OCCURRENCES : contém
+    FILE_OCCURRENCES ||--o| FISCAL_DOCUMENTS : origina
+    FISCAL_DOCUMENTS ||--|{ DOCUMENT_ITEMS : detalha
+
+    ORGANIZATIONS {
+        string id PK
+    }
+    COMPANIES {
+        string id PK
+    }
+    BATCHES {
+        string id PK
+    }
+    FILE_OCCURRENCES {
+        string id PK
+    }
+    FISCAL_DOCUMENTS {
+        string id PK
+    }
+    DOCUMENT_ITEMS {
+        string id PK
+    }
+```
+
 | Entidade | Campos e relações |
 | :--- | :--- |
 | `BATCHES` | `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo. |
@@ -172,6 +225,34 @@ receber nova tentativa; o estado definitivo depende do gateway.
 | `DOCUMENT_ITEMS` | `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal. |
 
 ### Cálculo e pendências
+
+```mermaid
+erDiagram
+    FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
+    CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
+    DOCUMENT_ITEMS ||--o{ ITEM_RESULTS : recebe
+    TAX_RULES ||--o{ ITEM_RESULTS : fundamenta
+    FISCAL_DOCUMENTS ||--o{ ISSUES : apresenta
+
+    FISCAL_DOCUMENTS {
+        string id PK
+    }
+    DOCUMENT_ITEMS {
+        string id PK
+    }
+    CALCULATION_RUNS {
+        string id PK
+    }
+    ITEM_RESULTS {
+        string id PK
+    }
+    TAX_RULES {
+        string id PK
+    }
+    ISSUES {
+        string id PK
+    }
+```
 
 | Entidade | Campos e relações |
 | :--- | :--- |
@@ -183,6 +264,18 @@ receber nova tentativa; o estado definitivo depende do gateway.
 | `ISSUES` | `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento. |
 
 ### Doações e pagamentos
+
+```mermaid
+erDiagram
+    DONATION_ORDERS ||--o{ PAYMENTS : recebe
+
+    DONATION_ORDERS {
+        string id PK
+    }
+    PAYMENTS {
+        string id PK
+    }
+```
 
 | Entidade | Campos e relações |
 | :--- | :--- |
