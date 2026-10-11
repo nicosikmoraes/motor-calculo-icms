@@ -157,19 +157,8 @@ erDiagram
     ORGANIZATIONS ||--o{ COMPANIES : possui
     ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
     ORGANIZATIONS ||--o{ TAX_RULES : mantém
-    ORGANIZATIONS ||--o{ BATCHES : recebe
-    COMPANIES ||--o{ BATCHES : analisada_em
     TAX_PROFILES ||--o{ SUPPLIER_PRODUCTS : classifica
     TAX_PROFILES ||--o{ TAX_RULES : orienta
-    BATCHES ||--|{ FILE_OCCURRENCES : contém
-    FILE_OCCURRENCES ||--o| FISCAL_DOCUMENTS : origina
-    FISCAL_DOCUMENTS ||--|{ DOCUMENT_ITEMS : detalha
-    FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
-    CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
-    DOCUMENT_ITEMS ||--o{ ITEM_RESULTS : recebe
-    TAX_RULES ||--o{ ITEM_RESULTS : fundamenta
-    FISCAL_DOCUMENTS ||--o{ ISSUES : apresenta
-    DONATION_ORDERS ||--o{ PAYMENTS : recebe
 
     ORGANIZATIONS {
         string id PK
@@ -205,6 +194,26 @@ erDiagram
         datetime validTo
         string status
     }
+```
+
+### Ingestão fiscal
+
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ BATCHES : recebe
+    COMPANIES ||--o{ BATCHES : analisada_em
+    BATCHES ||--|{ FILE_OCCURRENCES : contém
+    FILE_OCCURRENCES ||--o| FISCAL_DOCUMENTS : origina
+    FISCAL_DOCUMENTS ||--|{ DOCUMENT_ITEMS : detalha
+
+    ORGANIZATIONS {
+        string id PK
+    }
+    COMPANIES {
+        string id PK
+        string cnpj
+        string legalName
+    }
     BATCHES {
         string id PK
         string organizationId FK
@@ -233,6 +242,28 @@ erDiagram
         string productCode
         string declaredValues
     }
+```
+
+### Cálculo e pendências
+
+```mermaid
+erDiagram
+    FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
+    CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
+    DOCUMENT_ITEMS ||--o{ ITEM_RESULTS : recebe
+    TAX_RULES ||--o{ ITEM_RESULTS : fundamenta
+    FISCAL_DOCUMENTS ||--o{ ISSUES : apresenta
+
+    FISCAL_DOCUMENTS {
+        string id PK
+        string accessKey
+        string status
+    }
+    DOCUMENT_ITEMS {
+        string id PK
+        string documentId FK
+        string productCode
+    }
     CALCULATION_RUNS {
         string id PK
         string documentId FK
@@ -247,6 +278,11 @@ erDiagram
         string taxRuleId FK
         string calculatedValues
     }
+    TAX_RULES {
+        string id PK
+        string version
+        string status
+    }
     ISSUES {
         string id PK
         string documentId FK
@@ -254,6 +290,14 @@ erDiagram
         string status
         string resolution
     }
+```
+
+### Doações e pagamentos
+
+```mermaid
+erDiagram
+    DONATION_ORDERS ||--o{ PAYMENTS : recebe
+
     DONATION_ORDERS {
         string id PK
         decimal amount
@@ -269,7 +313,7 @@ erDiagram
     }
 ```
 
-O diagrama reúne os domínios conceituais; as tabelas fiscais ficam no SQLite
+Os diagramas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
 modelo fiscal detalhado e suas restrições permanecem em
 [`modelo-de-dados.md`](modelo-de-dados.md).
