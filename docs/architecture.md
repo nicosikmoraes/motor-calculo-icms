@@ -1,154 +1,348 @@
-# Software Design Document — Arquitetura
+# Arquitetura do ContabiliNico
 
-**Projeto:** ContabiliNico
-**Versão:** 0.1.0 — arquitetura em evolução
-**Última atualização:** 16/09/2026
+**Versão:** 0.2.0 — arquitetura acadêmica e implementação local-first
 
-> Este documento é a visão acadêmica resumida da arquitetura. As decisões e
-> contratos aprofundados permanecem em `arquitetura-inicial.md`,
-> `modelo-de-dados.md` e `decisoes-tecnicas.md`.
+**Última atualização:** 11/10/2026
 
-## 1. Direcionadores
+Este documento liga o vocabulário do [PRD](prd.md), as [jornadas](user-flows.md)
+e o modelo de dados existente. A aplicação desktop continua processando XMLs,
+cálculos, regras e histórico localmente. O backend acadêmico NestJS é uma nova
+fronteira, limitada à criação de doações e à confirmação de pagamentos Stripe;
+nenhum XML, dado fiscal ou resultado de cálculo é enviado a ele. Essa divisão
+atende à stack exigida pela atividade sem transformar o processamento fiscal em
+um serviço remoto.
 
-- processamento local de documentos fiscais sensíveis;
-- funcionamento sem serviço externo obrigatório para o cálculo;
-- cálculo determinístico, auditável e reproduzível;
-- regras fiscais versionadas e separadas dos dados declarados no XML;
-- falha de um arquivo isolada das demais ocorrências do lote;
-- interface responsiva durante parsing e cálculo intensivos;
-- possibilidade de substituir persistência e relatório sem acoplar o domínio.
+## 1. Fontes e direcionadores
 
-## 2. Contexto do sistema
+- `docs/prd.md`: atores, histórias, glossário e regras do produto.
+- `docs/user-flows.md`: fluxos de importação e resolução de pendências.
+- `docs/design-tokens.md`: decisões visuais da interface.
+- `docs/modelo-de-dados.md` e `docs/decisoes-tecnicas.md`: persistência local e
+  decisões fiscais já aprovadas.
+- A atividade acadêmica fixa NestJS, Prisma e PostgreSQL e permite escolher
+  React, Angular ou Vue para a interface.
 
-```mermaid
-flowchart LR
-    OP["Usuário operacional"] --> APP["Aplicativo ContabiliNico"]
-    CT["Contador responsável"] --> APP
-    XML["XMLs NF-e/NFC-e<br/>e arquivos ZIP"] --> APP
-    APP --> XLSX["Relatório XLSX<br/>auditável"]
-    APP --> LOCAL["Dados e histórico<br/>da instalação local"]
-```
+Direcionadores mantidos: dados fiscais locais, cálculo determinístico e
+reproduzível, regras versionadas, memória de cálculo auditável, falhas isoladas
+por arquivo e nenhum serviço externo obrigatório para a conferência fiscal.
 
-O aplicativo recebe documentos fornecidos pelo usuário, processa tudo localmente
-e entrega resultado e evidências. O MVP não consulta automaticamente a SEFAZ nem
-envia XMLs a terceiros.
+## 2. Stack
 
-## 3. Visão de componentes
+- **Interface desktop — Electron 38+ e Vue 3+:** a interface existente já usa Vue; a escolha reduz a troca de contexto e mantém o app instalável.
+- **Linguagem — TypeScript 5.9+:** compartilha tipos entre interface, pacotes locais e API.
+- **Backend — NestJS 12+:** API REST apenas para o fluxo independente de doações e pagamentos.
+- **Persistência da API — Prisma ORM 7+ e PostgreSQL 18+:** registra pedidos de doação e eventos de pagamento no serviço da API.
+- **Persistência fiscal local — SQLite:** mantém empresas, lotes, XMLs normalizados, regras, cálculos e histórico na instalação.
+- **Integração de pagamento — Stripe API e webhooks:** processa a doação sem guardar dados de cartão e sem enviar dados fiscais.
+- **Gerenciador de pacotes — pnpm 10+:** já organiza o monorepo e seus pacotes de domínio.
+- **Testes — Vitest 3+:** já é o executor de testes do projeto.
+- **Lint — Oxlint 1+:** comando planejado para validar os pacotes da API e da interface.
 
-```mermaid
-flowchart TD
-    UI["Renderer Vue"] -->|"IPC restrito"| PRELOAD["Preload"]
-    PRELOAD --> MAIN["Processo principal Electron"]
-    MAIN --> INGEST["Inventário e parser NF-e"]
-    INGEST --> DOMAIN["Tipos e regras do domínio"]
-    DOMAIN --> ENGINE["Motor tributário"]
-    MAIN --> DB["Porta de persistência local"]
-    ENGINE --> REPORT["Porta de relatório XLSX"]
-    DB --> STORE[("SQLite planejado")]
+As linhas foram conferidas nas documentações oficiais em 11/10/2026. Prisma ORM
+8 ainda estava em release candidate na data da consulta, então a linha estável
+7 foi escolhida. Referências: [NestJS](https://docs.nestjs.com/migration-guide),
+[Prisma](https://www.prisma.io/docs/orm/release-status),
+[Vue](https://vuejs.org/guide/introduction),
+[PostgreSQL](https://www.postgresql.org/about/news/postgresql-18-released-3142/).
 
-    XSD["Schemas oficiais offline"] --> INGEST
-```
+Dependências de aplicação previstas para a API: `@nestjs/config`,
+`@nestjs/swagger`, `class-validator`, `class-transformer`, `prisma`,
+`@prisma/client`, `@prisma/adapter-pg`, `pg` e `stripe`. O validador global usa
+`ValidationPipe`; os DTOs usam `class-validator` e `class-transformer`. Não há
+autenticação de usuário no MVP: a instalação local não possui contas ou papéis,
+e o fluxo de doação não cria uma conta. O endpoint de webhook valida a assinatura
+do Stripe. Nenhuma biblioteca de UI, cliente HTTP ou autenticação adicional foi
+escolhida.
 
-### Responsabilidades
+## 3. Organização do repositório e camadas
 
-| Componente | Responsabilidade |
-| :--- | :--- |
-| `apps/desktop` | Janela, navegação, isolamento do renderer e coordenação pelo processo principal |
-| `packages/contracts` | Contratos compartilhados de IPC |
-| `packages/domain` | Vocabulário normalizado e estados independentes da interface |
-| `packages/nfe-parser` | Inventário, segurança, parsing, XSD, normalização e diagnósticos |
-| `packages/tax-engine` | Seleção determinística e futuro cálculo tributário |
-| `packages/database` | Portas de persistência e futuras migrações locais |
-| `packages/reporting` | Modelo e futura geração do XLSX |
-
-## 4. Organização do monorepo
+O monorepo pnpm existente é estendido com a API. A API não importa diretamente
+pacotes de persistência do desktop.
 
 ```text
 apps/
-  desktop/            Electron + Vue
+  desktop/            Electron, Vue, preload e processo principal
+  api/                NestJS; módulos de doação e pagamentos
 packages/
-  contracts/          contratos IPC
-  database/           portas de persistência
-  domain/             conceitos e estados fiscais
-  nfe-parser/         ingestão e normalização
-  reporting/          relatórios
-  tax-engine/         seleção e cálculo
-docs/                 produto, arquitetura e decisões
+  contracts/          contratos IPC existentes e tipos compartilhados seguros
+  domain/             conceitos fiscais e estados independentes da interface
+  nfe-parser/         inventário, segurança, parsing, XSD e normalização
+  tax-engine/         seleção de regras e cálculo determinístico
+  database/           persistência fiscal local em SQLite
+  reporting/          modelo e exportação XLSX
+  interchange/        importação e exportação de configurações
+  payments/           contratos do fluxo de doação, sem dados fiscais
+docs/                 PRD, jornadas, arquitetura e decisões
 ```
 
-O gerenciador é pnpm workspaces. TypeScript usa configuração estrita comum e cada
-pacote expõe apenas sua porta pública.
+Fluxo fiscal: componente Vue → serviço da interface → IPC restrito → preload →
+processo principal/workers → parser e domínio → motor fiscal → repositório SQLite
+local → serviço de relatório. Componentes de interface não acessam o banco e não
+falam diretamente com o servidor.
 
-## 5. Modelo conceitual
+Fluxo de doação: componente Vue → serviço de doações → API REST NestJS → módulo
+de doações/pagamentos → serviço Stripe e repositório Prisma → PostgreSQL. O
+webhook Stripe entra pelo módulo de pagamentos, valida a assinatura e registra o
+evento de forma idempotente. A API recebe somente identificador do pedido, valor,
+moeda, estado e identificadores do gateway.
+
+Na API, controllers traduzem HTTP para chamadas de serviço; services aplicam as
+regras do fluxo; repositórios encapsulam Prisma. DTOs validam toda entrada. O
+`ValidationPipe` global rejeita campos inválidos e desconhecidos. Um filtro global
+converte erros não tratados para resposta HTTP estável, sem expor stack trace ou
+segredos; erros de negócio usam códigos e mensagens acionáveis. Um interceptor
+global padroniza o envelope das respostas de sucesso. Swagger documenta os
+endpoints REST. O NestJS organiza essas responsabilidades em módulos por domínio.
+No frontend, toda chamada remota passa pela camada de serviço.
+
+## 4. Frontend
+
+Vue 3+ permanece como framework de interface, dentro do renderer Electron. A
+escolha se apoia na interface já implementada e na experiência acumulada no
+projeto. Vue Router organiza navegação e Pinia guarda somente estado
+compartilhado entre telas. Regras fiscais, cálculos e acesso a persistência
+continuam fora de componentes e stores.
+
+Electron mantém `contextIsolation` habilitado e Node.js indisponível no renderer.
+O preload expõe apenas operações IPC explicitamente tipadas. Para a doação, a
+interface usa um serviço Vue dedicado que conversa com a API; telas fiscais não
+recebem cliente ou credenciais do Stripe.
+
+## 5. Dados e ambientes
+
+Os dados fiscais e o histórico pertencem ao SQLite de cada instalação. O
+PostgreSQL guarda apenas pedidos de doação e pagamentos. Os dois armazenamentos
+não são mesclados nem sincronizados. Valores monetários são decimais exatos; o
+estado `pago` só é confirmado por webhook válido. Uma repetição do evento não
+cria uma segunda confirmação.
+
+- **Local:** PostgreSQL em Docker na máquina de desenvolvimento; `DATABASE_URL` em `.env` fora do Git. O SQLite fiscal continua no diretório de dados da aplicação.
+- **CI:** PostgreSQL em container no GitHub Actions; `DATABASE_URL` definido pelo workflow para o serviço de teste.
+- **Produção:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma.
+
+O repositório contém somente o nome da variável. Valores de conexão e chaves do
+Stripe vivem fora do Git. XMLs, CNPJ, regras, memória de cálculo e relatórios
+fiscais nunca são enviados à API.
+
+### Glossário técnico e modelo conceitual
+
+- **Organização — `organizations` (SQLite):** `id`, `name`, `installationId`.
+- **Empresa — `companies` (SQLite):** `id`, `organizationId`, `cnpj`, `legalName`, `state`, `status`.
+- **Perfil fiscal — `tax_profiles` (SQLite):** `id`, `organizationId`, `name`, `category`, `ncm`, `cest`, `version`.
+- **Produto de fornecedor — `supplier_products` (SQLite):** `id`, `supplierCnpj`, `supplierCode`, `taxProfileId`, `status`.
+- **Regra fiscal — `tax_rules` (SQLite):** `id`, `organizationId`, `version`, `validFrom`, `validTo`, `status`, `legalBasis`.
+- **Lote — `batches` (SQLite):** `id`, `organizationId`, `companyId`, `status`, `receivedAt`.
+- **Ocorrência de arquivo — `file_occurrences` (SQLite):** `id`, `batchId`, `contentHash`, `position`, `ingestionStatus`.
+- **Nota/documento fiscal — `fiscal_documents` (SQLite):** `id`, `batchId`, `fileOccurrenceId`, `accessKey`, `issuerCnpj`, `status`.
+- **Item da nota — `document_items` (SQLite):** `id`, `documentId`, `productCode`, `declaredValues`.
+- **Execução de cálculo — `calculation_runs` (SQLite):** `id`, `documentId`, `previousRunId`, `engineVersion`, `status`.
+- **Resultado do item — `item_results` (SQLite):** `id`, `calculationRunId`, `itemId`, `taxRuleId`, `calculatedValues`, `calculationMemory`.
+- **Pendência — `issues` (SQLite):** `id`, `batchId`, `documentId`, `itemId`, `type`, `status`, `resolution`.
+- **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `amount`, `currency`, `status`, `createdAt`.
+- **Pagamento — `payments` (PostgreSQL):** `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt`.
+
+“Horário de pico” é regra de negócio, não entidade. “Cancelamento” é estado ou
+evento relacionado ao documento/pagamento e não ganha tabela genérica própria. O
+produto não cadastra usuários nem papéis no MVP. Pedido e pagamento permanecem
+separados porque um pedido pode continuar pendente, falhar, ser reembolsado ou
+receber nova tentativa; o estado definitivo depende do gateway.
+
+### Cadastros fiscais
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
 erDiagram
-    ORGANIZACAO ||--o{ EMPRESA : possui
-    EMPRESA ||--o{ LOTE : processa
-    LOTE ||--|{ OCORRENCIA_ARQUIVO : contem
-    OCORRENCIA_ARQUIVO ||--o| DOCUMENTO_FISCAL : origina
-    DOCUMENTO_FISCAL ||--|{ ITEM_DOCUMENTO : detalha
-    DOCUMENTO_FISCAL ||--o{ EXECUCAO_CALCULO : reprocessa
-    EXECUCAO_CALCULO ||--|{ RESULTADO_ITEM : produz
-    ITEM_DOCUMENTO ||--o{ RESULTADO_ITEM : recebe
-    ORGANIZACAO ||--o{ REGRA_FISCAL : mantem
-    REGRA_FISCAL ||--o{ RESULTADO_ITEM : fundamenta
-    DOCUMENTO_FISCAL ||--o{ PENDENCIA : apresenta
-    ITEM_DOCUMENTO ||--o{ PENDENCIA : pode_apresentar
+    ORGANIZATIONS ||--o{ COMPANIES : possui
+    ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
+    ORGANIZATIONS ||--o{ TAX_RULES : mantém
+    TAX_PROFILES ||--o{ SUPPLIER_PRODUCTS : classifica
+    TAX_PROFILES ||--o{ TAX_RULES : orienta
+
+    ORGANIZATIONS {
+        string id PK
+    }
+    COMPANIES {
+        string id PK
+    }
+    TAX_PROFILES {
+        string id PK
+    }
+    SUPPLIER_PRODUCTS {
+        string id PK
+    }
+    TAX_RULES {
+        string id PK
+    }
 ```
 
-Relações, campos e restrições completos estão em
-[Modelo de dados inicial](modelo-de-dados.md).
+- **`ORGANIZATIONS`:** `id` (PK), `name`, `installationId`; possui empresas, perfis fiscais e regras.
+- **`COMPANIES`:** `id` (PK), `organizationId` (FK), `cnpj`, `legalName`, `state`; pertence a uma organização.
+- **`TAX_PROFILES`:** `id` (PK), `organizationId` (FK), `name`, `ncm`, `cest`; pertence a uma organização e classifica produtos de fornecedores e regras.
+- **`SUPPLIER_PRODUCTS`:** `id` (PK), `supplierCnpj`, `supplierCode`, `taxProfileId` (FK); vincula produto de fornecedor a um perfil fiscal.
+- **`TAX_RULES`:** `id` (PK), `organizationId` (FK), `taxProfileId` (FK), `version`, `validFrom`, `validTo`, `status`; pertence à organização e pode seguir um perfil fiscal.
 
-## 6. Fluxo principal
+### Ingestão fiscal
 
-1. O processo principal recebe arquivos selecionados por IPC.
-2. O inventário normaliza caminhos, calcula SHA-256 e preserva cada ocorrência.
-3. ZIPs passam por inspeção de caminhos, expansão, tamanho e integridade.
-4. XMLs passam por proteção contra DTD/entidades, parsing e XSD offline.
-5. Dados reconhecidos são convertidos para tipos normalizados do domínio.
-6. Diagnósticos determinam processamento normal, parcial ou rejeição.
-7. O motor seleciona a regra vigente e específica para cada item.
-8. Resultados, pendências e memória são persistidos.
-9. O relatório consolida somente resultados elegíveis e explica exclusões.
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
+erDiagram
+    ORGANIZATIONS ||--o{ BATCHES : recebe
+    COMPANIES ||--o{ BATCHES : analisada_em
+    BATCHES ||--|{ FILE_OCCURRENCES : contém
+    FILE_OCCURRENCES ||--o| FISCAL_DOCUMENTS : origina
+    FISCAL_DOCUMENTS ||--|{ DOCUMENT_ITEMS : detalha
 
-## 7. Segurança
+    ORGANIZATIONS {
+        string id PK
+    }
+    COMPANIES {
+        string id PK
+    }
+    BATCHES {
+        string id PK
+    }
+    FILE_OCCURRENCES {
+        string id PK
+    }
+    FISCAL_DOCUMENTS {
+        string id PK
+    }
+    DOCUMENT_ITEMS {
+        string id PK
+    }
+```
 
-- `contextIsolation` habilitado e Node.js indisponível no renderer;
-- IPC limitado a contratos conhecidos;
-- nenhum acesso de rede durante a análise de XML;
-- DTD e entidades personalizadas bloqueados antes do parser;
-- ZIP inspecionado sem escrever entradas no disco;
-- caminhos absolutos, ascendentes e links simbólicos recusados;
-- valores e identificadores fiscais preservados como texto até normalização;
-- XML original imutável e retenção configurável ainda pendente de detalhamento.
+- **`BATCHES`:** `id` (PK), `organizationId` (FK), `companyId` (FK), `status`, `receivedAt`; pertence a uma organização e empresa e contém ocorrências de arquivo.
+- **`FILE_OCCURRENCES`:** `id` (PK), `batchId` (FK), `contentHash`, `position`, `ingestionStatus`; pertence a um lote e pode originar um documento fiscal.
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `batchId` (FK), `fileOccurrenceId` (FK), `accessKey`, `issuerCnpj`, `status`; detalha-se em itens.
+- **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`, `declaredValues`; pertence a um documento fiscal.
 
-## 8. Qualidade e verificação
+### Cálculo e pendências
 
-O comando `pnpm check` executa:
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
+erDiagram
+    FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
+    CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
+    DOCUMENT_ITEMS ||--o{ ITEM_RESULTS : recebe
+    TAX_RULES ||--o{ ITEM_RESULTS : fundamenta
+    FISCAL_DOCUMENTS ||--o{ ISSUES : apresenta
 
-1. verificação TypeScript de todos os pacotes;
-2. testes automatizados;
-3. build de produção do aplicativo desktop.
+    FISCAL_DOCUMENTS {
+        string id PK
+    }
+    DOCUMENT_ITEMS {
+        string id PK
+    }
+    CALCULATION_RUNS {
+        string id PK
+    }
+    ITEM_RESULTS {
+        string id PK
+    }
+    TAX_RULES {
+        string id PK
+    }
+    ISSUES {
+        string id PK
+    }
+```
 
-Fixtures sintéticas cobrem NF-e/NFC-e, validação XSD, XXE, Zip Slip, ZIP expansivo,
-CRC, caminhos, inventário determinístico e normalização sem dados fiscais reais.
+- **`FISCAL_DOCUMENTS`:** `id` (PK), `accessKey`, `status`; documento processado nas execuções de cálculo.
+- **`DOCUMENT_ITEMS`:** `id` (PK), `documentId` (FK), `productCode`; item ao qual o resultado se refere.
+- **`CALCULATION_RUNS`:** `id` (PK), `documentId` (FK), `previousRunId` (FK), `engineVersion`, `status`; registra uma execução de um documento e pode suceder outra execução.
+- **`ITEM_RESULTS`:** `id` (PK), `calculationRunId` (FK), `itemId` (FK), `taxRuleId` (FK), `calculatedValues`, `calculationMemory`; resultado e memória do cálculo do item.
+- **`TAX_RULES`:** `id` (PK), `version`, `status`; regra fiscal usada no cálculo do item.
+- **`ISSUES`:** `id` (PK), `documentId` (FK), `type`, `status`, `resolution`; registra uma pendência relacionada ao documento.
 
-## 9. Decisões pendentes
+### Doações e pagamentos
 
-- biblioteca e schema físico de SQLite;
-- biblioteca de decimal exato e regras de arredondamento;
-- contrato final do XLSX;
-- limites de produção para XML, ZIP, memória e workers;
-- recuperação de lote interrompido;
-- estratégia de distribuição e atualização no Windows;
-- adequação ou dispensa formal dos requisitos de backend, nuvem e pagamento da
-  ficha acadêmica, a ser confirmada com o professor.
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
+erDiagram
+    DONATION_ORDERS ||--o{ PAYMENTS : recebe
 
-## 10. Documentos relacionados
+    DONATION_ORDERS {
+        string id PK
+    }
+    PAYMENTS {
+        string id PK
+    }
+```
 
-- [Arquitetura inicial detalhada](arquitetura-inicial.md)
-- [Modelo de dados](modelo-de-dados.md)
-- [Decisões técnicas](decisoes-tecnicas.md)
-- [Roadmap](roadmap.md)
-- [Segurança das entradas](seguranca-entradas.md)
+- **`DONATION_ORDERS`:** `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento.
+- **`PAYMENTS`:** `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido.
+
+As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
+local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
+modelo fiscal detalhado e suas restrições permanecem em
+[`modelo-de-dados.md`](modelo-de-dados.md).
+
+## 6. Mapa de domínios e comandos
+
+
+## 7. Histórico
