@@ -17,12 +17,16 @@ Fórmulas fiscais homologadas e geração do XLSX ainda fazem parte do roadmap.
 
 ## Stack
 
-- Electron 38, Vue 3 e TypeScript;
-- pnpm workspaces em monorepo;
-- Vitest para testes automatizados;
-- `fast-xml-parser` para leitura dos XMLs;
-- `xmllint-wasm` e schemas oficiais para validação XSD offline;
-- armazenamento local em SQLite.
+- Electron;
+- Vue;
+- NestJS;
+- Prisma;
+- PostgreSQL;
+- SQLite.
+
+O backend NestJS com Prisma e PostgreSQL atende somente ao fluxo de doações. Os
+dados fiscais e o cálculo continuam locais no aplicativo desktop. Os detalhes
+estão em [docs/architecture.md](docs/architecture.md).
 
 ## Em produção
 
