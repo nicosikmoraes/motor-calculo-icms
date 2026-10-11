@@ -150,6 +150,23 @@ receber nova tentativa; o estado definitivo depende do gateway.
 ### Cadastros fiscais
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
 erDiagram
     ORGANIZATIONS ||--o{ COMPANIES : possui
     ORGANIZATIONS ||--o{ TAX_PROFILES : mantém
@@ -183,6 +200,23 @@ erDiagram
 ### Ingestão fiscal
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
 erDiagram
     ORGANIZATIONS ||--o{ BATCHES : recebe
     COMPANIES ||--o{ BATCHES : analisada_em
@@ -218,6 +252,23 @@ erDiagram
 ### Cálculo e pendências
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
 erDiagram
     FISCAL_DOCUMENTS ||--o{ CALCULATION_RUNS : reprocessa
     CALCULATION_RUNS ||--|{ ITEM_RESULTS : produz
@@ -255,6 +306,23 @@ erDiagram
 ### Doações e pagamentos
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    darkMode: true
+    background: "#0b1220"
+    primaryColor: "#0f172a"
+    primaryTextColor: "#f8fafc"
+    primaryBorderColor: "#94a3b8"
+    lineColor: "#cbd5e1"
+    textColor: "#f8fafc"
+  er:
+    theme: base
+    fill: "#0f172a"
+    stroke: "#94a3b8"
+    fontSize: 16
+---
 erDiagram
     DONATION_ORDERS ||--o{ PAYMENTS : recebe
 
