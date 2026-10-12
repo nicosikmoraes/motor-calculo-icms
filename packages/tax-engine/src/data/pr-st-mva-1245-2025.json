@@ -1,0 +1,1751 @@
+{
+  "id": "pr-st-mva-1245-2025",
+  "version": 1,
+  "validFrom": "2026-04-01",
+  "verifiedThrough": "2026-10-12",
+  "legalBasis": "Resolução SEFA/PR 571/2019, arts. 12 e 16, na redação da Resolução SEFA/PR 1245/2025",
+  "sourceUrl": "https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=381258",
+  "sourceSha256": "3236c8b0aad03a2f32c6c98c3daa9ffd89e9a7f22ece658d0dc97e40c27e457c",
+  "rows": [
+    {
+      "id": "pr-571-art-12-item-1-1245-2025",
+      "article": 12,
+      "item": "1",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000100",
+      "ncmPrefixes": [
+        "12119090"
+      ],
+      "description": "Henna (embalagens de conteúdo inferior ou igual a 200 g) (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "46.78"
+    },
+    {
+      "id": "pr-571-art-12-item-2-1245-2025",
+      "article": 12,
+      "item": "2",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000200",
+      "ncmPrefixes": [
+        "27121000"
+      ],
+      "description": "Vaselina (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "97.51"
+    },
+    {
+      "id": "pr-571-art-12-item-3-1245-2025",
+      "article": 12,
+      "item": "3",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000300",
+      "ncmPrefixes": [
+        "28142000"
+      ],
+      "description": "Amoníaco em solução aquosa (amônia) (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "118.18"
+    },
+    {
+      "id": "pr-571-art-12-item-4-1245-2025",
+      "article": 12,
+      "item": "4",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000400",
+      "ncmPrefixes": [
+        "28470000"
+      ],
+      "description": "Peróxido de hidrogênio, em embalagens de conteúdo inferior ou igual a 500 ml (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "71.05"
+    },
+    {
+      "id": "pr-571-art-12-item-5-1245-2025",
+      "article": 12,
+      "item": "5",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000500",
+      "ncmPrefixes": [
+        "30067000"
+      ],
+      "description": "Lubrificação íntima (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "67.62"
+    },
+    {
+      "id": "pr-571-art-12-item-6-1245-2025",
+      "article": 12,
+      "item": "6",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000600",
+      "ncmPrefixes": [
+        "3301"
+      ],
+      "description": "Óleos essenciais (desterpenados ou não), incluídos os chamados \"concretos\" ou \"absolutos\"; resinóides; oleorresinas de extração; soluções concentradas de óleos essenciais em gorduras, em óleos fixos, em ceras ou em matérias análogas, obtidas por tratamento de flores através de substâncias gordas ou por maceração; subprodutos terpênicos residuais da desterpenação dos óleos essenciais; águas destiladas aromáticas e soluções aquosas de óleos essenciais, em embalagens de conteúdo inferior ou igual a 500 ml (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "72.47"
+    },
+    {
+      "id": "pr-571-art-12-item-7-1245-2025",
+      "article": 12,
+      "item": "7",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000700",
+      "ncmPrefixes": [
+        "33030010"
+      ],
+      "description": "Perfumes (extratos) (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "47.77"
+    },
+    {
+      "id": "pr-571-art-12-item-8-1245-2025",
+      "article": 12,
+      "item": "8",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000800",
+      "ncmPrefixes": [
+        "33030020"
+      ],
+      "description": "Águas-de-colônia (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "44.30"
+    },
+    {
+      "id": "pr-571-art-12-item-9-1245-2025",
+      "article": 12,
+      "item": "9",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2000900",
+      "ncmPrefixes": [
+        "33041000"
+      ],
+      "description": "Produtos de maquilagem para os lábios (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "68.83"
+    },
+    {
+      "id": "pr-571-art-12-item-10-1245-2025",
+      "article": 12,
+      "item": "10",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001000",
+      "ncmPrefixes": [
+        "33042010"
+      ],
+      "description": "Sombra, delineador, lápis para sobrancelhas e rímel (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "64.97"
+    },
+    {
+      "id": "pr-571-art-12-item-11-1245-2025",
+      "article": 12,
+      "item": "11",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001100",
+      "ncmPrefixes": [
+        "33042090"
+      ],
+      "description": "Outros produtos de maquilagem para os olhos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "60.34"
+    },
+    {
+      "id": "pr-571-art-12-item-12-1245-2025",
+      "article": 12,
+      "item": "12",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001200",
+      "ncmPrefixes": [
+        "33043000"
+      ],
+      "description": "Preparações para manicuros e pedicuros incluindo removedores de esmalte à base de acetona (Protocolos ICMS 191/2009, 190/2010 e 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "59.04"
+    },
+    {
+      "id": "pr-571-art-12-item-13-1245-2025",
+      "article": 12,
+      "item": "13",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001300",
+      "ncmPrefixes": [
+        "33049100"
+      ],
+      "description": "Pós, incluídos os compactos (Protocolos ICMS 191/2009, 190/2010 e 111/2011 (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015) (Convênios ICMS 52/2017 e 131/2017)",
+      "originalMvaPercent": "52.47"
+    },
+    {
+      "id": "pr-571-art-12-item-14-1245-2025",
+      "article": 12,
+      "item": "14",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001400",
+      "ncmPrefixes": [
+        "33049910"
+      ],
+      "description": "Cremes de beleza, cremes nutritivos e loções tônicas (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "55.12"
+    },
+    {
+      "id": "pr-571-art-12-item-15-1245-2025",
+      "article": 12,
+      "item": "15",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001500",
+      "ncmPrefixes": [
+        "33049990"
+      ],
+      "description": "Outros produtos de beleza ou de maquilagem preparados e preparações para conservação ou cuidados da pele, exceto as preparações solares e antissolares (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "27.18"
+    },
+    {
+      "id": "pr-571-art-12-item-16-1245-2025",
+      "article": 12,
+      "item": "16",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001600",
+      "ncmPrefixes": [
+        "33049990"
+      ],
+      "description": "Preparações solares e antissolares (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "30.70"
+    },
+    {
+      "id": "pr-571-art-12-item-17-1245-2025",
+      "article": 12,
+      "item": "17",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001700",
+      "ncmPrefixes": [
+        "33051000"
+      ],
+      "description": "Xampus para o cabelo (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "42.11"
+    },
+    {
+      "id": "pr-571-art-12-item-18-1245-2025",
+      "article": 12,
+      "item": "18",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001800",
+      "ncmPrefixes": [
+        "33052000"
+      ],
+      "description": "Preparações para ondulação ou alisamento, permanentes, dos cabelos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "66.04"
+    },
+    {
+      "id": "pr-571-art-12-item-19-1245-2025",
+      "article": 12,
+      "item": "19",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2001900",
+      "ncmPrefixes": [
+        "33053000"
+      ],
+      "description": "Laquês para o cabelo (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "60.49"
+    },
+    {
+      "id": "pr-571-art-12-item-20-1245-2025",
+      "article": 12,
+      "item": "20",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002000",
+      "ncmPrefixes": [
+        "33059000"
+      ],
+      "description": "Outras preparações capilares, incluindo máscaras e finalizadores (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "51.66"
+    },
+    {
+      "id": "pr-571-art-12-item-21-1245-2025",
+      "article": 12,
+      "item": "21",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002100",
+      "ncmPrefixes": [
+        "33059000"
+      ],
+      "description": "Condicionadores (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "50.31"
+    },
+    {
+      "id": "pr-571-art-12-item-22-1245-2025",
+      "article": 12,
+      "item": "22",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002200",
+      "ncmPrefixes": [
+        "33059000"
+      ],
+      "description": "Tinturas para o cabelo (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "39.56"
+    },
+    {
+      "id": "pr-571-art-12-item-23-1245-2025",
+      "article": 12,
+      "item": "23",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002300",
+      "ncmPrefixes": [
+        "33061000"
+      ],
+      "description": "Dentifrícios (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "39.85"
+    },
+    {
+      "id": "pr-571-art-12-item-24-1245-2025",
+      "article": 12,
+      "item": "24",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002400",
+      "ncmPrefixes": [
+        "33062000"
+      ],
+      "description": "Fios utilizados para limpar os espaços interdentais (fio dental) (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "70.50"
+    },
+    {
+      "id": "pr-571-art-12-item-25-1245-2025",
+      "article": 12,
+      "item": "25",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002500",
+      "ncmPrefixes": [
+        "33069000"
+      ],
+      "description": "Outras preparações para higiene bucal ou dentária (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "46.31"
+    },
+    {
+      "id": "pr-571-art-12-item-26-1245-2025",
+      "article": 12,
+      "item": "26",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002600",
+      "ncmPrefixes": [
+        "33071000"
+      ],
+      "description": "Preparações para barbear (antes, durante ou após) (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "59.75"
+    },
+    {
+      "id": "pr-571-art-12-item-27-1245-2025",
+      "article": 12,
+      "item": "27",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002700",
+      "ncmPrefixes": [
+        "33072010"
+      ],
+      "description": "Desodorantes (desodorizantes) corporais líquidos, exceto os classificados no CEST 20.027.01 (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 81/2017)",
+      "originalMvaPercent": "40.90"
+    },
+    {
+      "id": "pr-571-art-12-item-28-1245-2025",
+      "article": 12,
+      "item": "28",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002701",
+      "ncmPrefixes": [
+        "33072010"
+      ],
+      "description": "Loções e óleos desodorantes hidratantes líquidos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênio ICMS 81/2017)",
+      "originalMvaPercent": "42.19"
+    },
+    {
+      "id": "pr-571-art-12-item-29-1245-2025",
+      "article": 12,
+      "item": "29",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002800",
+      "ncmPrefixes": [
+        "33072010"
+      ],
+      "description": "Antiperspirantes líquidos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "38.74"
+    },
+    {
+      "id": "pr-571-art-12-item-30-1245-2025",
+      "article": 12,
+      "item": "30",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002900",
+      "ncmPrefixes": [
+        "33072090"
+      ],
+      "description": "Outros desodorantes (desodorizantes) corporais, exceto os classificados no CEST 20.029.01 (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 81/2017)",
+      "originalMvaPercent": "54.05"
+    },
+    {
+      "id": "pr-571-art-12-item-31-1245-2025",
+      "article": 12,
+      "item": "31",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2002901",
+      "ncmPrefixes": [
+        "33072090"
+      ],
+      "description": "Outras loções e óleos desodorantes hidratantes (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênio ICMS 81/2017)",
+      "originalMvaPercent": "57.44"
+    },
+    {
+      "id": "pr-571-art-12-item-32-1245-2025",
+      "article": 12,
+      "item": "32",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003000",
+      "ncmPrefixes": [
+        "33072090"
+      ],
+      "description": "Outros antiperspirantes (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "52.35"
+    },
+    {
+      "id": "pr-571-art-12-item-33-1245-2025",
+      "article": 12,
+      "item": "33",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003100",
+      "ncmPrefixes": [
+        "33073000"
+      ],
+      "description": "Sais perfumados e outras preparações para banhos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "57.74"
+    },
+    {
+      "id": "pr-571-art-12-item-34-1245-2025",
+      "article": 12,
+      "item": "34",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003200",
+      "ncmPrefixes": [
+        "33079000"
+      ],
+      "description": "Outros produtos de perfumaria preparados (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 53/2016)",
+      "originalMvaPercent": "48.96"
+    },
+    {
+      "id": "pr-571-art-12-item-35-1245-2025",
+      "article": 12,
+      "item": "35",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003201",
+      "ncmPrefixes": [
+        "33079000"
+      ],
+      "description": "Outros produtos de toucador preparados (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 53/2016)",
+      "originalMvaPercent": "49.46"
+    },
+    {
+      "id": "pr-571-art-12-item-36-1245-2025",
+      "article": 12,
+      "item": "36",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003300",
+      "ncmPrefixes": [
+        "33079000"
+      ],
+      "description": "Soluções para lentes de contato ou para olhos artificiais (Protocolos ICMS 191/2009 e 86/2014) (Convênios ICMS 92/2015, 146/2015 e 53/2016)",
+      "originalMvaPercent": "44.01"
+    },
+    {
+      "id": "pr-571-art-12-item-37-1245-2025",
+      "article": 12,
+      "item": "37",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003400",
+      "ncmPrefixes": [
+        "34011190"
+      ],
+      "description": "Sabões de toucador em barras, pedaços ou figuras moldados, exceto CEST 20.034.01 (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015) (Convênios ICMS 142/2018 e 38/2019)",
+      "originalMvaPercent": "37.62"
+    },
+    {
+      "id": "pr-571-art-12-item-38-1245-2025",
+      "article": 12,
+      "item": "38",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003401",
+      "ncmPrefixes": [
+        "34011190"
+      ],
+      "description": "Lenços umedecidos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Convênio ICMS 38/2019)",
+      "originalMvaPercent": "55.99"
+    },
+    {
+      "id": "pr-571-art-12-item-39-1245-2025",
+      "article": 12,
+      "item": "39",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003500",
+      "ncmPrefixes": [
+        "34011900"
+      ],
+      "description": "Outros sabões, produtos e preparações, em barras, pedaços ou figuras moldados (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 115/2017)",
+      "originalMvaPercent": "62.30"
+    },
+    {
+      "id": "pr-571-art-12-item-40-1245-2025",
+      "article": 12,
+      "item": "40",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003600",
+      "ncmPrefixes": [
+        "34012010"
+      ],
+      "description": "Sabões de toucador sob outras formas (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "36.64"
+    },
+    {
+      "id": "pr-571-art-12-item-41-1245-2025",
+      "article": 12,
+      "item": "41",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003700",
+      "ncmPrefixes": [
+        "34013000"
+      ],
+      "description": "Produtos e preparações orgânicos tensoativos para lavagem da pele, na forma de líquido ou de creme, acondicionados para venda a retalho, mesmo contendo sabão (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "48.95"
+    },
+    {
+      "id": "pr-571-art-12-item-42-1245-2025",
+      "article": 12,
+      "item": "42",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003800",
+      "ncmPrefixes": [
+        "40149010"
+      ],
+      "description": "Bolsa para gelo ou para água quente (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "87.93"
+    },
+    {
+      "id": "pr-571-art-12-item-43-1245-2025",
+      "article": 12,
+      "item": "43",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2003900",
+      "ncmPrefixes": [
+        "40149090"
+      ],
+      "description": "Chupetas e bicos para mamadeiras e para chupetas, de borracha (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "83.32"
+    },
+    {
+      "id": "pr-571-art-12-item-44-1245-2025",
+      "article": 12,
+      "item": "44",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004000",
+      "ncmPrefixes": [
+        "39249000",
+        "39269040",
+        "39269090"
+      ],
+      "description": "Chupetas e bicos para mamadeiras e para chupetas, de silicone (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "76.19"
+    },
+    {
+      "id": "pr-571-art-12-item-45-1245-2025",
+      "article": 12,
+      "item": "45",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004100",
+      "ncmPrefixes": [
+        "42021"
+      ],
+      "description": "Malas e maletas de toucador (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "91.50"
+    },
+    {
+      "id": "pr-571-art-12-item-46-1245-2025",
+      "article": 12,
+      "item": "46",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004200",
+      "ncmPrefixes": [
+        "48181000"
+      ],
+      "description": "Papel higiênico - folha simples (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "39.14"
+    },
+    {
+      "id": "pr-571-art-12-item-47-1245-2025",
+      "article": 12,
+      "item": "47",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004300",
+      "ncmPrefixes": [
+        "48181000"
+      ],
+      "description": "Papel higiênico - folha dupla, tripla e quádrupla (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 178/2024)",
+      "originalMvaPercent": "43.66"
+    },
+    {
+      "id": "pr-571-art-12-item-48-1245-2025",
+      "article": 12,
+      "item": "48",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004400",
+      "ncmPrefixes": [
+        "48182000"
+      ],
+      "description": "Lenços (incluídos os de maquilagem) e toalhas de mão (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "67.76"
+    },
+    {
+      "id": "pr-571-art-12-item-49-1245-2025",
+      "article": 12,
+      "item": "49",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004500",
+      "ncmPrefixes": [
+        "48182000"
+      ],
+      "description": "Papel toalha de uso institucional do tipo comercializado em rolos igual ou superior a 80 metros e do tipo comercializado em folhas intercaladas (Protocolo ICMS 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "73.54"
+    },
+    {
+      "id": "pr-571-art-12-item-50-1245-2025",
+      "article": 12,
+      "item": "50",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004600",
+      "ncmPrefixes": [
+        "48183000"
+      ],
+      "description": "Toalhas e guardanapos de mesa (Protocolos ICMS 191/2009, 5/2010, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "81.67"
+    },
+    {
+      "id": "pr-571-art-12-item-51-1245-2025",
+      "article": 12,
+      "item": "51",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004700",
+      "ncmPrefixes": [
+        "48189090"
+      ],
+      "description": "Toalhas de cozinha (papel toalha de uso doméstico) (Protocolo ICMS 69/2015) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "58.06"
+    },
+    {
+      "id": "pr-571-art-12-item-52-1245-2025",
+      "article": 12,
+      "item": "52",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004800",
+      "ncmPrefixes": [
+        "96190000"
+      ],
+      "description": "Fraldas, exceto as descritas no CEST 20.048.01 (Protocolos ICMS 191/2009, 5/2010, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 101/2017)",
+      "originalMvaPercent": "32.14"
+    },
+    {
+      "id": "pr-571-art-12-item-53-1245-2025",
+      "article": 12,
+      "item": "53",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004801",
+      "ncmPrefixes": [
+        "96190000"
+      ],
+      "description": "Fraldas de fibras têxteis (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015, 146/2015 e 101/2017)",
+      "originalMvaPercent": "50.95"
+    },
+    {
+      "id": "pr-571-art-12-item-54-1245-2025",
+      "article": 12,
+      "item": "54",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2004900",
+      "ncmPrefixes": [
+        "96190000"
+      ],
+      "description": "Tampões higiênicos (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "52.53"
+    },
+    {
+      "id": "pr-571-art-12-item-55-1245-2025",
+      "article": 12,
+      "item": "55",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005000",
+      "ncmPrefixes": [
+        "96190000"
+      ],
+      "description": "Absorventes higiênicos externos (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "49.67"
+    },
+    {
+      "id": "pr-571-art-12-item-56-1245-2025",
+      "article": 12,
+      "item": "56",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005100",
+      "ncmPrefixes": [
+        "56012190"
+      ],
+      "description": "Hastes flexíveis (uso não medicinal) (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "62.89"
+    },
+    {
+      "id": "pr-571-art-12-item-57-1245-2025",
+      "article": 12,
+      "item": "57",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005200",
+      "ncmPrefixes": [
+        "56039290"
+      ],
+      "description": "Sutiã descartável, assemelhados e papel para depilação (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "83.80"
+    },
+    {
+      "id": "pr-571-art-12-item-58-1245-2025",
+      "article": 12,
+      "item": "58",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005300",
+      "ncmPrefixes": [
+        "82032090"
+      ],
+      "description": "Pinças para sobrancelhas (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "73.79"
+    },
+    {
+      "id": "pr-571-art-12-item-59-1245-2025",
+      "article": 12,
+      "item": "59",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005400",
+      "ncmPrefixes": [
+        "82141000"
+      ],
+      "description": "Espátulas (artigos de cutelaria) (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "91.10"
+    },
+    {
+      "id": "pr-571-art-12-item-60-1245-2025",
+      "article": 12,
+      "item": "60",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005500",
+      "ncmPrefixes": [
+        "82142000"
+      ],
+      "description": "Utensílios e sortidos de utensílios de manicuros ou de pedicuros (incluídas as limas para unhas) (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "87.76"
+    },
+    {
+      "id": "pr-571-art-12-item-61-1245-2025",
+      "article": 12,
+      "item": "61",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005600",
+      "ncmPrefixes": [
+        "90251110",
+        "90251990"
+      ],
+      "description": "Termômetros, inclusive o digital (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.80"
+    },
+    {
+      "id": "pr-571-art-12-item-62-1245-2025",
+      "article": 12,
+      "item": "62",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005700",
+      "ncmPrefixes": [
+        "96032"
+      ],
+      "description": "Escovas e pincéis de barba, escovas para cabelos, para cílios, para unhas e outras escovas de toucador de pessoas, incluídas as que sejam parte de aparelhos, exceto escovas de dentes (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "76.57"
+    },
+    {
+      "id": "pr-571-art-12-item-63-1245-2025",
+      "article": 12,
+      "item": "63",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005800",
+      "ncmPrefixes": [
+        "96032100"
+      ],
+      "description": "Escovas de dentes, incluídas as escovas para dentaduras (Protocolos ICMS 191/2009, 190/2010, 111/2011 e 67/2013) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "67.70"
+    },
+    {
+      "id": "pr-571-art-12-item-64-1245-2025",
+      "article": 12,
+      "item": "64",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2005900",
+      "ncmPrefixes": [
+        "96033000"
+      ],
+      "description": "Pincéis para aplicação de produtos cosméticos (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "59.66"
+    },
+    {
+      "id": "pr-571-art-12-item-65-1245-2025",
+      "article": 12,
+      "item": "65",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2006000",
+      "ncmPrefixes": [
+        "96050000"
+      ],
+      "description": "Sortidos de viagem, para toucador de pessoas, para costura ou para limpeza de calçados ou de roupas (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "90.61"
+    },
+    {
+      "id": "pr-571-art-12-item-66-1245-2025",
+      "article": 12,
+      "item": "66",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2006100",
+      "ncmPrefixes": [
+        "9615"
+      ],
+      "description": "Pentes, travessas para cabelo e artigos semelhantes; grampos (alfinetes) para cabelo; pinças (pinceguiches), onduladores, bobes (rolos) e artefatos semelhantes para penteados, e suas partes, exceto os da posição 8516 e suas partes (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "84.02"
+    },
+    {
+      "id": "pr-571-art-12-item-67-1245-2025",
+      "article": 12,
+      "item": "67",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2006200",
+      "ncmPrefixes": [
+        "96162000"
+      ],
+      "description": "Borlas ou esponjas para pós ou para aplicação de outros cosméticos ou de produtos de toucador (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "82.97"
+    },
+    {
+      "id": "pr-571-art-12-item-68-1245-2025",
+      "article": 12,
+      "item": "68",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2006300",
+      "ncmPrefixes": [
+        "39233090",
+        "39241000",
+        "39249000",
+        "40149090",
+        "7013"
+      ],
+      "description": "Mamadeiras (Protocolos ICMS 191/2009, 190/2010 e 111/2011) (Protocolos ICMS 164/2010 e 19/2012) (Convênios ICMS 92/2015 e 146/2015) (Convênios ICMS 142/2018 e 154/2022)",
+      "originalMvaPercent": "76.01"
+    },
+    {
+      "id": "pr-571-art-12-item-69-1245-2025",
+      "article": 12,
+      "item": "69",
+      "segment": "HIGIENE_COSMETICS",
+      "cest": "2006500",
+      "ncmPrefixes": [
+        "56012110"
+      ],
+      "description": "Algodão hidrófilo, não estéril, destinado à higiene pessoal (Convênios ICMS 142/2018 e 108/2022)",
+      "originalMvaPercent": "55.89"
+    },
+    {
+      "id": "pr-571-art-16-item-1-1245-2025",
+      "article": 16,
+      "item": "1",
+      "segment": "CONSTRUCTION",
+      "cest": "1000200",
+      "ncmPrefixes": [
+        "3816001",
+        "38245000"
+      ],
+      "description": "Argamassas (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "70.49"
+    },
+    {
+      "id": "pr-571-art-16-item-2-1245-2025",
+      "article": 16,
+      "item": "2",
+      "segment": "CONSTRUCTION",
+      "cest": "1000300",
+      "ncmPrefixes": [
+        "32149000"
+      ],
+      "description": "Outras argamassas(Protocolos ICMS 196/2009, 181/2010 e 209/2012)(Protocolos ICMS 71/2011 e 56/2012)(Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "58.17"
+    },
+    {
+      "id": "pr-571-art-16-item-3-1245-2025",
+      "article": 16,
+      "item": "3",
+      "segment": "CONSTRUCTION",
+      "cest": "1000500",
+      "ncmPrefixes": [
+        "3916"
+      ],
+      "description": "Revestimentos de PVC e outros plásticos, forro, sancas e afins de PVC, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "73.16"
+    },
+    {
+      "id": "pr-571-art-16-item-4-1245-2025",
+      "article": 16,
+      "item": "4",
+      "segment": "CONSTRUCTION",
+      "cest": "1000600",
+      "ncmPrefixes": [
+        "3917"
+      ],
+      "description": "Tubos e seus acessórios (por exemplo: juntas, cotovelos, flanges, uniões), de plásticos, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "56.46"
+    },
+    {
+      "id": "pr-571-art-16-item-5-1245-2025",
+      "article": 16,
+      "item": "5",
+      "segment": "CONSTRUCTION",
+      "cest": "1000700",
+      "ncmPrefixes": [
+        "3918"
+      ],
+      "description": "Revestimento de pavimento de PVC e outros plásticos (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "50.49"
+    },
+    {
+      "id": "pr-571-art-16-item-6-1245-2025",
+      "article": 16,
+      "item": "6",
+      "segment": "CONSTRUCTION",
+      "cest": "1000800",
+      "ncmPrefixes": [
+        "3919"
+      ],
+      "description": "Chapas, folhas, tiras, fitas, películas e outras formas planas, autoadesivas, de plásticos, mesmo em rolos, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "63.85"
+    },
+    {
+      "id": "pr-571-art-16-item-7-1245-2025",
+      "article": 16,
+      "item": "7",
+      "segment": "CONSTRUCTION",
+      "cest": "1000900",
+      "ncmPrefixes": [
+        "3919",
+        "3920",
+        "3921"
+      ],
+      "description": "Veda rosca, lona plástica para uso na construção, fitas isolantes e afins (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "58.78"
+    },
+    {
+      "id": "pr-571-art-16-item-8-1245-2025",
+      "article": 16,
+      "item": "8",
+      "segment": "CONSTRUCTION",
+      "cest": "1001000",
+      "ncmPrefixes": [
+        "3921"
+      ],
+      "description": "Telha de plástico, mesmo reforçada com fibra de vidro (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "57.76"
+    },
+    {
+      "id": "pr-571-art-16-item-9-1245-2025",
+      "article": 16,
+      "item": "9",
+      "segment": "CONSTRUCTION",
+      "cest": "1001100",
+      "ncmPrefixes": [
+        "3921"
+      ],
+      "description": "Cumeeira de plástico, mesmo reforçada com fibra de vidro (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75"
+    },
+    {
+      "id": "pr-571-art-16-item-10-1245-2025",
+      "article": 16,
+      "item": "10",
+      "segment": "CONSTRUCTION",
+      "cest": "1001200",
+      "ncmPrefixes": [
+        "3921"
+      ],
+      "description": "Chapas, laminados plásticos em bobina, para uso na construção, exceto os descritos nos CEST 10.010.00 e 10.011.00 (Protocolos ICMS 196/2009 e 181/2010) (Protocolo ICMS 56/2012) (Convênios ICMS 92/2015, 146/2015 e 53/2016)",
+      "originalMvaPercent": "113.64"
+    },
+    {
+      "id": "pr-571-art-16-item-11-1245-2025",
+      "article": 16,
+      "item": "11",
+      "segment": "CONSTRUCTION",
+      "cest": "1001300",
+      "ncmPrefixes": [
+        "3922"
+      ],
+      "description": "Banheiras, boxes para chuveiros, pias, lavatórios, bidês, sanitários e seus assentos e tampas, caixas de descarga e artigos semelhantes para usos sanitários ou higiênicos, de plástico (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "79.53"
+    },
+    {
+      "id": "pr-571-art-16-item-12-1245-2025",
+      "article": 16,
+      "item": "12",
+      "segment": "CONSTRUCTION",
+      "cest": "1001400",
+      "ncmPrefixes": [
+        "3924"
+      ],
+      "description": "Artefatos de higiene/toucador de plástico, para uso na construção (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-13-1245-2025",
+      "article": 16,
+      "item": "13",
+      "segment": "CONSTRUCTION",
+      "cest": "1001500",
+      "ncmPrefixes": [
+        "39251000"
+      ],
+      "description": "Caixa d'água, inclusive sua tampa, de plástico, mesmo reforçadas com fibra de vidro (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "49.95"
+    },
+    {
+      "id": "pr-571-art-16-item-14-1245-2025",
+      "article": 16,
+      "item": "14",
+      "segment": "CONSTRUCTION",
+      "cest": "1001600",
+      "ncmPrefixes": [
+        "392590"
+      ],
+      "description": "Outras telhas, cumeeira e caixa d'água, inclusive sua tampa, de plástico, mesmo reforçadas com fibra de vidro (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "62.58"
+    },
+    {
+      "id": "pr-571-art-16-item-15-1245-2025",
+      "article": 16,
+      "item": "15",
+      "segment": "CONSTRUCTION",
+      "cest": "1001800",
+      "ncmPrefixes": [
+        "39252000"
+      ],
+      "description": "Portas, janelas e seus caixilhos, alizares e soleiras (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "69.05"
+    },
+    {
+      "id": "pr-571-art-16-item-16-1245-2025",
+      "article": 16,
+      "item": "16",
+      "segment": "CONSTRUCTION",
+      "cest": "1001900",
+      "ncmPrefixes": [
+        "39253000"
+      ],
+      "description": "Postigos, estores (incluídas as venezianas) e artefatos semelhantes e suas partes (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "71.37"
+    },
+    {
+      "id": "pr-571-art-16-item-17-1245-2025",
+      "article": 16,
+      "item": "17",
+      "segment": "CONSTRUCTION",
+      "cest": "1002000",
+      "ncmPrefixes": [
+        "392690"
+      ],
+      "description": "Outras obras de plástico, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "77.03"
+    },
+    {
+      "id": "pr-571-art-16-item-18-1245-2025",
+      "article": 16,
+      "item": "18",
+      "segment": "CONSTRUCTION",
+      "cest": "1002100",
+      "ncmPrefixes": [
+        "4814"
+      ],
+      "description": "Papel de parede e revestimentos de parede semelhantes; papel para vitrais (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-19-1245-2025",
+      "article": 16,
+      "item": "19",
+      "segment": "CONSTRUCTION",
+      "cest": "1002200",
+      "ncmPrefixes": [
+        "68101900"
+      ],
+      "description": "Telhas de concreto (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "47.99"
+    },
+    {
+      "id": "pr-571-art-16-item-20-1245-2025",
+      "article": 16,
+      "item": "20",
+      "segment": "CONSTRUCTION",
+      "cest": "1002400",
+      "ncmPrefixes": [
+        "6811"
+      ],
+      "description": "Caixas d'água, tanques e reservatórios e suas tampas, telhas, calhas, cumeeiras e afins, de fibrocimento, cimento-celulose ou semelhantes, contendo ou não amianto (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015) (Convênios ICMS 52/2017 e 131/2017) (Convênio ICMS 165/2019)",
+      "originalMvaPercent": "78.04"
+    },
+    {
+      "id": "pr-571-art-16-item-21-1245-2025",
+      "article": 16,
+      "item": "21",
+      "segment": "CONSTRUCTION",
+      "cest": "1002500",
+      "ncmPrefixes": [
+        "69010000"
+      ],
+      "description": "Tijolos, placas (lajes), ladrilhos e outras peças cerâmicas de farinhas siliciosas fósseis (\"kieselghur\", tripolita, diatomita, por exemplo) ou de terras siliciosas semelhantes (Protocolo ICMS 68/2015) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75"
+    },
+    {
+      "id": "pr-571-art-16-item-22-1245-2025",
+      "article": 16,
+      "item": "22",
+      "segment": "CONSTRUCTION",
+      "cest": "1002600",
+      "ncmPrefixes": [
+        "6902"
+      ],
+      "description": "Tijolos, placas (lajes), ladrilhos e peças cerâmicas semelhantes, para uso na construção, refratários, que não sejam de farinhas siliciosas fósseis nem de terras siliciosas semelhantes (Protocolo ICMS 68/2015) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-23-1245-2025",
+      "article": 16,
+      "item": "23",
+      "segment": "CONSTRUCTION",
+      "cest": "1002700",
+      "ncmPrefixes": [
+        "6904"
+      ],
+      "description": "Tijolos para construção, tijoleiras, tapa-vigas e produtos semelhantes, de cerâmica (Protocolo ICMS 68/2015) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "71.37"
+    },
+    {
+      "id": "pr-571-art-16-item-24-1245-2025",
+      "article": 16,
+      "item": "24",
+      "segment": "CONSTRUCTION",
+      "cest": "1002800",
+      "ncmPrefixes": [
+        "6905"
+      ],
+      "description": "Telhas, elementos de chaminés, condutores de fumaça, ornamentos arquitetônicos, de cerâmica, e outros produtos cerâmicos para uso na construção (Protocolo ICMS 68/2015) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-25-1245-2025",
+      "article": 16,
+      "item": "25",
+      "segment": "CONSTRUCTION",
+      "cest": "1002900",
+      "ncmPrefixes": [
+        "69060000"
+      ],
+      "description": "Tubos, calhas ou algerozes e acessórios para canalizações, de cerâmica (Protocolo ICMS 68/2015) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75"
+    },
+    {
+      "id": "pr-571-art-16-item-26-1245-2025",
+      "article": 16,
+      "item": "26",
+      "segment": "CONSTRUCTION",
+      "cest": "1003000",
+      "ncmPrefixes": [
+        "6907"
+      ],
+      "description": "Ladrilhos e placas de cerâmica, exclusivamente para pavimentação ou revestimento (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015, 146/2015 e 25/2017)",
+      "originalMvaPercent": "68.59"
+    },
+    {
+      "id": "pr-571-art-16-item-27-1245-2025",
+      "article": 16,
+      "item": "27",
+      "segment": "CONSTRUCTION",
+      "cest": "1003100",
+      "ncmPrefixes": [
+        "6910"
+      ],
+      "description": "Pias, lavatórios, colunas para lavatórios, banheiras, bidês, sanitários, caixas de descarga, mictórios e aparelhos fixos semelhantes para usos sanitários, de cerâmica (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "52.41"
+    },
+    {
+      "id": "pr-571-art-16-item-28-1245-2025",
+      "article": 16,
+      "item": "28",
+      "segment": "CONSTRUCTION",
+      "cest": "1003200",
+      "ncmPrefixes": [
+        "69120000"
+      ],
+      "description": "Artefatos de higiene/toucador de cerâmica (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-29-1245-2025",
+      "article": 16,
+      "item": "29",
+      "segment": "CONSTRUCTION",
+      "cest": "1003300",
+      "ncmPrefixes": [
+        "7003"
+      ],
+      "description": "Vidro vazado ou laminado, em chapas, folhas ou perfis, mesmo com camada absorvente, refletora ou não, mas sem qualquer outro trabalho (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "39"
+    },
+    {
+      "id": "pr-571-art-16-item-30-1245-2025",
+      "article": 16,
+      "item": "30",
+      "segment": "CONSTRUCTION",
+      "cest": "1003400",
+      "ncmPrefixes": [
+        "7004"
+      ],
+      "description": "Vidro estirado ou soprado, em folhas, mesmo com camada absorvente, refletora ou não, mas sem qualquer outro trabalho (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "92.29"
+    },
+    {
+      "id": "pr-571-art-16-item-31-1245-2025",
+      "article": 16,
+      "item": "31",
+      "segment": "CONSTRUCTION",
+      "cest": "1003500",
+      "ncmPrefixes": [
+        "7005"
+      ],
+      "description": "Vidro flotado e vidro desbastado ou polido em uma ou em ambas as faces, em chapas ou em folhas, mesmo com camada absorvente, refletora ou não, mas sem qualquer outro trabalho (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "55.38"
+    },
+    {
+      "id": "pr-571-art-16-item-32-1245-2025",
+      "article": 16,
+      "item": "32",
+      "segment": "CONSTRUCTION",
+      "cest": "1003600",
+      "ncmPrefixes": [
+        "70071900"
+      ],
+      "description": "Vidros temperados (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "62.97"
+    },
+    {
+      "id": "pr-571-art-16-item-33-1245-2025",
+      "article": 16,
+      "item": "33",
+      "segment": "CONSTRUCTION",
+      "cest": "1003700",
+      "ncmPrefixes": [
+        "70072900"
+      ],
+      "description": "Vidros laminados (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "45"
+    },
+    {
+      "id": "pr-571-art-16-item-34-1245-2025",
+      "article": 16,
+      "item": "34",
+      "segment": "CONSTRUCTION",
+      "cest": "1003800",
+      "ncmPrefixes": [
+        "70080000"
+      ],
+      "description": "Vidros isolantes de paredes múltiplas (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "45"
+    },
+    {
+      "id": "pr-571-art-16-item-35-1245-2025",
+      "article": 16,
+      "item": "35",
+      "segment": "CONSTRUCTION",
+      "cest": "1003900",
+      "ncmPrefixes": [
+        "7016"
+      ],
+      "description": "Blocos, placas, tijolos, ladrilhos, telhas e outros artefatos, de vidro prensado ou moldado, mesmo armado, para uso na construção; cubos, pastilhas e outros artigos semelhantes (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75.39"
+    },
+    {
+      "id": "pr-571-art-16-item-36-1245-2025",
+      "article": 16,
+      "item": "36",
+      "segment": "CONSTRUCTION",
+      "cest": "1004000",
+      "ncmPrefixes": [
+        "72142000"
+      ],
+      "description": "Barras próprias para construções, exceto vergalhões (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "20.31"
+    },
+    {
+      "id": "pr-571-art-16-item-37-1245-2025",
+      "article": 16,
+      "item": "37",
+      "segment": "CONSTRUCTION",
+      "cest": "1004100",
+      "ncmPrefixes": [
+        "73089010"
+      ],
+      "description": "Outras barras próprias para construções, exceto vergalhões (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "47.99"
+    },
+    {
+      "id": "pr-571-art-16-item-38-1245-2025",
+      "article": 16,
+      "item": "38",
+      "segment": "CONSTRUCTION",
+      "cest": "1004101",
+      "ncmPrefixes": [
+        "73089010"
+      ],
+      "description": "Outros vergalhões (Protocolos ICMS 196/2009 e 181/2010) (Convênio ICMS 240/2019)",
+      "originalMvaPercent": "45"
+    },
+    {
+      "id": "pr-571-art-16-item-39-1245-2025",
+      "article": 16,
+      "item": "39",
+      "segment": "CONSTRUCTION",
+      "cest": "1004200",
+      "ncmPrefixes": [
+        "72142000"
+      ],
+      "description": "Vergalhões (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "46.44"
+    },
+    {
+      "id": "pr-571-art-16-item-40-1245-2025",
+      "article": 16,
+      "item": "40",
+      "segment": "CONSTRUCTION",
+      "cest": "1004300",
+      "ncmPrefixes": [
+        "7213"
+      ],
+      "description": "Outros vergalhões (Protocolos ICMS 196/2009 e 181/2010) (Convênios ICMS 92/2015 e 146/2015) (Convênio ICMS 240/2019)",
+      "originalMvaPercent": "33.75"
+    },
+    {
+      "id": "pr-571-art-16-item-41-1245-2025",
+      "article": 16,
+      "item": "41",
+      "segment": "CONSTRUCTION",
+      "cest": "1004400",
+      "ncmPrefixes": [
+        "72171090",
+        "7312"
+      ],
+      "description": "Fios de ferro ou aço não ligados, não revestidos, mesmo polidos, cordas, cabos, tranças (entrançados), lingas e artefatos semelhantes, de ferro ou aço, não isolados para usos elétricos (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "60.29"
+    },
+    {
+      "id": "pr-571-art-16-item-42-1245-2025",
+      "article": 16,
+      "item": "42",
+      "segment": "CONSTRUCTION",
+      "cest": "1004501",
+      "ncmPrefixes": [
+        "72172090"
+      ],
+      "description": "Outros fios de ferro ou aço, não ligados, galvanizados (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "56.47"
+    },
+    {
+      "id": "pr-571-art-16-item-43-1245-2025",
+      "article": 16,
+      "item": "43",
+      "segment": "CONSTRUCTION",
+      "cest": "1004600",
+      "ncmPrefixes": [
+        "7307"
+      ],
+      "description": "Acessórios para tubos (inclusive uniões, cotovelos, luvas ou mangas), de ferro fundido, ferro ou aço (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "53.59"
+    },
+    {
+      "id": "pr-571-art-16-item-44-1245-2025",
+      "article": 16,
+      "item": "44",
+      "segment": "CONSTRUCTION",
+      "cest": "1004700",
+      "ncmPrefixes": [
+        "73083000"
+      ],
+      "description": "Portas e janelas, e seus caixilhos, alizares e soleiras de ferro fundido, ferro ou aço (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "61.68"
+    },
+    {
+      "id": "pr-571-art-16-item-45-1245-2025",
+      "article": 16,
+      "item": "45",
+      "segment": "CONSTRUCTION",
+      "cest": "1004800",
+      "ncmPrefixes": [
+        "73084000",
+        "730890"
+      ],
+      "description": "Material para andaimes, para armações (cofragens) e para escoramentos, (inclusive armações prontas, para estruturas de concreto armado ou argamassa armada), eletrocalhas e perfilados de ferro fundido, ferro ou aço, próprios para construção, exceto treliças de aço (Protocolos ICMS 196/2009, 181/2010, 209/2012 e 152/2013) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "95.39"
+    },
+    {
+      "id": "pr-571-art-16-item-46-1245-2025",
+      "article": 16,
+      "item": "46",
+      "segment": "CONSTRUCTION",
+      "cest": "1004900",
+      "ncmPrefixes": [
+        "73084000"
+      ],
+      "description": "Treliças de aço (Protocolo ICMS 152/2013) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "38.48"
+    },
+    {
+      "id": "pr-571-art-16-item-47-1245-2025",
+      "article": 16,
+      "item": "47",
+      "segment": "CONSTRUCTION",
+      "cest": "1005100",
+      "ncmPrefixes": [
+        "7310"
+      ],
+      "description": "Caixas diversas (tais como caixas de correio, de entrada de água, de energia, de instalação) de ferro fundido, ferro ou aço; próprias para a construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "76.78"
+    },
+    {
+      "id": "pr-571-art-16-item-48-1245-2025",
+      "article": 16,
+      "item": "48",
+      "segment": "CONSTRUCTION",
+      "cest": "1005200",
+      "ncmPrefixes": [
+        "73130000"
+      ],
+      "description": "Arame farpado, de ferro ou aço; arames ou tiras, retorcidos, mesmo farpados, de ferro ou aço, dos tipos utilizados em cercas (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "39.93"
+    },
+    {
+      "id": "pr-571-art-16-item-49-1245-2025",
+      "article": 16,
+      "item": "49",
+      "segment": "CONSTRUCTION",
+      "cest": "1005300",
+      "ncmPrefixes": [
+        "7314"
+      ],
+      "description": "Telas metálicas, grades e redes, de fios de ferro ou aço (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "35.45"
+    },
+    {
+      "id": "pr-571-art-16-item-50-1245-2025",
+      "article": 16,
+      "item": "50",
+      "segment": "CONSTRUCTION",
+      "cest": "1005400",
+      "ncmPrefixes": [
+        "73151100"
+      ],
+      "description": "Correntes de rolos, de ferro fundido, ferro ou aço (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75"
+    },
+    {
+      "id": "pr-571-art-16-item-51-1245-2025",
+      "article": 16,
+      "item": "51",
+      "segment": "CONSTRUCTION",
+      "cest": "1005500",
+      "ncmPrefixes": [
+        "73151290"
+      ],
+      "description": "Outras correntes de elos articulados, de ferro fundido, ferro ou aço (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "57.69"
+    },
+    {
+      "id": "pr-571-art-16-item-52-1245-2025",
+      "article": 16,
+      "item": "52",
+      "segment": "CONSTRUCTION",
+      "cest": "1005600",
+      "ncmPrefixes": [
+        "73158200"
+      ],
+      "description": "Correntes de elos soldados, de ferro fundido, de ferro ou aço (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "95.36"
+    },
+    {
+      "id": "pr-571-art-16-item-53-1245-2025",
+      "article": 16,
+      "item": "53",
+      "segment": "CONSTRUCTION",
+      "cest": "1005700",
+      "ncmPrefixes": [
+        "731700"
+      ],
+      "description": "Tachas, pregos, percevejos, escápulas, grampos ondulados ou biselados e artefatos semelhantes, de ferro fundido, ferro ou aço, mesmo com a cabeça de outra matéria, exceto cobre (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "76.51"
+    },
+    {
+      "id": "pr-571-art-16-item-54-1245-2025",
+      "article": 16,
+      "item": "54",
+      "segment": "CONSTRUCTION",
+      "cest": "1005800",
+      "ncmPrefixes": [
+        "7318"
+      ],
+      "description": "Parafusos, pinos ou pernos, roscados, porcas, tira-fundos, ganchos roscados, rebites, chavetas, contrapinos ou troços, arruelas (anilhas) (incluindo as de pressão) e artigos semelhantes, de ferro fundido, ferro ou aço (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015) (Convênios ICMS 142/2018 e 66/2022)",
+      "originalMvaPercent": "61.53"
+    },
+    {
+      "id": "pr-571-art-16-item-55-1245-2025",
+      "article": 16,
+      "item": "55",
+      "segment": "CONSTRUCTION",
+      "cest": "1005901",
+      "ncmPrefixes": [
+        "7323"
+      ],
+      "description": "Esponjas, esfregões, luvas e artefatos semelhantes para limpeza, polimento e usos semelhantes, de ferro ou aço, exceto os de uso doméstico classificados na posição 7323.10.00 (Protocolos ICMS 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "46.15"
+    },
+    {
+      "id": "pr-571-art-16-item-56-1245-2025",
+      "article": 16,
+      "item": "56",
+      "segment": "CONSTRUCTION",
+      "cest": "1006000",
+      "ncmPrefixes": [
+        "7324"
+      ],
+      "description": "Artefatos de higiene ou de toucador, e suas partes, de ferro fundido, ferro ou aço, incluídas as pias, banheiras, lavatórios, cubas, mictórios, tanques e afins de ferro fundido, ferro ou aço, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "79.19"
+    },
+    {
+      "id": "pr-571-art-16-item-57-1245-2025",
+      "article": 16,
+      "item": "57",
+      "segment": "CONSTRUCTION",
+      "cest": "1006100",
+      "ncmPrefixes": [
+        "7325"
+      ],
+      "description": "Outras obras moldadas, de ferro fundido, ferro ou aço, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "96.75"
+    },
+    {
+      "id": "pr-571-art-16-item-58-1245-2025",
+      "article": 16,
+      "item": "58",
+      "segment": "CONSTRUCTION",
+      "cest": "1006200",
+      "ncmPrefixes": [
+        "7326"
+      ],
+      "description": "Abraçadeiras (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "89.91"
+    },
+    {
+      "id": "pr-571-art-16-item-59-1245-2025",
+      "article": 16,
+      "item": "59",
+      "segment": "CONSTRUCTION",
+      "cest": "1006300",
+      "ncmPrefixes": [
+        "7407"
+      ],
+      "description": "Barra de cobre (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "46.76"
+    },
+    {
+      "id": "pr-571-art-16-item-60-1245-2025",
+      "article": 16,
+      "item": "60",
+      "segment": "CONSTRUCTION",
+      "cest": "1006400",
+      "ncmPrefixes": [
+        "74111010"
+      ],
+      "description": "Tubos de cobre e suas ligas, para instalações de água quente e gás, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "63.86"
+    },
+    {
+      "id": "pr-571-art-16-item-61-1245-2025",
+      "article": 16,
+      "item": "61",
+      "segment": "CONSTRUCTION",
+      "cest": "1006500",
+      "ncmPrefixes": [
+        "7412"
+      ],
+      "description": "Acessórios para tubos (por exemplo: uniões, cotovelos, luvas ou mangas), de cobre e suas ligas, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "55.59"
+    },
+    {
+      "id": "pr-571-art-16-item-62-1245-2025",
+      "article": 16,
+      "item": "62",
+      "segment": "CONSTRUCTION",
+      "cest": "1006600",
+      "ncmPrefixes": [
+        "7415"
+      ],
+      "description": "Tachas, pregos, percevejos, escápulas e artefatos semelhantes, de cobre, ou de ferro ou aço com cabeça de cobre, parafusos, pinos ou pernos, roscados, porcas, ganchos roscados, rebites, chavetas, cavilhas, contrapinos, arruelas (incluídas as de pressão), e artefatos semelhantes, de cobre (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "78.84"
+    },
+    {
+      "id": "pr-571-art-16-item-63-1245-2025",
+      "article": 16,
+      "item": "63",
+      "segment": "CONSTRUCTION",
+      "cest": "1006700",
+      "ncmPrefixes": [
+        "74182000"
+      ],
+      "description": "Artefatos de higiene/toucador de cobre, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "56.42"
+    },
+    {
+      "id": "pr-571-art-16-item-64-1245-2025",
+      "article": 16,
+      "item": "64",
+      "segment": "CONSTRUCTION",
+      "cest": "1006800",
+      "ncmPrefixes": [
+        "76071990"
+      ],
+      "description": "Manta de subcobertura aluminizada (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75"
+    },
+    {
+      "id": "pr-571-art-16-item-65-1245-2025",
+      "article": 16,
+      "item": "65",
+      "segment": "CONSTRUCTION",
+      "cest": "1007000",
+      "ncmPrefixes": [
+        "76090000"
+      ],
+      "description": "Acessórios para tubos (por exemplo: uniões, cotovelos, luvas ou mangas), de alumínio, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "75.04"
+    },
+    {
+      "id": "pr-571-art-16-item-66-1245-2025",
+      "article": 16,
+      "item": "66",
+      "segment": "CONSTRUCTION",
+      "cest": "1007100",
+      "ncmPrefixes": [
+        "7610"
+      ],
+      "description": "Construções e suas partes (por exemplo, pontes e elementos de pontes, torres, pórticos ou pilones, pilares, colunas, armações, estruturas para telhados, portas e janelas, e seus caixilhos, alizares e soleiras, balaustradas), de alumínio, exceto as construções pré-fabricadas da posição 94.06; chapas, barras, perfis, tubos e semelhantes, de alumínio, próprios para construções (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "41.40"
+    },
+    {
+      "id": "pr-571-art-16-item-67-1245-2025",
+      "article": 16,
+      "item": "67",
+      "segment": "CONSTRUCTION",
+      "cest": "1007200",
+      "ncmPrefixes": [
+        "76152000"
+      ],
+      "description": "Artefatos de higiene/toucador de alumínio, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "86.18"
+    },
+    {
+      "id": "pr-571-art-16-item-68-1245-2025",
+      "article": 16,
+      "item": "68",
+      "segment": "CONSTRUCTION",
+      "cest": "1007300",
+      "ncmPrefixes": [
+        "7616"
+      ],
+      "description": "Outras obras de alumínio, próprias para construção, incluídas as persianas (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "55.38"
+    },
+    {
+      "id": "pr-571-art-16-item-69-1245-2025",
+      "article": 16,
+      "item": "69",
+      "segment": "CONSTRUCTION",
+      "cest": "1007400",
+      "ncmPrefixes": [
+        "83024100"
+      ],
+      "description": "Outras guarnições, ferragens e artigos semelhantes de metais comuns, para construções, inclusive puxadores (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "78.63"
+    },
+    {
+      "id": "pr-571-art-16-item-70-1245-2025",
+      "article": 16,
+      "item": "70",
+      "segment": "CONSTRUCTION",
+      "cest": "1007500",
+      "ncmPrefixes": [
+        "8301"
+      ],
+      "description": "Fechaduras e ferrolhos (de chave, de segredo ou elétricos), de metais comuns, incluídas as suas partes, fechos e armações com fecho, com fechadura, de metais comuns, chaves para esses artigos, de metais comuns; exceto os de uso automotivo (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "74.96"
+    },
+    {
+      "id": "pr-571-art-16-item-71-1245-2025",
+      "article": 16,
+      "item": "71",
+      "segment": "CONSTRUCTION",
+      "cest": "1007600",
+      "ncmPrefixes": [
+        "83021000"
+      ],
+      "description": "Dobradiças de metais comuns, de qualquer tipo (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "58.91"
+    },
+    {
+      "id": "pr-571-art-16-item-72-1245-2025",
+      "article": 16,
+      "item": "72",
+      "segment": "CONSTRUCTION",
+      "cest": "1007700",
+      "ncmPrefixes": [
+        "8307"
+      ],
+      "description": "Tubos flexíveis de metais comuns, mesmo com acessórios, para uso na construção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "91.65"
+    },
+    {
+      "id": "pr-571-art-16-item-73-1245-2025",
+      "article": 16,
+      "item": "73",
+      "segment": "CONSTRUCTION",
+      "cest": "1007800",
+      "ncmPrefixes": [
+        "8311"
+      ],
+      "description": "Fios, varetas, tubos, chapas, eletrodos e artefatos semelhantes, de metais comuns ou de carbonetos metálicos, revestidos exterior ou interiormente de decapantes ou de fundentes, para soldagem (soldadura) ou depósito de metal ou de carbonetos metálicos; fios e varetas e pós de metais comuns aglomerados, para metalização por projeção (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolos ICMS 71/2011 e 56/2012) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "54.78"
+    },
+    {
+      "id": "pr-571-art-16-item-74-1245-2025",
+      "article": 16,
+      "item": "74",
+      "segment": "CONSTRUCTION",
+      "cest": "1007900",
+      "ncmPrefixes": [
+        "8481"
+      ],
+      "description": "Torneiras, válvulas (incluídas as redutoras de pressão e as termostáticas) e dispositivos semelhantes, para canalizações, caldeiras, reservatórios, cubas e outros recipientes (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "68.05"
+    },
+    {
+      "id": "pr-571-art-16-item-75-1245-2025",
+      "article": 16,
+      "item": "75",
+      "segment": "CONSTRUCTION",
+      "cest": "1008000",
+      "ncmPrefixes": [
+        "7009"
+      ],
+      "description": "Espelhos de vidro, mesmo emoldurados, exceto os de uso automotivo (Protocolos ICMS 196/2009, 181/2010 e 209/2012) (Protocolo ICMS 71/2011) (Convênios ICMS 92/2015 e 146/2015)",
+      "originalMvaPercent": "71.53"
+    }
+  ]
+}

@@ -23,7 +23,7 @@ exportação por empresa/mês. Apuração fiscal, créditos e os demais tratamen
 
 1. Fórmulas e condições completas de ICMS próprio.
 2. Base reduzida, cálculo por dentro e regras completas de frete, seguro, desconto, despesas e IPI.
-3. ICMS-ST completo: seleção fiscal automática por NCM/CEST e vigência, MVA ajustada, pauta, PMPF, preço máximo, FCP-ST e validação por contador. A primeira conferência manual de compras por MVA está na DT-049.
+3. ICMS-ST completo: demais tabelas e vigências históricas, incidência e alíquota automáticas, pauta/PMPF/preço máximo, FCP-ST, descontos, reduções e validação por contador. A conferência manual está na DT-049; consulta das 144 linhas da Resolução 1245/2025 e ajuste de MVA para importados interestaduais a 4% estão na DT-050.
 4. DIFAL, partilha quando aplicável e FCP/FCP-ST.
 5. Isenção, não incidência, diferimento, desoneração e benefícios.
 6. Simples Nacional, CST/CSOSN e hipóteses de crédito.

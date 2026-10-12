@@ -481,6 +481,7 @@ export interface FiscalItemSummary {
   cfop?: string
   productAmount?: string
   declaredIcmsAmount?: string
+  declaredIcmsStAmount?: string
   calculation: ItemCalculationSummary
 }
 
@@ -498,6 +499,7 @@ export enum CalculationInputTreatmentCode {
 }
 
 export interface ItemCalculationSummary {
+  component?: 'ICMS' | 'ICMS_ST'
   deferredAmount?: string
   comparisons?: readonly {
     component: 'BASE' | 'ICMS' | 'ICMS_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
@@ -526,6 +528,8 @@ export interface ItemFiscalAnswers {
   stMvaPercent?: string
   stInternalRate?: string
   stOwnOperationRate?: string
+  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4'
+  stSupplierNormalConfirmed?: boolean
 }
 
 export interface ItemFiscalQuestion {
@@ -537,6 +541,11 @@ export interface ItemFiscalQuestion {
 }
 
 export interface ItemFiscalContext {
+  stMvaReference?: {
+    status: string; reason?: string; catalogId?: string; catalogVersion?: number
+    ruleId?: string; description?: string; originalMvaPercent?: string; validFrom?: string
+    verifiedThrough?: string; sourceUrl?: string; legalBasis?: string
+  }
   reuseAvailable?: boolean
   reuseNotice?: string
   definitionId?: string
@@ -681,6 +690,7 @@ export interface ConsolidationTotals {
   comparedCalculatedIcms: string; comparedDeclaredIcms: string; difference: string; absoluteDifferences: string
 }
 export interface ConsolidationGroup {
+  component?: 'ICMS' | 'ICMS_ST'
   companyId?: string; companyName?: string; period?: string
   environment: '1' | '2' | 'UNKNOWN'
   perspective: ConsolidationPerspective
@@ -698,6 +708,7 @@ export interface MonthlyConference {
 }
 
 export interface ConsolidationEvidence {
+  component?: 'ICMS' | 'ICMS_ST'
   batchId?: string
 
   documentId: string; itemNumber: string; accessKey: string; documentNumber: string

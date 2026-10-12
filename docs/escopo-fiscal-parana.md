@@ -74,12 +74,15 @@ pendência e as respostas. O resultado é conferência do ICMS da operação; n�
 concede crédito nem integra automaticamente uma apuração definitiva.
 
 Compras destinadas ao Paraná também têm um primeiro cálculo de conferência de
-ICMS-ST por MVA (DT-049), baseado na planilha recebida. O usuário precisa
-confirmar incidência, MVA final e alíquotas para a data e classificação do item.
-Não há busca automática de NCM/CEST, tabela vigente ou ajuste de MVA
-interestadual; descontos, reduções, outras modalidades de base e FCP-ST continuam
-pendentes. O resultado é o ICMS-ST informado/conferido, não crédito de compra
-nem apuração.
+ICMS-ST por MVA (DT-049), ampliado na DT-050 com consulta das 144 linhas dos
+arts. 12 e 16 da Resolução 571/2019 na redação da Resolução 1245/2025, para
+01/04/2026 a 12/10/2026. O usuário confirma incidência, descrição legal e
+alíquotas; o sistema encontra a MVA por NCM/CEST e oferece o ajuste para
+importados interestaduais a 4% de remetente CRT 3. Fora do catálogo, exige
+MVA final informada. Descontos, reduções, FCP-ST, outras modalidades e regimes
+continuam pendentes. A conferência usa a perspectiva da empresa selecionada e
+mantém os componentes próprios e ST separados nos subtotais. Veja o contrato
+em [icms-st-entradas.md](icms-st-entradas.md).
 
 Não alterar automaticamente regras DRAFT para aprovadas nem inferir destinação
 apenas de CFOP, CST ou inscrição estadual. A reavaliação do catálogo de regras

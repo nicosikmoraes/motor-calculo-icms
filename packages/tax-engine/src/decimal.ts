@@ -41,10 +41,15 @@ export function multiplyDecimals(left: string, right: string): FiscalDecimalText
   return canonical(parse(left).times(parse(right)))
 }
 
-export function divideDecimals(left: string, right: string): FiscalDecimalText {
+export function divideDecimals(left: string, right: string, roundingScale?: number): FiscalDecimalText {
   const divisor = parse(right)
   if (divisor.isZero()) throw new CalculationError(CalculationErrorCode.INVALID_DECIMAL_RESULT)
-  return canonical(parse(left).div(divisor))
+  const result = parse(left).div(divisor)
+  if (roundingScale === undefined) return canonical(result)
+  if (!Number.isInteger(roundingScale) || roundingScale < 0 || roundingScale > 20) {
+    throw new CalculationError(CalculationErrorCode.INVALID_DECIMAL_RESULT)
+  }
+  return canonical(result.toDecimalPlaces(roundingScale, FiscalDecimal.ROUND_HALF_UP))
 }
 
 /** Arredondamento monetário aprovado: por componente/item, HALF_UP. */

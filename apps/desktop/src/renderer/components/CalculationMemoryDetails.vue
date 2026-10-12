@@ -22,7 +22,7 @@ const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da toler�
           {{ input.name }}: {{ input.value ?? 'ausente' }} · {{ input.source }} · {{ input.treatment === 'UNDECIDED' ? 'tratamento pendente' : input.treatment === 'INCLUDED' ? 'incluído' : 'excluído' }}
         </li>
       </ul>
-      <p v-if="calculation.declared">Declarado no XML ({{ calculation.result?.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS' }}): base {{ calculation.declared.base ?? '—' }} · alíquota {{ calculation.declared.rate ?? '—' }} · valor {{ calculation.declared.amount ?? '—' }}</p>
+      <p v-if="calculation.declared">Declarado no XML ({{ (calculation.component ?? calculation.result?.component) === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS' }}): base {{ calculation.declared.base ?? '—' }} · alíquota {{ calculation.declared.rate ?? '—' }} · valor {{ calculation.declared.amount ?? '—' }}</p>
       <ol v-if="calculation.steps.length">
         <li v-for="(step, index) in calculation.steps" :key="index">{{ step.name }}: {{ step.operation }} = {{ step.result }}</li>
       </ol>

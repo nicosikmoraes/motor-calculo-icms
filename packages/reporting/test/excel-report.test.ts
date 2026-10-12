@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { createExcelWorkbook, excelMoney, generateExcelReport } from '../src/excel-report'
 import { excelFixture } from './excel-report.fixture'
+import { buildBatchConsolidation } from '../src/consolidation'
 function column(sheet: ExcelJS.Worksheet, title: string): number {
   let found = 0
   sheet.getRow(5).eachCell((cell, index) => { if (cell.value === title) found = index })
@@ -9,6 +10,24 @@ function column(sheet: ExcelJS.Worksheet, title: string): number {
   return found
 }
 describe('exportação XLSX de conferência', () => {
+  it('identifica o componente e exporta o ST declarado em vez do ICMS próprio da mesma nota', () => {
+    const report = structuredClone(excelFixture())
+    const item = report.items[0]!
+    item.declaredIcmsStAmount = '106.30'
+    item.calculation = { component: 'ICMS_ST', status: 'CALCULATED', inputs: [], steps: [],
+      result: { component: 'ICMS_ST', base: '648.61', rate: '19.5', amount: '106.30' } }
+    report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: item.documentId, documentNumber: '0001',
+      accessKey: '0'.repeat(44), companyId: 'company', issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1',
+      authorization: 'UNVERIFIED', items: [{ itemNumber: item.itemNumber, declaredIcms: item.declaredIcmsAmount,
+        declaredIcmsSt: item.declaredIcmsStAmount, memory: { schemaVersion: 1, ...item.calculation } }] }])
+    const book = createExcelWorkbook(report)
+    const sheet = book.getWorksheet('Itens')!
+    expect(sheet.getCell(6, column(sheet, 'Componente calculado')).value).toBe('ICMS-ST')
+    expect(sheet.getCell(6, column(sheet, 'ICMS declarado original (R$)')).value).toBe(106.30)
+    const summary = book.getWorksheet('Resumo')!
+    expect(summary.getCell(6, column(summary, 'Componente conferido')).value).toBe('ICMS-ST')
+    expect(book.getWorksheet('Pendências e exclusões')!.getColumn(6).values).not.toContain('Diferimento')
+  })
   it('gera arquivo reabrível com quatro abas, filtros, cabeçalhos fixos e números conciliados', async () => {
     const report = excelFixture()
     const bytes = await generateExcelReport(report)

@@ -28,9 +28,82 @@ const complete: ItemFiscalAnswers = { destination: 'RESALE', constructionCompany
 let db: SqliteDatabase
 
 describe('conferência de ICMS-ST de compras', () => {
+  it('preserva memória anterior fora da perspectiva correta sem somar o valor calculado aos totais', () => {
+    const next = laterNote({ operationDirection: '0', issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' },
+      { declaredIcms: { cst: '10', rate: '4', stAmount: '106.30' } })
+    const prior = new SqliteCalculationRepository(db).save({ ...next, requestId: 'prior-st', engineVersion: 'PR_COMMON_2',
+      items: [{ itemNumber: '1', memory: { schemaVersion: 1, status: 'CALCULATED', inputs: [],
+        rule: { id: 'PARANA_PURCHASE_ICMS_ST_MVA', version: 1, legalBasis: 'Memória histórica de teste' },
+        steps: [{ name: 'ICMS-ST', operation: 'Método anterior', inputs: {}, result: '106.30' }],
+        result: { component: 'ICMS_ST', base: '648.61', rate: '19.5', amount: '106.30' } } }] })
+    const summary = getBatchConsolidation(db, next.batchId)
+    expect(summary.counts.calculated).toBe(0)
+    expect(summary.evidence[0]?.status).toBe('UNSUPPORTED')
+    expect(summary.groups[0]?.totals.calculatedIcms).toBe('0.00')
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.items[0]?.memory).toEqual(prior.items[0]?.memory)
+  })
+
+  it('mantém consumidor final, ST retida anteriormente e Simples fora deste módulo', () => {
+    const purchase: NormalizedNfe = { ...nfe, issuer: { ...nfe.issuer, state: 'SP' }, items: [
+      { ...nfe.items[0]!, ncm: '33030010', cest: '2000700', declaredIcms: { cst: '10', rate: '4', amount: '20.17', originCode: '1' } },
+    ] }
+    const answers: ItemFiscalAnswers = { stApplicableConfirmed: true, stInternalRate: '25' }
+    const cases = [
+      buildItemFiscalContext({ ...purchase, finalConsumerIndicator: '1' }, purchase.items[0]!, answers),
+      buildItemFiscalContext(purchase, { ...purchase.items[0]!, declaredIcms: { ...purchase.items[0]!.declaredIcms, cst: '60' } }, answers),
+      buildItemFiscalContext({ ...purchase, issuer: { ...purchase.issuer, taxRegimeCode: '1' } }, purchase.items[0]!, answers),
+    ]
+    expect(cases.every(context => context.calculation.status === 'UNSUPPORTED' && context.calculation.result === undefined)).toBe(true)
+  })
+
+  it('consulta a MVA de 2026, ajusta importado a 4% e confere o ST da compra emitida pelo fornecedor', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' }, {
+      productAmount: '504.36', ncm: '33030010', cest: '2000700', cfop: '6403',
+      declaredIcms: { cst: '10', originCode: '1', rate: '4', amount: '20.17',
+        stBaseMode: '4', stBaseAmount: '953.97', stRate: '25', stAmount: '218.32' },
+    })
+    const before = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    expect(before.stMvaReference).toMatchObject({ status: 'FOUND', originalMvaPercent: '47.77' })
+    expect(before.questions.find(q => q.field === 'stMvaMode')?.suggestedValue).toBe('CATALOG_IMPORT_4')
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'catalog-st', answers: {
+      stApplicableConfirmed: true, stInternalRate: '25',
+    } })
+    expect(result.calculation.result).toMatchObject({ component: 'ICMS_ST', base: '953.97', amount: '218.32' })
+    expect(result.calculation.inputs.find(entry => entry.name === 'originalMvaPercent')?.source).toContain('CATALOG/pr-st-mva-1245-2025')
+    expect(JSON.parse(result.calculation.inputs.find(entry => entry.name === 'mvaCatalogRow')!.value!)).toMatchObject({
+      originalMvaPercent: '47.77', validFrom: '2026-04-01', cest: '2000700',
+    })
+    expect(result.reuseAvailable).toBe(false)
+    const summary = getBatchConsolidation(db, next.batchId)
+    expect(summary.groups[0]).toMatchObject({ perspective: 'PURCHASES', component: 'ICMS_ST',
+      totals: { calculatedIcms: '218.32', declaredIcms: '218.32', difference: '0.00' } })
+    expect(summary.evidence[0]?.comparison).toMatchObject({ component: 'ICMS_ST', status: 'MATCH' })
+  })
+
+  it('reconhece entrada emitida pela própria compradora e mantém o desconto rateado pendente', () => {
+    const next = laterNote({ operationDirection: '0', environmentCode: '1',
+      issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
+      recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ' },
+      declaredTotals: { discountAmount: '5' },
+    }, { productAmount: '504.36', declaredIcms: { cst: '10', rate: '4', stBaseMode: '4' } })
+    const context = saveItemFiscalAnswers(db, { ...next, requestId: 'self-issued', answers: {
+      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', stSupplierNormalConfirmed: true,
+    } })
+    expect(context.calculation.status).toBe('PENDING_DATA')
+    expect(context.calculation.reason).toContain('desconto')
+    expect(context.calculation.result).toBeUndefined()
+    expect(getBatchConsolidation(db, next.batchId).groups[0]?.perspective).toBe('PURCHASES')
+  })
+
+  it('não encaminha a empresa vendedora para conferência de entrada ST e normaliza os percentuais recebidos', () => {
+    const item = { ...nfe.items[0]!, declaredIcms: { cst: '10', rate: '4', stAmount: '106.30' } }
+    expect(buildItemFiscalContext(nfe, item, {}, undefined, undefined, undefined, nfe.issuer.taxId).calculation.status).toBe('UNSUPPORTED')
+    expect(validateItemFiscalAnswers({ stMvaMode: 'MANUAL_APPLIED', stMvaPercent: '28.6000' })).toMatchObject({ stMvaPercent: '28.6' })
+  })
+
   it('usa as respostas fiscais informadas, compara o ICMS-ST declarado e distingue o componente', () => {
     const purchase: NormalizedNfe = {
-      ...nfe, issuedAt: '2024-08-15T10:00:00.000Z', operationDirection: '0',
+      ...nfe, issuedAt: '2024-08-15T10:00:00.000Z', operationDirection: '1',
       issuer: { ...nfe.issuer, state: 'SP' },
       items: [{ ...nfe.items[0]!, itemNumber: '1', productAmount: '504.36', cfop: '2403',
         declaredIcms: { cst: '10', rate: '4', stBaseMode: '4', stBaseAmount: '648.61', stRate: '19.5', stAmount: '106.30' } }],
@@ -244,7 +317,8 @@ describe('perguntas fiscais no lote', () => {
     expect(unallocated.calculation.steps.find(step => step.name === 'Rateio de Frete')?.result).toBe('45.45')
     expect(unallocated.calculation.inputs.find(entry => entry.name === 'freightAmount')?.source).toBe('ALLOCATION/document_total')
     const st = buildItemFiscalContext(nfe, { ...nfe.items[0]!, declaredIcms: { cst: '10', stAmount: '100' } }, complete)
-    expect(st.calculation.status).toBe('UNSUPPORTED')
+    expect(st.calculation.status).toBe('PENDING_DATA')
+    expect(st.questions.map(question => question.field)).toContain('stMvaMode')
     expect(buildItemFiscalContext({ ...nfe, issuer: { state: 'PR', taxRegimeCode: '1' } }, nfe.items[0]!, complete).calculation.status).toBe('UNSUPPORTED')
     expect(buildItemFiscalContext(nfe, nfe.items[0]!, complete, undefined, undefined, 'Documento cancelado.').calculation.result).toBeUndefined()
   })

@@ -30,6 +30,7 @@ export interface CalculationStep {
 }
 
 export interface CalculationMemory {
+  component?: 'ICMS' | 'ICMS_ST'
   deferredAmount?: string
   comparisons?: readonly (import('./declared-comparison').DeclaredComparison & { component: 'BASE' | 'ICMS' | 'ICMS_ST' })[]
   schemaVersion: 1

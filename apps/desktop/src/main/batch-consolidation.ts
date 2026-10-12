@@ -1,6 +1,7 @@
 import { buildBatchConsolidation, type ConsolidationDocument } from '@motor/reporting'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
-import { documentFiscalBlock } from './item-fiscal-use-cases'
+import { documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-cases'
+import { purchaseStScope } from './purchase-st-context'
 import { conflictEvidence, effectiveProcessingDocument, selectionProblem } from './conflict-evidence'
 import { documentaryState, readDocumentaryIndex, type DocumentaryIndex } from './documentary-evidence'
 
@@ -46,14 +47,28 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
       ...(resolution?.status === 'RESOLVED' ? { resolvedContentHash: resolution.chosenContentHash, preferredDocumentId: resolution.chosenDocumentId } : {}),
       batchId, contentHash: document.contentHash, documentId: document.id, accessKey: nfe.accessKey, documentNumber: nfe.number,
       companyId: company?.id, companyName: company?.legalName, issuedAt: nfe.issuedAt,
-      perspective: issuer === recipient ? 'UNDETERMINED' : issuer ? 'SALES' : 'PURCHASES',
+      perspective: issuer === recipient ? 'UNDETERMINED' : (issuer !== (nfe.operationDirection === '0')) ? 'SALES' : 'PURCHASES',
       environment: nfe.environmentCode === '1' || nfe.environmentCode === '2' ? nfe.environmentCode : 'UNKNOWN',
       authorization: authorized ? 'WITH_PROTOCOL' : 'UNVERIFIED',
       reviewReason: (document.pendingReason === 'OCORRENCIA_INELEGIVEL' ? undefined : fiscalBlocks.get(document.id)) ?? documentaryReason,
       exclusionReason: documentaryReason ?? fiscalBlocks.get(document.id) ?? policyReason,
       runId: run?.id, engineVersion: run?.engineVersion,
-      items: nfe.items.map(item => ({ itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
-        memory: run?.items.find(saved => saved.itemNumber === item.itemNumber)?.memory })),
+      items: nfe.items.map(item => {
+        const memory = run?.items.find(saved => saved.itemNumber === item.itemNumber)?.memory
+        if (memory?.status === 'CALCULATED' && (memory.component ?? memory.result?.component) === 'ICMS_ST') {
+          const answers = readItemFiscalAnswers(memory)
+          const scope = purchaseStScope(nfe, item, answers, company?.cnpj)
+          const regime = scope?.supplier.taxRegimeCode ?? (answers.stSupplierNormalConfirmed ? '3' : undefined)
+          if (!scope || regime !== '3' || nfe.finalConsumerIndicator === '1' || scope.buyer.stateRegistrationIndicator === '9'
+            || (item.declaredIcms?.cst !== undefined && !['00', '10'].includes(item.declaredIcms.cst))) {
+            return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount,
+              memory: { ...memory, status: 'UNSUPPORTED' as const,
+                reason: 'A memória de ICMS-ST exige nova conferência da perspectiva da empresa, do regime ou do enquadramento. O resultado anterior está preservado para auditoria.' } }
+          }
+        }
+        return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
+          declaredIcmsSt: item.declaredIcms?.stAmount, memory }
+      }),
     }
   })
 }

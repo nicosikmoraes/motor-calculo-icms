@@ -1006,3 +1006,32 @@ Por isso, a planilha e o PDF servem de referência de método, não de cadastro
 automático da MVA vigente. Fontes oficiais: [Resolução SEFA 982/2023](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=307248),
 [Resolução SEFA 1245/2025](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=381258) e
 [página da SEFA/PR sobre substituição tributária](https://www.fazenda.pr.gov.br/Pagina/ICMS-Substituicao-tributaria).
+
+## DT-050 — Catálogo de MVA e conferência de entradas por componente
+
+Em 12/10/2026, foi autorizado continuar as partes pendentes do ICMS-ST. A versão
+PR_FISCAL_3 reconhece a compra pela empresa analisada, inclusive nota do fornecedor
+com tpNF=1 e entrada emitida pela compradora com tpNF=0. Mantém o recorte de
+conferência para operações subsequentes, fornecedor CRT 3 e CST 00/10; dados que
+indiquem consumidor final, não contribuinte, outro CST ou tratamento especial
+exigem outro módulo.
+
+O catálogo embarcado consulta NCM/CEST nas 144 linhas dos arts. 12 e 16 da
+Resolução 571/2019, na redação da Resolução 1245/2025, de 01/04/2026 até a data
+conferida de 12/10/2026. A tela exibe a descrição e exige confirmação da incidência
+e do enquadramento. Não aprova regras DRAFT nem infere automaticamente incidência
+a partir do código. Ausência, ambiguidade ou data fora da cobertura mantém a
+alternativa de MVA final informada. O cálculo oferece MVA original e ajuste para
+importados interestaduais a 4% de fornecedor normal, segundo a fórmula da SEFA/PR.
+Usa a razão exata no imposto, sem arredondar a MVA intermediária de exibição.
+
+A dedução no modo catálogo usa o ICMS próprio da NF-e, exibido para conferência;
+o modo planilha sem encargos conserva produto × alíquota. Com encargos, exige o
+valor próprio para não presumir a base. Desconto rateado também permanece pendente.
+Cada cálculo salva fonte, hash do ato, linha e versão da tabela. Memórias históricas
+são preservadas e ST não gera definição de respostas para próximas notas.
+
+A consolidação por lote/mês agrupa o componente, compara ST com ST e conserva
+a contagem de ocorrências de notas sem duplicar pelo número de componentes.
+Telas e XLSX identificam o componente e guardam a referência da MVA. Contrato,
+fórmulas, limites e fontes: [icms-st-entradas.md](icms-st-entradas.md).

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { ItemFiscalAnswers, ItemFiscalContext } from '@motor/contracts'
 
 const props = defineProps<{ batchId: string; documentId: string; itemNumber: string; expanded?: boolean }>()
@@ -11,6 +11,8 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 const reuseScope = ref<'CURRENT_ITEM' | 'FUTURE_NOTES'>('CURRENT_ITEM')
+const visibleQuestions = computed(() => context.value?.questions.filter(question => question.field !== 'stMvaPercent'
+  || selections.value.stMvaMode === 'MANUAL_APPLIED') ?? [])
 
 async function load(event: Event): Promise<void> {
   if (!(event.target as HTMLDetailsElement).open || loading.value) return
@@ -21,7 +23,7 @@ async function load(event: Event): Promise<void> {
     context.value = await window.desktopApi.getItemFiscalContext(props.batchId, props.documentId, props.itemNumber)
     reuseScope.value = 'CURRENT_ITEM'
     selections.value = Object.fromEntries([
-      ...context.value.questions.map(question => [question.field, '']),
+      ...context.value.questions.map(question => [question.field, question.suggestedValue ?? '']),
       ...Object.entries(context.value.answers).map(([key, value]) => [key, String(value)]),
     ])
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar as perguntas.' }
@@ -35,8 +37,11 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     // Copiar valores escalares antes da ponte Electron: proxies Vue não são clonáveis.
-    const answers = Object.fromEntries(Object.entries(selections.value).filter(([, value]) => value !== '')
-      .map(([key, value]) => [key, value === 'true' ? true : value === 'false' ? false : value])) as ItemFiscalAnswers
+    const answers = Object.fromEntries(Object.entries(selections.value).filter(([key, value]) => value !== ''
+      && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED'))
+      .map(([key, value]) => [key, value === 'true' ? true : value === 'false' ? false
+        : key.startsWith('st') && ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'].includes(key)
+          ? value!.trim().replace(',', '.') : value])) as ItemFiscalAnswers
     context.value = await window.desktopApi.saveItemFiscalAnswers({
       batchId: props.batchId, documentId: props.documentId, itemNumber: props.itemNumber,
       requestId: crypto.randomUUID(), ...(context.value.runId ? { expectedRunId: context.value.runId } : {}), answers,
@@ -62,13 +67,21 @@ async function save(): Promise<void> {
       <p v-if="notice" role="status" class="form-success">{{ notice }}</p>
       <template v-if="context && !loading">
         <p v-for="fact in context.xmlFacts" :key="fact">{{ fact }}</p>
-        <p v-if="context.questions.some(question => question.field === 'stMvaPercent')" class="fiscal-note">A planilha calcula o ICMS-ST com MVA e alíquotas informadas. Confira a vigência da Resolução 571 e se a MVA interestadual precisa de ajuste; o app ainda não seleciona esses percentuais automaticamente.</p>
+        <div v-if="context.stMvaReference" class="fiscal-note">
+          <template v-if="context.stMvaReference.status === 'FOUND'">
+            <p><strong>MVA original encontrada: {{ context.stMvaReference.originalMvaPercent }}%</strong></p>
+            <p>{{ context.stMvaReference.description }}</p>
+            <p>{{ context.stMvaReference.legalBasis }}. Efeitos desde {{ context.stMvaReference.validFrom }}; catálogo conferido até {{ context.stMvaReference.verifiedThrough }}.</p>
+            <p><a :href="context.stMvaReference.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar tabela oficial</a>. Confirme a descrição e as condições da operação. O ajuste automático atende importados interestaduais a 4% de fornecedor do regime normal.</p>
+          </template>
+          <p v-else>{{ context.stMvaReference.reason }}</p>
+        </div>
         <p v-if="context.reuseNotice">{{ context.reuseNotice }}</p>
         <p v-if="context.blockedReason" role="status">{{ context.blockedReason }}</p>
         <form v-else @submit.prevent="save">
-          <label v-for="question in context.questions" :key="question.field">
+          <label v-for="question in visibleQuestions" :key="question.field">
             {{ question.label }}
-            <input v-if="question.inputType === 'decimal'" v-model="selections[question.field]" type="number" min="0" step="0.0001" inputmode="decimal" :disabled="saving">
+            <input v-if="question.inputType === 'decimal'" v-model="selections[question.field]" type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" :disabled="saving">
             <select v-else v-model="selections[question.field]" :disabled="saving">
               <option value="">Ainda não sei — manter pendente</option>
               <option v-for="option in question.options ?? []" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -82,7 +95,8 @@ async function save(): Promise<void> {
           </label>
           <p v-if="reuseScope === 'CURRENT_ITEM'">Você pode salvar mesmo se ainda faltar alguma informação. A definição das próximas notas não será alterada.</p>
           <p v-else>Conclua as respostas deste item para reutilizar. Se os dados da operação mudarem, o sistema perguntará novamente.</p>
-          <p v-if="!context.reuseAvailable">O reaproveitamento precisa da empresa analisada, da identificação do destinatário, do CNPJ do emitente e do código do produto na nota.</p>
+          <p v-if="context.stMvaReference">No ICMS-ST, confira a vigência e o enquadramento em cada nota.</p>
+          <p v-else-if="!context.reuseAvailable">O reaproveitamento precisa da empresa analisada, da identificação do destinatário, do CNPJ do emitente e do código do produto na nota.</p>
           <button type="submit" class="button secondary" :disabled="saving">{{ saving ? 'Salvando…' : 'Salvar respostas e calcular' }}</button>
           <p v-if="context.calculation.reason">{{ context.calculation.reason }}</p>
         </form>

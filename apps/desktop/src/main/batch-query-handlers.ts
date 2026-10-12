@@ -152,7 +152,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
             const run = latestCalculations.get(id)
             const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
             const calculation = buildItemFiscalContext(normalized, item, readItemFiscalAnswers(saved?.memory), saved?.memory, run?.id,
-              fiscalBlocks.get(id)).calculation
+              fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion } : calculation
           })(),
@@ -171,6 +171,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
           ...(item.cfop ? { cfop: item.cfop } : {}),
           ...(item.productAmount ? { productAmount: item.productAmount } : {}),
           ...(item.declaredIcms?.amount ? { declaredIcmsAmount: item.declaredIcms.amount } : {}),
+          ...(item.declaredIcms?.stAmount !== undefined ? { declaredIcmsStAmount: item.declaredIcms.stAmount } : {}),
         }
       }),
     })),

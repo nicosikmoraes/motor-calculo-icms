@@ -59,6 +59,7 @@ as Issues apontam para ele.
 - [Critérios de aceite](docs/criterios-de-aceite.md)
 - [Ciclo de vida do documento fiscal](docs/ciclo-de-vida-documento-fiscal.md)
 - [Decisões pendentes](docs/decisoes-pendentes.md)
+- [Conferência de ICMS-ST de entradas, catálogo de MVA e cobertura](docs/icms-st-entradas.md)
 
 ### Arquitetura e desenvolvimento
 

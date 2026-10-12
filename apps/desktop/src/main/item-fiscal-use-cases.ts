@@ -7,13 +7,16 @@ import { randomUUID } from 'node:crypto'
 import { effectiveProcessingDocument } from './conflict-evidence'
 import { documentaryState, readDocumentaryIndex } from './documentary-evidence'
 import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared, calculateParanaCommonIcms,
-  calculateParanaPurchaseIcmsSt, compareDecimals, decimalText, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
+  compareDecimals, decimalText, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
+
+import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
 const answersInputName = 'fiscalAnswers'
-const version = 'PR_COMMON_2'
-const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed'] as const
+const version = 'PR_FISCAL_3'
+const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed'] as const
 const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'] as const
 const enums = {
+  stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4'],
   destination: ['RESALE', 'INDUSTRIALIZATION', 'FIXED_ASSET', 'OWN_USE'],
   discountTreatment: ['UNCONDITIONAL', 'CONDITIONAL'], ipiTreatment: ['INCLUDED', 'EXCLUDED'],
 } as const
@@ -36,6 +39,7 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
         throw new Error('O percentual está fora do limite permitido.')
       }
       result[key] = normalized
+      continue
     } else if (Object.hasOwn(enums, key)) {
       if (typeof value !== 'string' || !(enums[key as keyof typeof enums] as readonly string[]).includes(value)) throw new Error('Escolha uma resposta válida.')
     } else throw new Error('Campo fiscal não permitido.')
@@ -104,14 +108,52 @@ function allocatedDocument(nfe: NormalizedNfe) {
   return result
 }
 
-/** Seleciona apenas operações cobertas; nenhum CST/alíquota declarado aprova a regra. */
+/** Registra respostas, rateio e a origem dos valores sem alterar o documento normalizado. */
+function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeItem, answers: ItemFiscalAnswers,
+  allocationSteps: CalculationMemory['steps'], saved?: CalculationMemory, runId?: string): ItemFiscalContext {
+  const answerFields: Record<string, keyof ItemFiscalAnswers> = {
+    appliedMvaPercent: 'stMvaPercent', internalRate: 'stInternalRate', ownOperationRate: 'stOwnOperationRate',
+    applicationConfirmed: 'stApplicableConfirmed', mvaMode: 'stMvaMode', supplierRegime: 'stSupplierNormalConfirmed',
+  }
+  const memory: CalculationMemory = { schemaVersion: 1, ...context.calculation,
+    steps: [...allocationSteps, ...context.calculation.steps], inputs: [
+      ...context.calculation.inputs.map(entry => {
+        if (entry.source.startsWith('CATALOG/') || entry.source.startsWith('DERIVED/')) return entry
+        const amountField = ['productAmount', ...allocatedFields, 'ipiAmount'] as const
+        const field = amountField.find(field => field === entry.name)
+        const answer = answerFields[entry.name] ?? entry.name
+        return { ...entry, source: entry.source === 'ITEM_VALUES'
+          ? allocationSteps.some(step => step.inputs.field === entry.name) ? 'ALLOCATION/document_total'
+            : field && originalItem[field] === undefined ? 'LAYOUT_ABSENT' : 'XML/item'
+          : Object.hasOwn(answers, answer) ? 'USER/current_item' : 'XML/document' }
+      }),
+      { name: answersInputName, value: JSON.stringify(answers), source: 'USER/current_item', treatment: 'UNDECIDED' },
+    ],
+  }
+  if (memory.result) memory.comparisons = [compareDeclared('BASE', memory.result.base, memory.declared?.base),
+    compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)]
+  return { ...context, ...(runId ? { runId } : {}),
+    calculation: saved && !context.blockedReason ? { ...saved, ...(runId ? { runId } : {}) } : memory }
+}
+
+/** A perspectiva da empresa e os dados fiscais selecionam o componente a conferir. */
 export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeItem,
-  answers: ItemFiscalAnswers = {}, saved?: CalculationMemory, runId?: string, externalBlock?: string): ItemFiscalContext {
+  answers: ItemFiscalAnswers = {}, saved?: CalculationMemory, runId?: string, externalBlock?: string,
+  companyCnpj?: string): ItemFiscalContext {
   const originalItem = item
-  const incomingPr = nfe.operationDirection === '0' && nfe.recipient?.state === 'PR'
+  let block = externalBlock
+  let allocationSteps: CalculationMemory['steps'] = []
+  try {
+    const allocated = allocatedDocument(nfe).get(item.itemNumber)
+    if (allocated) { item = { ...allocated.item, ...item }; allocationSteps = allocated.steps }
+    const scope = purchaseStScope(nfe, item, answers, companyCnpj)
+    if (scope) return finishContext(buildPurchaseStContext(nfe, item, answers, scope, block), originalItem,
+      answers, allocationSteps, saved, runId)
+  } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o cálculo.' }
+
   const indicator = nfe.recipient?.stateRegistrationIndicator
   const xmlTaxpayer = indicator === '1' || indicator === '2' ? true : indicator === '9' ? false : undefined
-  const commonQuestions: ItemFiscalQuestion[] = [
+  const questions: ItemFiscalQuestion[] = [
     { field: 'destination', label: 'Qual será a destinação deste produto pelo comprador?', options: [
       { value: 'RESALE', label: 'Revenda' }, { value: 'INDUSTRIALIZATION', label: 'Industrialização' },
       { value: 'FIXED_ASSET', label: 'Ativo imobilizado' }, { value: 'OWN_USE', label: 'Uso ou consumo' },
@@ -121,39 +163,16 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
     { field: 'petroleumOrFuel', label: 'Este produto é petróleo ou combustível?', options: yesNo },
     { field: 'ordinaryTaxTreatmentConfirmed', label: 'Confirma o enquadramento na tributação comum de 19,5%, sem ST, FCP, redução de base ou outro tratamento específico?', options: yesNo },
   ]
-  const questions: ItemFiscalQuestion[] = incomingPr ? [
-    { field: 'stApplicableConfirmed', label: 'Confirma que esta entrada está sujeita ao ICMS-ST e que o produto está enquadrado na tabela aplicável?', options: yesNo },
-    { field: 'stMvaPercent', label: 'MVA aplicada (%) — confira a Resolução SEFA 571/2019, as alterações e eventual ajuste interestadual para a data desta operação.', inputType: 'decimal' },
-    { field: 'stInternalRate', label: 'Alíquota interna do Paraná (%) aplicável a este NCM/CEST e vigência.', inputType: 'decimal' },
-    ...(item.declaredIcms?.rate === undefined ? [{ field: 'stOwnOperationRate' as const,
-      label: 'Alíquota da operação própria indicada para o cálculo da nota (%).', inputType: 'decimal' as const }] : []),
-  ] : commonQuestions
-  let block = externalBlock
-  if (!block && incomingPr && (nfe.model !== '55' || nfe.purposeCode !== '1' || item.includedInDocumentTotal === false)) {
-    block = 'Este cálculo inicial de ICMS-ST atende somente NF-e de compra destinadas ao Paraná, de finalidade normal e item incluído no documento.'
-  }
-  if (!block && incomingPr && item.declaredIcms?.stBaseMode && item.declaredIcms.stBaseMode !== '4') {
-    block = 'A nota usa modalidade de base ST diferente de MVA. Este cálculo segue somente a planilha de MVA.'
-  }
-  if (!block && incomingPr && (positive(item.declaredIcms?.fcpStAmount) || positive(item.declaredIcms?.fcpStRate))) {
-    block = 'FCP-ST exige um componente próprio e permanece fora deste primeiro cálculo.'
-  }
-  if (!block && !incomingPr && (nfe.model !== '55' || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR'
+  if (!block && (nfe.model !== '55' || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR'
     || nfe.issuer.taxRegimeCode !== '3' || nfe.operationDirection !== '1' || nfe.purposeCode !== '1'
     || !['5101', '5102'].includes(item.cfop ?? '') || item.includedInDocumentTotal === false)) {
-    block = 'Este primeiro cálculo atende NF-e de venda comum interna PR, CRT 3 e CFOP 5101/5102. Outros enquadramentos permanecem pendentes.'
+    block = 'Este cálculo atende NF-e de operação comum interna PR, CRT 3 e CFOP 5101/5102. Outros enquadramentos permanecem pendentes.'
   }
-  if (!block && !incomingPr && !['00', '51'].includes(item.declaredIcms?.cst ?? '')) block = 'O CST desta nota exige outra regra fiscal antes do cálculo.'
+  if (!block && !['00', '51'].includes(item.declaredIcms?.cst ?? '')) block = 'O CST desta nota exige outra regra fiscal antes do cálculo.'
   const tax = item.declaredIcms
-  let allocationSteps: CalculationMemory['steps'] = []
   try {
-    if (!block && !incomingPr && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseAmount) || positive(tax?.stAmount)
+    if (!block && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseAmount) || positive(tax?.stAmount)
       || positive(tax?.fcpRate) || positive(tax?.fcpAmount) || positive(tax?.fcpStRate) || positive(tax?.fcpStAmount))) block = 'A nota indica redução de base, ST ou FCP; exige tratamento específico.'
-    if (!block && incomingPr && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseReductionPercent))) block = 'Redução de base do ICMS-ST exige regra específica e permanece pendente.'
-    if (!block && incomingPr && answers.stApplicableConfirmed === false) block = 'A resposta indica que o item não está sujeito ao ICMS-ST; o cálculo pela MVA não foi executado.'
-    if (!block && incomingPr && positive(item.discountAmount)) block = 'A planilha não define o tratamento de desconto na base ST; o item permanece pendente.'
-    const allocated = allocatedDocument(nfe).get(item.itemNumber)
-    if (allocated) { item = { ...allocated.item, ...item }; allocationSteps = allocated.steps }
     if (positive(item.discountAmount)) questions.push({ field: 'discountTreatment', label: 'O desconto depende de uma condição futura?', options: [
       { value: 'CONDITIONAL', label: 'Sim — desconto condicional, não deduzir da base' },
       { value: 'UNCONDITIONAL', label: 'Não — desconto incondicional, deduzir da base' },
@@ -162,7 +181,7 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
       { value: 'INCLUDED', label: 'Incluir na base' },
       { value: 'EXCLUDED', label: 'Excluir: entre contribuintes, para revenda/industrialização e fato gerador dos dois impostos' },
     ] })
-  } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o rateio.' }
+  } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o cálculo.' }
   const resolvedTaxpayer = xmlTaxpayer ?? answers.recipientIsIcmsTaxpayer
   let conflict: string | undefined
   if (xmlTaxpayer !== undefined && answers.recipientIsIcmsTaxpayer !== undefined && answers.recipientIsIcmsTaxpayer !== xmlTaxpayer) {
@@ -175,23 +194,10 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   if (answers.ipiTreatment === 'EXCLUDED' && (resolvedTaxpayer !== true || consumer)) {
     conflict = 'A exclusão do IPI exige operação entre contribuintes destinada à revenda ou industrialização.'
   }
-  const declaredValues = declared(item, incomingPr ? 'ICMS_ST' : 'ICMS')
-  let memory = block ? pendingCalculation('UNSUPPORTED', block, [], declaredValues)
+  const declaredValues = declared(item)
+  const memory = block ? pendingCalculation('UNSUPPORTED', block, [], declaredValues)
     : conflict ? pendingCalculation('PENDING_DATA', conflict, [], declaredValues)
-      : incomingPr ? calculateParanaPurchaseIcmsSt({
-        ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}),
-        ...(nfe.issuer.state ? { issuerState: nfe.issuer.state } : {}), recipientState: 'PR',
-        ...(item.productAmount !== undefined ? { productAmount: item.productAmount } : {}),
-        ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}),
-        ...(item.freightAmount !== undefined ? { freightAmount: item.freightAmount } : {}),
-        ...(item.insuranceAmount !== undefined ? { insuranceAmount: item.insuranceAmount } : {}),
-        ...(item.otherAmount !== undefined ? { otherAmount: item.otherAmount } : {}),
-        ...(answers.stMvaPercent !== undefined ? { appliedMvaPercent: answers.stMvaPercent } : {}),
-        ...(answers.stInternalRate !== undefined ? { internalRate: answers.stInternalRate } : {}),
-        ...((answers.stOwnOperationRate ?? tax?.rate) !== undefined ? { ownOperationRate: answers.stOwnOperationRate ?? tax!.rate! } : {}),
-        ...(answers.stApplicableConfirmed !== undefined ? { applicationConfirmed: answers.stApplicableConfirmed } : {}),
-        declared: declaredValues,
-      }) : calculateParanaCommonIcms({
+      : calculateParanaCommonIcms({
         ...answers,
         ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}),
         ...(nfe.issuer.state ? { issuerState: nfe.issuer.state } : {}),
@@ -204,30 +210,12 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
         ...(item.discountAmount !== undefined ? { discountAmount: item.discountAmount } : {}),
         ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}), declared: declaredValues,
       })
-  memory = { ...memory, steps: [...allocationSteps, ...memory.steps],
-    ...(memory.result ? { comparisons: [compareDeclared('BASE', memory.result.base, memory.declared?.base),
-      compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)] } : {}), inputs: [
-    ...memory.inputs.map(entry => {
-      const amountField = ['productAmount', ...allocatedFields, 'ipiAmount'] as const
-      const field = amountField.find(field => field === entry.name)
-      return { ...entry, source: entry.source === 'ITEM_VALUES'
-        ? allocationSteps.some(step => step.inputs.field === entry.name) ? 'ALLOCATION/document_total'
-          : field && originalItem[field] === undefined ? 'LAYOUT_ABSENT' : 'XML/item'
-        : Object.hasOwn(answers, entry.name) ? 'USER/current_item' : 'XML/document' }
-    }),
-    { name: answersInputName, value: JSON.stringify(answers), source: 'USER/current_item', treatment: 'UNDECIDED' },
-  ] }
-  return {
-    answers, questions, ...(block ? { blockedReason: block } : {}), ...(runId ? { runId } : {}),
-    xmlFacts: [
-      `Emitente: ${nfe.issuer.state ?? 'UF ausente'} · CRT ${nfe.issuer.taxRegimeCode ?? 'ausente'}`,
-      `Destinatário: ${nfe.recipient?.state ?? 'UF ausente'} · ${xmlTaxpayer === undefined ? 'condição de contribuinte não informada' : xmlTaxpayer ? 'contribuinte ICMS (XML)' : 'não contribuinte (XML)'}`,
-      `CFOP ${item.cfop ?? 'ausente'} · CST ${tax?.cst ?? 'ausente'} · NCM ${item.ncm ?? 'ausente'}`,
-      incomingPr ? 'Conferência do ICMS-ST de entrada pelo método da planilha; crédito de compra e apuração não são calculados aqui.'
-        : 'Conferência do ICMS próprio da operação. Crédito de compra e apuração não são calculados aqui.',
-    ],
-    calculation: saved && !block && !conflict ? { ...saved, ...(runId ? { runId } : {}) } : memory,
-  }
+  return finishContext({ answers, questions, ...(block ? { blockedReason: block } : {}), xmlFacts: [
+    `Emitente: ${nfe.issuer.state ?? 'UF ausente'} · CRT ${nfe.issuer.taxRegimeCode ?? 'ausente'}`,
+    `Destinatário: ${nfe.recipient?.state ?? 'UF ausente'} · ${xmlTaxpayer === undefined ? 'condição de contribuinte não informada' : xmlTaxpayer ? 'contribuinte ICMS (XML)' : 'não contribuinte (XML)'}`,
+    `CFOP ${item.cfop ?? 'ausente'} · CST ${tax?.cst ?? 'ausente'} · NCM ${item.ncm ?? 'ausente'}`,
+    'Conferência do ICMS próprio da operação. Crédito de compra e apuração não são calculados aqui.',
+  ], calculation: memory }, originalItem, answers, allocationSteps, conflict ? undefined : saved, runId)
 }
 
 export function documentFiscalBlock(document: NormalizedFiscalDocumentRecord, artifacts: readonly DocumentArtifactRecord[]): string | undefined {
@@ -251,13 +239,19 @@ function target(database: SqliteDatabase, batchId: string, documentId: string, i
   const documentary = documentaryState(evidence, document)
   const externalBlock = documentFiscalBlock(effectiveProcessingDocument(evidence, document), batches.listDocumentArtifacts(batchId))
     ?? (documentary.canceled ? documentary.reason : undefined)
-  return { document, item, externalBlock, batch }
+  return { document, item, externalBlock, batch, companyCnpj: analyzedCompanyCnpj(database, document) }
+}
+
+function analyzedCompanyCnpj(database: SqliteDatabase, document: NormalizedFiscalDocumentRecord): string | undefined {
+  const company = document.companyId ? new SqliteCompanyRepository(database).findById(document.companyId) : undefined
+  return company?.organizationId === new SqliteOrganizationRepository(database).findSingle()?.id ? company?.cnpj : undefined
 }
 
 function reuseKey(database: SqliteDatabase, document: NormalizedFiscalDocumentRecord, item: NormalizedNfeItem): FiscalAnswerDefinitionKey | undefined {
   // Regras de ICMS-ST e seus percentuais dependem da vigência legal da operação;
   // não reutilizar automaticamente MVA/alíquota em compras de períodos futuros.
   if (document.normalized.operationDirection !== '1') return undefined
+  if (purchaseStScope(document.normalized, item, {}, analyzedCompanyCnpj(database, document))) return undefined
   const companyId = document.companyId
   const supplierCnpj = document.normalized.issuer.taxId
   const productCode = item.supplierProductCode?.trim()
@@ -300,13 +294,13 @@ function reuseState(database: SqliteDatabase, document: NormalizedFiscalDocument
 }
 
 export function getItemFiscalContext(database: SqliteDatabase, batchId: string, documentId: string, itemNumber: string): ItemFiscalContext {
-  const { document, item, externalBlock, batch } = target(database, batchId, documentId, itemNumber)
+  const { document, item, externalBlock, batch, companyCnpj } = target(database, batchId, documentId, itemNumber)
   const run = new SqliteCalculationRepository(database).latestByDocument(documentId)
   const saved = run?.items.find(entry => entry.itemNumber === itemNumber)?.memory
   const state = reuseState(database, document, item, batch.receivedAt)
-  const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock)
+  const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock, companyCnpj)
   const reused = saved?.inputs.find(entry => entry.name === 'reuseDefinitionId')?.value
-  return { ...context, reuseAvailable: Boolean(state.key), ...(state.definition ? { definitionId: state.definition.id } : {}),
+  return { ...context, reuseAvailable: context.calculation.component !== 'ICMS_ST' && context.calculation.result?.component !== 'ICMS_ST' && Boolean(state.key), ...(state.definition ? { definitionId: state.definition.id } : {}),
     ...(saved && run ? { calculation: { ...context.calculation, engineVersion: run.engineVersion } } : {}),
     ...(reused ? { reuseNotice: 'Respostas reaproveitadas de uma definição anterior para esta empresa e produto do fornecedor.' }
       : state.definition && !state.matches ? { reuseNotice: 'A operação difere da definição anterior ou tem data anterior. Confira e responda novamente.' } : {}),
@@ -317,7 +311,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
   const answers = validateItemFiscalAnswers(input.answers)
   const scope = input.reuseScope ?? 'CURRENT_ITEM'
   if (!['CURRENT_ITEM', 'FUTURE_NOTES'].includes(scope)) throw new Error('Escolha um alcance válido para as respostas.')
-  const { document, item, externalBlock, batch } = target(database, input.batchId, input.documentId, input.itemNumber)
+  const { document, item, externalBlock, batch, companyCnpj } = target(database, input.batchId, input.documentId, input.itemNumber)
   const repository = new SqliteCalculationRepository(database)
   const existing = repository.findByRequest(input.requestId, input.documentId)
   if (existing) {
@@ -330,10 +324,10 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
   }
   const latest = repository.latestByDocument(input.documentId)
   if (latest?.id !== input.expectedRunId) throw new Error('As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.')
-  const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, externalBlock)
+  const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, externalBlock, companyCnpj)
   if (context.blockedReason) throw new Error(context.blockedReason)
   const key = reuseKey(database, document, item)
-  if (scope === 'FUTURE_NOTES' && (!key || context.calculation.status !== 'CALCULATED')) {
+  if (scope === 'FUTURE_NOTES' && (!key || context.calculation.status !== 'CALCULATED' || context.calculation.component === 'ICMS_ST')) {
     throw new Error('Para reutilizar nas próximas notas, identifique a empresa e o produto do fornecedor e conclua este cálculo. Você pode salvar respostas parciais somente neste item.')
   }
   const memory: CalculationMemory = { schemaVersion: 1, ...context.calculation, inputs: [
@@ -347,7 +341,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
     ...(latest ? { previousRunId: latest.id } : {}), engineVersion: version,
     items: document.normalized.items.map(entry => ({ itemNumber: entry.itemNumber,
       memory: entry.itemNumber === input.itemNumber ? memory : latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory
-        ?? { schemaVersion: 1, ...buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock).calculation },
+        ?? { schemaVersion: 1, ...buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock, companyCnpj).calculation },
     })),
   }, scope === 'FUTURE_NOTES' ? run => {
     const definitions = new SqliteFiscalAnswerDefinitionRepository(database)
@@ -370,6 +364,7 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
   const repository = new SqliteCalculationRepository(database)
   let applied = 0
   for (const document of batches.listNormalizedDocuments(batchId)) {
+    const companyCnpj = analyzedCompanyCnpj(database, document)
     const documentary = documentaryState(evidence, document)
     const block = documentFiscalBlock(effectiveProcessingDocument(evidence, document), artifacts) ?? (documentary.canceled ? documentary.reason : undefined)
     if (block) continue
@@ -383,9 +378,9 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
       }
       const state = reuseState(database, document, item, batch.receivedAt)
       const answers = state.matches && state.definition ? validateItemFiscalAnswers(JSON.parse(state.definition.answersJson)) : {}
-      const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, block)
+      const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, block, companyCnpj)
       if (!state.matches || !state.definition || context.calculation.status !== 'CALCULATED') return {
-        itemNumber: item.itemNumber, memory: previous ?? { schemaVersion: 1 as const, ...buildItemFiscalContext(document.normalized, item).calculation },
+        itemNumber: item.itemNumber, memory: previous ?? { schemaVersion: 1 as const, ...buildItemFiscalContext(document.normalized, item, {}, undefined, undefined, block, companyCnpj).calculation },
       }
       changed++
       const id = state.definition.id
