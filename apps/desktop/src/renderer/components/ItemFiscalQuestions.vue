@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { ItemFiscalAnswers, ItemFiscalContext } from '@motor/contracts'
+import { itemCalculationStatus, itemCalculationComponents, type ItemFiscalAnswers, type ItemFiscalContext } from '@motor/contracts'
 
 const props = defineProps<{ batchId: string; documentId: string; itemNumber: string; expanded?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
@@ -11,8 +11,8 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 const reuseScope = ref<'CURRENT_ITEM' | 'FUTURE_NOTES'>('CURRENT_ITEM')
-const visibleQuestions = computed(() => context.value?.questions.filter(question => question.field !== 'stMvaPercent'
-  || selections.value.stMvaMode === 'MANUAL_APPLIED') ?? [])
+const visibleQuestions = computed(() => context.value?.questions.filter(question => (question.field !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
+  && (question.field !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true')) ?? [])
 
 async function load(event: Event): Promise<void> {
   if (!(event.target as HTMLDetailsElement).open || loading.value) return
@@ -38,7 +38,8 @@ async function save(): Promise<void> {
   try {
     // Copiar valores escalares antes da ponte Electron: proxies Vue não são clonáveis.
     const answers = Object.fromEntries(Object.entries(selections.value).filter(([key, value]) => value !== ''
-      && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED'))
+      && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
+      && (key !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true'))
       .map(([key, value]) => [key, value === 'true' ? true : value === 'false' ? false
         : key.startsWith('st') && ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'].includes(key)
           ? value!.trim().replace(',', '.') : value])) as ItemFiscalAnswers
@@ -48,10 +49,10 @@ async function save(): Promise<void> {
       reuseScope: reuseScope.value,
       ...(context.value.definitionId ? { expectedDefinitionId: context.value.definitionId } : {}),
     })
-    notice.value = context.value.calculation.status === 'CALCULATED'
+    notice.value = itemCalculationStatus(context.value.calculation) === 'CALCULATED'
       ? context.value.calculation.result?.component === 'ICMS_ST'
-        ? 'Respostas salvas e ICMS-ST da entrada calculado.' : 'Respostas salvas e ICMS da operação calculado.'
-      : `Respostas salvas. ${context.value.calculation.reason ?? 'O item continua pendente.'}`
+        ? 'Respostas salvas e tributos da entrada calculados.' : 'Respostas salvas e ICMS da operação calculado.'
+      : `Respostas salvas. ${context.value.calculation.reason ?? itemCalculationComponents(context.value.calculation).find(component => component.status !== 'CALCULATED')?.reason ?? 'O item continua pendente.'}`
     emit('saved')
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível salvar as respostas.' }
   finally { saving.value = false }
@@ -60,7 +61,7 @@ async function save(): Promise<void> {
 
 <template>
   <details class="fiscal-questions" :open="expanded" @toggle="load">
-    <summary>Completar dados e calcular ICMS</summary>
+    <summary>Completar dados e calcular tributos</summary>
     <div class="questions-body">
       <p v-if="loading">Carregando dados do item…</p>
       <p v-if="error" role="alert" class="form-error">{{ error }}</p>

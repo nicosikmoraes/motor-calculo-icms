@@ -12,7 +12,7 @@ const labels: Record<string, string> = {
   includedInDocumentTotal: 'Participa do total', group: 'Grupo de ICMS', originCode: 'Origem', cst: 'CST', csosn: 'CSOSN',
   baseMode: 'Modalidade da base', baseReductionPercent: 'Redução da base', baseAmount: 'Base', rate: 'Alíquota', amount: 'Valor',
   stBaseMode: 'Modalidade da base ST', stMarginPercent: 'MVA', stBaseReductionPercent: 'Redução da base ST', stBaseAmount: 'Base ST', stRate: 'Alíquota ST', stAmount: 'ICMS-ST',
-  fcpRate: 'Alíquota FCP', fcpAmount: 'FCP', fcpStRate: 'Alíquota FCP-ST', fcpStAmount: 'FCP-ST',
+  fcpRate: 'Alíquota FCP', fcpBaseAmount: 'Base FCP', fcpAmount: 'FCP', fcpStRate: 'Alíquota FCP-ST', fcpStBaseAmount: 'Base FCP-ST', fcpStAmount: 'FCP-ST',
   destinationBaseAmount: 'Base destino', destinationFcpRate: 'Alíquota FCP destino', destinationFcpAmount: 'FCP destino', interstateRate: 'Alíquota interestadual',
   destinationInternalRate: 'Alíquota interna destino', destinationSharePercent: 'Partilha destino', destinationAmount: 'ICMS destino', originAmount: 'ICMS origem',
   icmsBaseAmount: 'Base ICMS', icmsAmount: 'ICMS', icmsExemptAmount: 'ICMS desonerado', importTaxAmount: 'Imposto de importação',

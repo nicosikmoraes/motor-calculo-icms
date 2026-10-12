@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import type { ConsolidationEvidence } from '@motor/contracts'
+import { itemCalculationComponents, taxComponentLabel, type ConsolidationEvidence } from '@motor/contracts'
 import { roundMoney } from '@motor/tax-engine'
 import type { ReportData } from './report-data'
 
@@ -35,7 +35,7 @@ function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, colu
   for (const [row, value] of [
     [1, `ContabiliNico · ${name}`],
     [2, `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
-    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 2`],
+    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 3`],
   ] as const) {
     sheet.mergeCells(row, 1, row, Math.min(4, columns.length))
     sheet.getCell(row, 1).value = value
@@ -89,50 +89,58 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   addSheet(book, report, 'Resumo', [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20), text('Autorização', 38),
     monetary('Base calculada'), monetary('Imposto calculado'), monetary('Imposto declarado elegível'), monetary('Imposto diferido conhecido'),
     monetary('Imposto calculado dos pares'), monetary('Imposto declarado dos pares'), monetary('Diferença líquida dos pares'), monetary('Soma das diferenças absolutas'),
-    ...['Notas', 'Itens', 'Calculados', 'Pendentes', 'Fora do escopo', 'Excluídos', 'Itens comparáveis', 'Divergências acima de R$ 0,01',
+    ...['Notas', 'Itens', 'Calculados', 'Pendentes', 'Fora do escopo', 'Excluídos', 'Itens comparáveis', 'Itens com divergência de valor, base ou alíquota',
       'Diferenças dentro da tolerância', 'Declaração ausente', 'Declaração inválida', 'Diferimento sem informação'].map(title => text(title)), text('Créditos de compras', 30), text('Componente conferido')],
     summary.groups.map(g => [g.companyName ?? 'Empresa não identificada', g.period, label(g.perspective), environment(g.environment), label(g.authorization),
       g.totals.calculatedBase, g.totals.calculatedIcms, g.totals.declaredIcms, g.totals.deferredIcms,
       g.totals.comparedCalculatedIcms, g.totals.comparedDeclaredIcms, g.totals.difference, g.totals.absoluteDifferences,
       g.counts.documents, g.counts.items, g.counts.calculated, g.counts.pending, g.counts.unsupported, g.counts.excluded,
       g.counts.comparableItems, g.counts.divergentItems, g.counts.withinToleranceItems, g.counts.declaredMissing, g.counts.declaredInvalid,
-      g.counts.deferredMissing, 'Não apurados', g.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS']))
+      g.counts.deferredMissing, 'Não apurados', taxComponentLabel(g.component)]))
   addSheet(book, report, 'Itens', [...identityColumns, text('Código do produto'), text('Produto', 50), text('NCM', 14), text('CFOP', 14),
     text('Emissão original no XML', 30), text('Situação fiscal'), text('Componente calculado'), monetary('Base calculada'), monetary('Imposto calculado'),
-    monetary('ICMS declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
+    monetary('Imposto declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
     text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra'),
-    monetary('Base salva para auditoria'), monetary('ICMS salvo para auditoria'),
-    text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50)],
+    monetary('Base salva para auditoria'), monetary('Imposto salvo para auditoria'),
+    text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Base declarada do componente'), text('Alíquota declarada do componente (%)'), text('Alíquota calculada do componente (%)'), text('Referência FCP-ST', 50)],
     summary.evidence.map(entry => {
       const item = items.get(JSON.stringify([entry.documentId, entry.itemNumber]))
       if (!item || !documents.has(entry.documentId)) throw new Error('Evidência referencia item ou documento ausente.')
+      const calculation = itemCalculationComponents(item.calculation).find(memory => (memory.component ?? memory.result?.component ?? 'ICMS') === (entry.component ?? 'ICMS'))
       return [...identity(entry), item.supplierProductCode, item.description, item.ncm, item.cfop, documents.get(entry.documentId)?.issuedAt,
-        label(entry.status), entry.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS',
-        entry.status === 'CALCULATED' ? item.calculation.result?.base : undefined, entry.calculatedIcms,
-        entry.component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredIcmsAmount,
+        label(entry.status), taxComponentLabel(entry.component),
+        entry.status === 'CALCULATED' ? calculation?.result?.base : undefined, entry.calculatedIcms,
+        entry.component === 'FCP_ST' ? item.declaredFcpStAmount : entry.component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredIcmsAmount,
         entry.deferredIcms, entry.comparison?.difference, entry.comparison ? label(entry.comparison.status) : 'Sem comparação',
-        entry.reasons.join('\n'), entry.runId, entry.engineVersion, item.calculation.rule?.id, item.calculation.rule?.version,
-        item.calculation.result?.base, item.calculation.result?.amount,
+        entry.reasons.join('\n'), entry.runId, entry.engineVersion, calculation?.rule?.id, calculation?.rule?.version,
+        calculation?.result?.base, calculation?.result?.amount,
         item.calculation.inputs.find(input => input.name === 'originalMvaPercent')?.value,
         item.calculation.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent,
-        item.calculation.inputs.find(input => input.name === 'mvaCatalogRow')?.value]
+        item.calculation.inputs.find(input => input.name === 'mvaCatalogRow')?.value,
+        entry.component === 'FCP_ST' ? item.declaredFcpStBaseAmount : calculation?.declared?.base,
+        entry.component === 'FCP_ST' ? item.declaredFcpStRate : calculation?.declared?.rate, calculation?.result?.rate, calculation?.inputs.find(input => input.name === 'fcpStRule')?.value]
     }))
   addSheet(book, report, 'Divergências', [...identityColumns, text('Componente calculado'), monetary('Imposto calculado'), monetary('Imposto declarado'),
-    monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor')],
-    summary.evidence.filter(e => e.comparison && e.comparison.status !== 'MATCH').map(e => [...identity(e),
-      e.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS', e.calculatedIcms, e.declaredIcms,
-      e.comparison?.difference, e.comparison?.tolerance, label(e.comparison!.status), e.runId, e.engineVersion]))
+    monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor'), text('Campo conferido'), text('Calculado exato'), text('Declarado exato'), text('Diferença exata'), text('Unidade')],
+    summary.evidence.flatMap(e => {
+      const comparisons = [...(e.comparison ? [e.comparison] : []), ...(e.comparisons?.filter(c => ['BASE', 'RATE'].includes(c.component)) ?? [])]
+      return comparisons.filter(c => c.status === 'DIFFERENT' || c.status === 'WITHIN_TOLERANCE' || c.status === 'INVALID_DECLARED').map(c => [...identity(e),
+        taxComponentLabel(e.component), c.component === 'BASE' || c.component === 'RATE' ? undefined : e.calculatedIcms,
+        c.component === 'BASE' || c.component === 'RATE' ? undefined : e.declaredIcms,
+        c.component === 'RATE' ? undefined : c.difference, c.component === 'RATE' ? undefined : c.tolerance,
+        label(c.status), e.runId, e.engineVersion, c.component, c.calculated, c.declared, c.difference, c.component === 'RATE' ? '%' : 'R$'])
+    }))
   const pendingColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Nota', 16), text('Chave de acesso', 50), text('Item', 10),
     text('Categoria', 26), text('Código / situação', 32), text('Motivo', 70), text('Documento / origem', 45)]
   const pendingRows: Value[][] = summary.evidence.flatMap(e => {
     const rows: Value[][] = []
     const base: Value[] = [companyNames.get(e.companyId) ?? 'Empresa não identificada', e.period, e.documentNumber, e.accessKey, e.itemNumber]
-    if (e.status !== 'CALCULATED') rows.push([...base, 'Consolidação fiscal', label(e.status), e.reasons.join('\n'), e.documentId])
+    if (e.status !== 'CALCULATED') rows.push([...base, `Consolidação ${taxComponentLabel(e.component)}`, label(e.status), e.reasons.join('\n'), e.documentId])
     if (e.status !== 'EXCLUDED') {
       const reportItem = items.get(JSON.stringify([e.documentId, e.itemNumber]))
-      const original = e.component === 'ICMS_ST' ? reportItem?.declaredIcmsStAmount : reportItem?.declaredIcmsAmount
-      if (e.declaredIcms === undefined) rows.push([...base, 'Valor declarado', original === undefined ? 'Ausente' : 'Inválido', original, e.documentId])
-      if (e.status === 'CALCULATED' && e.component !== 'ICMS_ST' && e.deferredIcms === undefined) rows.push([...base, 'Diferimento', 'Sem informação', 'Memória sem valor de diferimento conhecido.', e.documentId])
+      const original = e.component === 'FCP_ST' ? reportItem?.declaredFcpStAmount : e.component === 'ICMS_ST' ? reportItem?.declaredIcmsStAmount : reportItem?.declaredIcmsAmount
+      if (e.declaredIcms === undefined) rows.push([...base, `Valor declarado ${taxComponentLabel(e.component)}`, original === undefined ? 'Ausente' : 'Inválido', original, e.documentId])
+      if (e.status === 'CALCULATED' && e.component === 'ICMS' && e.deferredIcms === undefined) rows.push([...base, 'Diferimento', 'Sem informação', 'Memória sem valor de diferimento conhecido.', e.documentId])
     }
     if (report.monthly) rows.forEach(row => row.push(e.batchId))
     return rows

@@ -33,8 +33,10 @@ export interface NormalizedDeclaredIcms {
   stRate?: DecimalText
   stAmount?: DecimalText
   fcpRate?: DecimalText
+  fcpBaseAmount?: DecimalText
   fcpAmount?: DecimalText
   fcpStRate?: DecimalText
+  fcpStBaseAmount?: DecimalText
   fcpStAmount?: DecimalText
   destinationBaseAmount?: DecimalText
   destinationFcpRate?: DecimalText

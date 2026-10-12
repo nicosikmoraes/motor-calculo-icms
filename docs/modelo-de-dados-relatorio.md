@@ -45,3 +45,16 @@ A ordem das coleções acompanha o snapshot de origem.
 Validação automatizada cobre preservação de precisão, fuso, versões e exclusões,
 isolamento do snapshot, lotes sem notas, memórias pendentes e calculadas,
 artefatos associados e referências inválidas.
+
+## Extensão por componentes — DT-051
+
+Na conferência implementada, o snapshot inclui ICMS-ST e o FCP-ST adicional com
+memórias independentes. A consolidação agrupa empresa, período, operação, ambiente,
+autorização e componente. Sua contagem geral representa documentos e itens físicos;
+a contagem dos grupos representa os itens conferidos naquele tributo.
+
+A identidade da evidência é documento + item + componente. Campos declarados de
+ICMS, ST e FCP-ST não são intercambiáveis. O XLSX layout 3 seleciona a memória do
+componente para valores, base, regra e auditoria e inclui comparações de base e
+alíquota. Diferenças monetárias continuam calculado menos declarado, com tolerância
+de R$ 0,01; o percentual do FCP-ST tem comparação exata.

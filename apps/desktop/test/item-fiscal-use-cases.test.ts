@@ -47,7 +47,7 @@ describe('conferência de ICMS-ST de compras', () => {
     const purchase: NormalizedNfe = { ...nfe, issuer: { ...nfe.issuer, state: 'SP' }, items: [
       { ...nfe.items[0]!, ncm: '33030010', cest: '2000700', declaredIcms: { cst: '10', rate: '4', amount: '20.17', originCode: '1' } },
     ] }
-    const answers: ItemFiscalAnswers = { stApplicableConfirmed: true, stInternalRate: '25' }
+    const answers: ItemFiscalAnswers = { stApplicableConfirmed: true, stInternalRate: '25', fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: true }
     const cases = [
       buildItemFiscalContext({ ...purchase, finalConsumerIndicator: '1' }, purchase.items[0]!, answers),
       buildItemFiscalContext(purchase, { ...purchase.items[0]!, declaredIcms: { ...purchase.items[0]!.declaredIcms, cst: '60' } }, answers),
@@ -60,23 +60,23 @@ describe('conferência de ICMS-ST de compras', () => {
     const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' }, {
       productAmount: '504.36', ncm: '33030010', cest: '2000700', cfop: '6403',
       declaredIcms: { cst: '10', originCode: '1', rate: '4', amount: '20.17',
-        stBaseMode: '4', stBaseAmount: '953.97', stRate: '25', stAmount: '218.32' },
+        stBaseMode: '4', stBaseAmount: '953.97', stRate: '23', stAmount: '199.24', fcpStBaseAmount: '953.97', fcpStRate: '2', fcpStAmount: '19.08' },
     })
     const before = getItemFiscalContext(db, next.batchId, next.documentId, '1')
     expect(before.stMvaReference).toMatchObject({ status: 'FOUND', originalMvaPercent: '47.77' })
     expect(before.questions.find(q => q.field === 'stMvaMode')?.suggestedValue).toBe('CATALOG_IMPORT_4')
     const result = saveItemFiscalAnswers(db, { ...next, requestId: 'catalog-st', answers: {
-      stApplicableConfirmed: true, stInternalRate: '25',
+      stApplicableConfirmed: true, stInternalRate: '25', fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: true,
     } })
-    expect(result.calculation.result).toMatchObject({ component: 'ICMS_ST', base: '953.97', amount: '218.32' })
+    expect(result.calculation.result).toMatchObject({ component: 'ICMS_ST', base: '953.97', amount: '199.24' })
     expect(result.calculation.inputs.find(entry => entry.name === 'originalMvaPercent')?.source).toContain('CATALOG/pr-st-mva-1245-2025')
     expect(JSON.parse(result.calculation.inputs.find(entry => entry.name === 'mvaCatalogRow')!.value!)).toMatchObject({
       originalMvaPercent: '47.77', validFrom: '2026-04-01', cest: '2000700',
     })
     expect(result.reuseAvailable).toBe(false)
     const summary = getBatchConsolidation(db, next.batchId)
-    expect(summary.groups[0]).toMatchObject({ perspective: 'PURCHASES', component: 'ICMS_ST',
-      totals: { calculatedIcms: '218.32', declaredIcms: '218.32', difference: '0.00' } })
+    expect(summary.groups.find(group => group.component === 'ICMS_ST')).toMatchObject({ perspective: 'PURCHASES', component: 'ICMS_ST',
+      totals: { calculatedIcms: '199.24', declaredIcms: '199.24', difference: '0.00' } })
     expect(summary.evidence[0]?.comparison).toMatchObject({ component: 'ICMS_ST', status: 'MATCH' })
   })
 
@@ -85,9 +85,9 @@ describe('conferência de ICMS-ST de compras', () => {
       issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
       recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ' },
       declaredTotals: { discountAmount: '5' },
-    }, { productAmount: '504.36', declaredIcms: { cst: '10', rate: '4', stBaseMode: '4' } })
+    }, { productAmount: '504.36', ncm: '39249000', declaredIcms: { cst: '10', rate: '4', stBaseMode: '4' } })
     const context = saveItemFiscalAnswers(db, { ...next, requestId: 'self-issued', answers: {
-      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', stSupplierNormalConfirmed: true,
+      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', fcpStApplicableConfirmed: false, stSupplierNormalConfirmed: true,
     } })
     expect(context.calculation.status).toBe('PENDING_DATA')
     expect(context.calculation.reason).toContain('desconto')
@@ -105,11 +105,11 @@ describe('conferência de ICMS-ST de compras', () => {
     const purchase: NormalizedNfe = {
       ...nfe, issuedAt: '2024-08-15T10:00:00.000Z', operationDirection: '1',
       issuer: { ...nfe.issuer, state: 'SP' },
-      items: [{ ...nfe.items[0]!, itemNumber: '1', productAmount: '504.36', cfop: '2403',
+      items: [{ ...nfe.items[0]!, itemNumber: '1', ncm: '39249000', productAmount: '504.36', cfop: '2403',
         declaredIcms: { cst: '10', rate: '4', stBaseMode: '4', stBaseAmount: '648.61', stRate: '19.5', stAmount: '106.30' } }],
     }
     const result = buildItemFiscalContext(purchase, purchase.items[0]!, {
-      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', stOwnOperationRate: '4',
+      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', fcpStApplicableConfirmed: false, stOwnOperationRate: '4',
     }).calculation
     expect(result.status).toBe('CALCULATED')
     expect(result.result).toMatchObject({ component: 'ICMS_ST', base: '648.61', amount: '106.30' })

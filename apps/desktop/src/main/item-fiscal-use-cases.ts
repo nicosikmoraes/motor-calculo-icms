@@ -1,4 +1,4 @@
-import type { ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion, SaveItemFiscalAnswersInput } from '@motor/contracts'
+import type { ItemCalculationSummary, ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion, SaveItemFiscalAnswersInput } from '@motor/contracts'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
 import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationRepository, type SqliteDatabase,
   type NormalizedFiscalDocumentRecord, type DocumentArtifactRecord, SqliteFiscalAnswerDefinitionRepository,
@@ -12,8 +12,8 @@ import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared,
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
 const answersInputName = 'fiscalAnswers'
-const version = 'PR_FISCAL_3'
-const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed'] as const
+const version = 'PR_FISCAL_4'
+const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed', 'fcpStApplicableConfirmed', 'stInternalRateIncludesFcp'] as const
 const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'] as const
 const enums = {
   stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4'],
@@ -108,6 +108,12 @@ function allocatedDocument(nfe: NormalizedNfe) {
   return result
 }
 
+function memorySnapshot(calculation: ItemCalculationSummary): CalculationMemory {
+  const { additionalComponents, reviewReason: _review, reviewStatus: _reviewStatus, ...primary } = calculation
+  return { ...primary, schemaVersion: 1,
+    ...(additionalComponents ? { additionalComponents: additionalComponents.map(component => ({ ...component, schemaVersion: 1 as const })) } : {}) }
+}
+
 /** Registra respostas, rateio e a origem dos valores sem alterar o documento normalizado. */
 function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeItem, answers: ItemFiscalAnswers,
   allocationSteps: CalculationMemory['steps'], saved?: CalculationMemory, runId?: string): ItemFiscalContext {
@@ -115,10 +121,10 @@ function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeIt
     appliedMvaPercent: 'stMvaPercent', internalRate: 'stInternalRate', ownOperationRate: 'stOwnOperationRate',
     applicationConfirmed: 'stApplicableConfirmed', mvaMode: 'stMvaMode', supplierRegime: 'stSupplierNormalConfirmed',
   }
-  const memory: CalculationMemory = { schemaVersion: 1, ...context.calculation,
+  const memory: CalculationMemory = { ...memorySnapshot(context.calculation),
     steps: [...allocationSteps, ...context.calculation.steps], inputs: [
       ...context.calculation.inputs.map(entry => {
-        if (entry.source.startsWith('CATALOG/') || entry.source.startsWith('DERIVED/')) return entry
+        if (entry.source.startsWith('CATALOG/') || entry.source.startsWith('DERIVED/') || entry.source.startsWith('RULE/')) return entry
         const amountField = ['productAmount', ...allocatedFields, 'ipiAmount'] as const
         const field = amountField.find(field => field === entry.name)
         const answer = answerFields[entry.name] ?? entry.name
@@ -133,7 +139,8 @@ function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeIt
   if (memory.result) memory.comparisons = [compareDeclared('BASE', memory.result.base, memory.declared?.base),
     compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)]
   return { ...context, ...(runId ? { runId } : {}),
-    calculation: saved && !context.blockedReason ? { ...saved, ...(runId ? { runId } : {}) } : memory }
+    calculation: saved && !context.blockedReason
+      && !((saved.component ?? saved.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved).fcpStApplicableConfirmed === undefined) ? { ...saved, ...(runId ? { runId } : {}) } : memory }
 }
 
 /** A perspectiva da empresa e os dados fiscais selecionam o componente a conferir. */
@@ -330,7 +337,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
   if (scope === 'FUTURE_NOTES' && (!key || context.calculation.status !== 'CALCULATED' || context.calculation.component === 'ICMS_ST')) {
     throw new Error('Para reutilizar nas próximas notas, identifique a empresa e o produto do fornecedor e conclua este cálculo. Você pode salvar respostas parciais somente neste item.')
   }
-  const memory: CalculationMemory = { schemaVersion: 1, ...context.calculation, inputs: [
+  const memory: CalculationMemory = { ...memorySnapshot(context.calculation), inputs: [
     ...context.calculation.inputs,
     { name: 'answerRequestId', value: input.requestId, source: 'USER/current_item', treatment: 'UNDECIDED' },
     { name: 'answerReuseScope', value: scope, source: 'USER/current_item', treatment: 'UNDECIDED' },
@@ -341,7 +348,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
     ...(latest ? { previousRunId: latest.id } : {}), engineVersion: version,
     items: document.normalized.items.map(entry => ({ itemNumber: entry.itemNumber,
       memory: entry.itemNumber === input.itemNumber ? memory : latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory
-        ?? { schemaVersion: 1, ...buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock, companyCnpj).calculation },
+        ?? memorySnapshot(buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock, companyCnpj).calculation),
     })),
   }, scope === 'FUTURE_NOTES' ? run => {
     const definitions = new SqliteFiscalAnswerDefinitionRepository(database)
@@ -380,11 +387,11 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
       const answers = state.matches && state.definition ? validateItemFiscalAnswers(JSON.parse(state.definition.answersJson)) : {}
       const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, block, companyCnpj)
       if (!state.matches || !state.definition || context.calculation.status !== 'CALCULATED') return {
-        itemNumber: item.itemNumber, memory: previous ?? { schemaVersion: 1 as const, ...buildItemFiscalContext(document.normalized, item, {}, undefined, undefined, block, companyCnpj).calculation },
+        itemNumber: item.itemNumber, memory: previous ?? memorySnapshot(buildItemFiscalContext(document.normalized, item, {}, undefined, undefined, block, companyCnpj).calculation),
       }
       changed++
       const id = state.definition.id
-      const memory: CalculationMemory = { schemaVersion: 1, ...context.calculation, inputs: [
+      const memory: CalculationMemory = { ...memorySnapshot(context.calculation), inputs: [
         ...context.calculation.inputs.map(entry => entry.source === 'USER/current_item' ? { ...entry, source: `REUSED_DEFINITION/${id}` } : entry),
         { name: 'reuseDefinitionId', value: id, source: 'REUSED_DEFINITION', treatment: 'UNDECIDED' },
         { name: 'reuseSourceRunId', value: state.definition.sourceRunId, source: 'REUSED_DEFINITION', treatment: 'UNDECIDED' },

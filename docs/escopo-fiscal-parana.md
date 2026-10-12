@@ -79,8 +79,7 @@ arts. 12 e 16 da Resolução 571/2019 na redação da Resolução 1245/2025, par
 01/04/2026 a 12/10/2026. O usuário confirma incidência, descrição legal e
 alíquotas; o sistema encontra a MVA por NCM/CEST e oferece o ajuste para
 importados interestaduais a 4% de remetente CRT 3. Fora do catálogo, exige
-MVA final informada. Descontos, reduções, FCP-ST, outras modalidades e regimes
-continuam pendentes. A conferência usa a perspectiva da empresa selecionada e
+MVA final informada. A DT-051 separa o FCP-ST de 2%, exige confirmação da incidência e informa se a alíquota contém o FECOP. Descontos, reduções, FCP próprio, outras modalidades e regimes continuam pendentes. A conferência usa a perspectiva da empresa selecionada e
 mantém os componentes próprios e ST separados nos subtotais. Veja o contrato
 em [icms-st-entradas.md](icms-st-entradas.md).
 
@@ -121,7 +120,7 @@ informa quando houve reaproveitamento. O alcance continua sendo o mesmo ICMS
 próprio comum, sem crédito automático ou apuração definitiva.
 
 Simples, MEI, operações interestaduais de venda, importações, ST fora do método
-inicial de compras, FCP, benefícios específicos, outras alíquotas e vigências
+inicial de compras, FCP fora da DT-051, benefícios específicos, outras alíquotas e vigências
 anteriores exigem incrementos próprios. O marco
 inicial não autoriza aplicar 19,5% sem conferir alterações legais posteriores;
 a seleção de regras por vigência continua sendo responsabilidade da integração.

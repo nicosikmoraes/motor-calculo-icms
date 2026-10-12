@@ -61,13 +61,19 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
           const regime = scope?.supplier.taxRegimeCode ?? (answers.stSupplierNormalConfirmed ? '3' : undefined)
           if (!scope || regime !== '3' || nfe.finalConsumerIndicator === '1' || scope.buyer.stateRegistrationIndicator === '9'
             || (item.declaredIcms?.cst !== undefined && !['00', '10'].includes(item.declaredIcms.cst))) {
-            return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount,
+            return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
+            declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
               memory: { ...memory, status: 'UNSUPPORTED' as const,
                 reason: 'A memória de ICMS-ST exige nova conferência da perspectiva da empresa, do regime ou do enquadramento. O resultado anterior está preservado para auditoria.' } }
           }
+          if (answers.fcpStApplicableConfirmed === undefined) return { itemNumber: item.itemNumber,
+            declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
+            declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
+            memory: { ...memory, status: 'PENDING_DATA' as const, reason: 'Confirme a incidência de FCP-ST e revise a alíquota interna antes de totalizar. O resultado anterior está preservado para auditoria.' } }
         }
         return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
-          declaredIcmsSt: item.declaredIcms?.stAmount, memory }
+          declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
+            declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate, memory }
       }),
     }
   })

@@ -8,6 +8,7 @@ export * from './declared-comparison'
 export * from './parana-common-icms'
 export * from './parana-purchase-icms-st'
 export * from './parana-st-mva-catalog'
+export * from './parana-fcp-st'
 export * from './calculation-memory'
 
 /**

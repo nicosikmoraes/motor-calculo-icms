@@ -1035,3 +1035,29 @@ A consolidação por lote/mês agrupa o componente, compara ST com ST e conserva
 a contagem de ocorrências de notas sem duplicar pelo número de componentes.
 Telas e XLSX identificam o componente e guardam a referência da MVA. Contrato,
 fórmulas, limites e fontes: [icms-st-entradas.md](icms-st-entradas.md).
+
+## DT-051 — FCP-ST separado na conferência de entradas do Paraná
+
+Em 12/10/2026, após o merge local da DT-050, foi autorizado avançar para o FCP-ST.
+A versão PR_FISCAL_4 exige decisão explícita de incidência, data/NCM e significado
+da alíquota informada. Usa a carga com os dois pontos do FECOP no ajuste da MVA;
+calcula ICMS-ST pela alíquota de ICMS separada e FCP-ST de 2% sobre a base ST
+calculada em centavos, sem deduzir ICMS próprio nem compensar créditos.
+
+O recorte preserva os requisitos da compra por MVA, fornecedor normal e CST 00/10.
+As categorias do art. 14A e exceções de xampus/desodorantes ficam versionadas e
+registradas na memória. Veículos, combustíveis e FCP próprio diferente de zero
+exigem tratamento próprio. A cobertura temporal limita a regra embarcada até a
+data conferida, sem presumir revogação. Fundamento: Lei 11.580/1996, art. 14A;
+RICMS/PR, Anexo IX, art. 1º, §§ 9º/10, e Anexo XII; orientação SEFA sobre FECOP.
+
+FCP-ST guarda status, regra, entradas, resultado e comparações independentes em
+additionalComponents. Campos vBCFCPST, pFCPST e vFCPST são conferidos com o componente
+correspondente. O banco grava e valida o conjunto atomicamente, mantendo o formato
+JSON e as execuções anteriores. ST antiga sem decisão de FCP exige revisão antes
+de totalizar; o resultado original continua disponível para auditoria.
+
+Lotes e conferência mensal contam notas/itens físicos uma vez e agrupam tributos
+separadamente. Divergências de base e alíquota também ficam visíveis. XLSX layout 3
+exporta resultado, declarado, regra e auditoria da memória correta de cada tributo.
+Contrato e fontes: [icms-st-entradas.md](icms-st-entradas.md).
