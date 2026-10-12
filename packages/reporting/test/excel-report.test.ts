@@ -20,16 +20,17 @@ describe('exportação XLSX de conferência', () => {
       expect(sheet.getCell('A3').text).toContain('lote-teste')
     }
     const summary = book.getWorksheet('Resumo')!
-    expect(summary.getCell(6, column(summary, 'ICMS calculado (R$)')).value).toBe(120)
-    expect(summary.getCell(6, column(summary, 'ICMS declarado elegível (R$)')).value).toBe(129.98)
-    expect(summary.getCell(6, column(summary, 'ICMS declarado dos pares (R$)')).value).toBe(119.98)
+    expect(summary.getCell(6, column(summary, 'Imposto calculado (R$)')).value).toBe(120)
+    expect(summary.getCell(6, column(summary, 'Imposto declarado elegível (R$)')).value).toBe(129.98)
+    expect(summary.getCell(6, column(summary, 'Imposto declarado dos pares (R$)')).value).toBe(119.98)
     expect(summary.getCell(6, column(summary, 'Diferença líquida dos pares (R$)')).value).toBe(0.02)
     expect(summary.getCell(6, column(summary, 'Créditos de compras')).value).toBe('Não apurados')
     const items = book.getWorksheet('Itens')!
     expect(items.getCell(6, column(items, 'Chave de acesso')).value).toBe('0'.repeat(44))
     expect(items.getCell(6, column(items, 'Nota')).value).toBe('0001')
     expect(items.getCell(6, column(items, 'NCM')).value).toBe('01012100')
-    expect(items.getCell(7, column(items, 'ICMS calculado (R$)')).value).toBeNull()
+    expect(items.getCell(7, column(items, 'Imposto calculado (R$)')).value).toBeNull()
+    expect(items.getCell(6, column(items, 'Componente calculado')).value).toBe('ICMS')
     expect(book.getWorksheet('Divergências')!.getCell('F6').value).toBe('0001')
     const pend = book.getWorksheet('Pendências e exclusões')!
     expect(pend.getColumn(8).values).toContain('Defina a destinação.')

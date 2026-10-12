@@ -27,6 +27,25 @@ const nfe: NormalizedNfe = {
 const complete: ItemFiscalAnswers = { destination: 'RESALE', constructionCompany: false, petroleumOrFuel: false, ordinaryTaxTreatmentConfirmed: true }
 let db: SqliteDatabase
 
+describe('conferência de ICMS-ST de compras', () => {
+  it('usa as respostas fiscais informadas, compara o ICMS-ST declarado e distingue o componente', () => {
+    const purchase: NormalizedNfe = {
+      ...nfe, issuedAt: '2024-08-15T10:00:00.000Z', operationDirection: '0',
+      issuer: { ...nfe.issuer, state: 'SP' },
+      items: [{ ...nfe.items[0]!, itemNumber: '1', productAmount: '504.36', cfop: '2403',
+        declaredIcms: { cst: '10', rate: '4', stBaseMode: '4', stBaseAmount: '648.61', stRate: '19.5', stAmount: '106.30' } }],
+    }
+    const result = buildItemFiscalContext(purchase, purchase.items[0]!, {
+      stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', stOwnOperationRate: '4',
+    }).calculation
+    expect(result.status).toBe('CALCULATED')
+    expect(result.result).toMatchObject({ component: 'ICMS_ST', base: '648.61', amount: '106.30' })
+    expect(result.comparisons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ component: 'ICMS_ST', status: 'MATCH' }),
+    ]))
+  })
+})
+
 beforeEach(() => {
   db = new SqliteDatabase(':memory:')
   runSqlMigrations(db, CORE_MIGRATIONS, { appVersion: 'test' })

@@ -979,3 +979,30 @@ permanecem intactos. O XLSX inclui Conflitos e decisões com identificação de 
 ocorrência, conteúdo escolhido, motivo, origem e histórico. Valores salvos para
 auditoria permanecem separados dos totais. Esta entrega depende do PR #36; não
 altera o escopo de ICMS comum nem implementa créditos ou saldo a recolher.
+
+## DT-049 — Primeira conferência de ICMS-ST em compras destinadas ao Paraná
+
+Em 12/10/2026, foi autorizado iniciar a conferência de compras/entradas usando
+a planilha recebida como referência de fórmula. A implementação cobre NF-e
+modelo 55, finalidade normal, item incluído no documento e destinatário no PR.
+Exige confirmação manual da incidência de ST, da MVA final aplicável na data,
+da alíquota interna para o produto e da alíquota própria da operação. Usa
+BC ST = (produto + IPI + frete + seguro + outras despesas informadas) ×
+(1 + MVA/100), e ICMS-ST = BC ST × alíquota interna − ICMS próprio; arredonda
+o resultado a centavos. O caso numérico da planilha foi reproduzido: R$ 106,30.
+
+O sistema não seleciona NCM/CEST, não busca MVA em tabela, não decide se a MVA
+interestadual deve ser ajustada e não escolhe alíquota ou vigência. Essas
+informações permanecem explícitas e auditáveis na memória do cálculo. Desconto,
+redução de base, modalidade de ST diferente de MVA, FCP-ST e resultado negativo
+ficam pendentes. A conferência não calcula crédito de entrada nem apura saldo.
+O fluxo de ICMS próprio de vendas permanece independente.
+
+A planilha não tem campos de frete, seguro e outras despesas, mas o motor inclui
+valores desses campos quando informados no XML. O PDF enviado não contém as
+alterações legais mais recentes: a Resolução SEFA 982/2023 alterou a Resolução
+571/2019 e a Resolução SEFA 1245/2025 previu efeitos a partir de 01/04/2026.
+Por isso, a planilha e o PDF servem de referência de método, não de cadastro
+automático da MVA vigente. Fontes oficiais: [Resolução SEFA 982/2023](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=307248),
+[Resolução SEFA 1245/2025](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=381258) e
+[página da SEFA/PR sobre substituição tributária](https://www.fazenda.pr.gov.br/Pagina/ICMS-Substituicao-tributaria).

@@ -87,8 +87,8 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   const identityColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20),
     text('Autorização', 38), text('Nota', 16), text('Série', 12), text('Chave de acesso', 50), text('Item', 10), ...(report.monthly ? [text('Lote de origem', 40), text('Nome do lote', 36)] : [])]
   addSheet(book, report, 'Resumo', [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20), text('Autorização', 38),
-    monetary('Base calculada'), monetary('ICMS calculado'), monetary('ICMS declarado elegível'), monetary('ICMS diferido conhecido'),
-    monetary('ICMS calculado dos pares'), monetary('ICMS declarado dos pares'), monetary('Diferença líquida dos pares'), monetary('Soma das diferenças absolutas'),
+    monetary('Base calculada'), monetary('Imposto calculado'), monetary('Imposto declarado elegível'), monetary('Imposto diferido conhecido'),
+    monetary('Imposto calculado dos pares'), monetary('Imposto declarado dos pares'), monetary('Diferença líquida dos pares'), monetary('Soma das diferenças absolutas'),
     ...['Notas', 'Itens', 'Calculados', 'Pendentes', 'Fora do escopo', 'Excluídos', 'Itens comparáveis', 'Divergências acima de R$ 0,01',
       'Diferenças dentro da tolerância', 'Declaração ausente', 'Declaração inválida', 'Diferimento sem informação'].map(title => text(title)), text('Créditos de compras', 30)],
     summary.groups.map(g => [g.companyName ?? 'Empresa não identificada', g.period, label(g.perspective), environment(g.environment), label(g.authorization),
@@ -98,7 +98,7 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
       g.counts.comparableItems, g.counts.divergentItems, g.counts.withinToleranceItems, g.counts.declaredMissing, g.counts.declaredInvalid,
       g.counts.deferredMissing, 'Não apurados']))
   addSheet(book, report, 'Itens', [...identityColumns, text('Código do produto'), text('Produto', 50), text('NCM', 14), text('CFOP', 14),
-    text('Emissão original no XML', 30), text('Situação fiscal'), monetary('Base calculada'), monetary('ICMS calculado'),
+    text('Emissão original no XML', 30), text('Situação fiscal'), text('Componente calculado'), monetary('Base calculada'), monetary('Imposto calculado'),
     monetary('ICMS declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
     text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra'),
     monetary('Base salva para auditoria'), monetary('ICMS salvo para auditoria')],
@@ -106,14 +106,16 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
       const item = items.get(JSON.stringify([entry.documentId, entry.itemNumber]))
       if (!item || !documents.has(entry.documentId)) throw new Error('Evidência referencia item ou documento ausente.')
       return [...identity(entry), item.supplierProductCode, item.description, item.ncm, item.cfop, documents.get(entry.documentId)?.issuedAt,
-        label(entry.status), entry.status === 'CALCULATED' ? item.calculation.result?.base : undefined, entry.calculatedIcms,
+        label(entry.status), item.calculation.result?.component === 'ICMS_ST' ? 'ICMS-ST' : item.calculation.result ? 'ICMS' : undefined,
+        entry.status === 'CALCULATED' ? item.calculation.result?.base : undefined, entry.calculatedIcms,
         item.declaredIcmsAmount, entry.deferredIcms, entry.comparison?.difference, entry.comparison ? label(entry.comparison.status) : 'Sem comparação',
         entry.reasons.join('\n'), entry.runId, entry.engineVersion, item.calculation.rule?.id, item.calculation.rule?.version,
         item.calculation.result?.base, item.calculation.result?.amount]
     }))
-  addSheet(book, report, 'Divergências', [...identityColumns, monetary('ICMS calculado'), monetary('ICMS declarado'),
+  addSheet(book, report, 'Divergências', [...identityColumns, text('Componente calculado'), monetary('Imposto calculado'), monetary('Imposto declarado'),
     monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor')],
-    summary.evidence.filter(e => e.comparison && e.comparison.status !== 'MATCH').map(e => [...identity(e), e.calculatedIcms, e.declaredIcms,
+    summary.evidence.filter(e => e.comparison && e.comparison.status !== 'MATCH').map(e => [...identity(e),
+      items.get(JSON.stringify([e.documentId, e.itemNumber]))?.calculation.result?.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS', e.calculatedIcms, e.declaredIcms,
       e.comparison?.difference, e.comparison?.tolerance, label(e.comparison!.status), e.runId, e.engineVersion]))
   const pendingColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Nota', 16), text('Chave de acesso', 50), text('Item', 10),
     text('Categoria', 26), text('Código / situação', 32), text('Motivo', 70), text('Documento / origem', 45)]

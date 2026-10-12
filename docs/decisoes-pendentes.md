@@ -22,8 +22,8 @@ do lote por empresa e mês está disponível (DT-044), assim como sua exportaç�
 exportação por empresa/mês. Apuração fiscal, créditos e os demais tratamentos seguem pendentes.
 
 1. Fórmulas e condições completas de ICMS próprio.
-2. Base reduzida, cálculo por dentro e composição de frete, seguro, desconto, despesas e IPI.
-3. ICMS-ST por MVA, MVA ajustada, pauta, PMPF e preço máximo.
+2. Base reduzida, cálculo por dentro e regras completas de frete, seguro, desconto, despesas e IPI.
+3. ICMS-ST completo: seleção fiscal automática por NCM/CEST e vigência, MVA ajustada, pauta, PMPF, preço máximo, FCP-ST e validação por contador. A primeira conferência manual de compras por MVA está na DT-049.
 4. DIFAL, partilha quando aplicável e FCP/FCP-ST.
 5. Isenção, não incidência, diferimento, desoneração e benefícios.
 6. Simples Nacional, CST/CSOSN e hipóteses de crédito.

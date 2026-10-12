@@ -22,16 +22,16 @@ const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da toler�
           {{ input.name }}: {{ input.value ?? 'ausente' }} · {{ input.source }} · {{ input.treatment === 'UNDECIDED' ? 'tratamento pendente' : input.treatment === 'INCLUDED' ? 'incluído' : 'excluído' }}
         </li>
       </ul>
-      <p v-if="calculation.declared">Declarado no XML: base {{ calculation.declared.base ?? '—' }} · alíquota {{ calculation.declared.rate ?? '—' }} · ICMS {{ calculation.declared.amount ?? '—' }}</p>
+      <p v-if="calculation.declared">Declarado no XML ({{ calculation.result?.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS' }}): base {{ calculation.declared.base ?? '—' }} · alíquota {{ calculation.declared.rate ?? '—' }} · valor {{ calculation.declared.amount ?? '—' }}</p>
       <ol v-if="calculation.steps.length">
         <li v-for="(step, index) in calculation.steps" :key="index">{{ step.name }}: {{ step.operation }} = {{ step.result }}</li>
       </ol>
-      <p v-if="calculation.result"><strong>Calculado:</strong> base {{ calculation.result.base }} · alíquota {{ calculation.result.rate }} · ICMS {{ calculation.result.amount }}</p>
+      <p v-if="calculation.result"><strong>{{ calculation.result.component === 'ICMS_ST' ? 'ICMS-ST calculado:' : 'Calculado:' }}</strong> base {{ calculation.result.base }} · alíquota {{ calculation.result.rate }} · {{ calculation.result.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS' }} {{ calculation.result.amount }}</p>
       <p v-else>Nenhum valor calculado foi aprovado para este item.</p>
       <template v-if="calculation.comparisons?.length">
         <p><strong>Conferência com o XML:</strong> diferença = calculado − declarado.</p>
         <ul><li v-for="comparison in calculation.comparisons" :key="comparison.component">
-          {{ comparison.component === 'BASE' ? 'Base do ICMS' : 'ICMS devido' }}: {{ comparisonLabels[comparison.status] }}
+          {{ comparison.component === 'BASE' ? 'Base do ICMS' : comparison.component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS devido' }}: {{ comparisonLabels[comparison.status] }}
           · calculado {{ comparison.calculated }} · declarado {{ comparison.declared ?? '—' }}
           · diferença {{ comparison.difference ?? '—' }} · tolerância {{ comparison.tolerance }}
         </li></ul>

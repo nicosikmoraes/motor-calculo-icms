@@ -44,7 +44,8 @@ async function save(): Promise<void> {
       ...(context.value.definitionId ? { expectedDefinitionId: context.value.definitionId } : {}),
     })
     notice.value = context.value.calculation.status === 'CALCULATED'
-      ? 'Respostas salvas e ICMS da operação calculado.'
+      ? context.value.calculation.result?.component === 'ICMS_ST'
+        ? 'Respostas salvas e ICMS-ST da entrada calculado.' : 'Respostas salvas e ICMS da operação calculado.'
       : `Respostas salvas. ${context.value.calculation.reason ?? 'O item continua pendente.'}`
     emit('saved')
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível salvar as respostas.' }
@@ -61,14 +62,16 @@ async function save(): Promise<void> {
       <p v-if="notice" role="status" class="form-success">{{ notice }}</p>
       <template v-if="context && !loading">
         <p v-for="fact in context.xmlFacts" :key="fact">{{ fact }}</p>
+        <p v-if="context.questions.some(question => question.field === 'stMvaPercent')" class="fiscal-note">A planilha calcula o ICMS-ST com MVA e alíquotas informadas. Confira a vigência da Resolução 571 e se a MVA interestadual precisa de ajuste; o app ainda não seleciona esses percentuais automaticamente.</p>
         <p v-if="context.reuseNotice">{{ context.reuseNotice }}</p>
         <p v-if="context.blockedReason" role="status">{{ context.blockedReason }}</p>
         <form v-else @submit.prevent="save">
           <label v-for="question in context.questions" :key="question.field">
             {{ question.label }}
-            <select v-model="selections[question.field]" :disabled="saving">
+            <input v-if="question.inputType === 'decimal'" v-model="selections[question.field]" type="number" min="0" step="0.0001" inputmode="decimal" :disabled="saving">
+            <select v-else v-model="selections[question.field]" :disabled="saving">
               <option value="">Ainda não sei — manter pendente</option>
-              <option v-for="option in question.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+              <option v-for="option in question.options ?? []" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
           <label>Onde aplicar estas respostas?
@@ -93,6 +96,7 @@ async function save(): Promise<void> {
 summary { color: #71551c; cursor: pointer; font-weight: 700; }
 .questions-body { padding: 12px; margin-top: 8px; border: 1px solid #e8dfc9; border-radius: 8px; background: #fffaf0; }
 label { display: block; margin-bottom: 12px; }
-select { display: block; width: 100%; min-width: 180px; margin-top: 4px; padding: 6px; }
+select, input { display: block; width: 100%; min-width: 180px; margin-top: 4px; padding: 6px; }
+.fiscal-note { border-left: 3px solid #c88c26; padding-left: 8px; }
 p { overflow-wrap: anywhere; }
 </style>

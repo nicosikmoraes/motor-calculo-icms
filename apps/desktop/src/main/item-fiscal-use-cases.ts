@@ -6,11 +6,13 @@ import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationR
 import { randomUUID } from 'node:crypto'
 import { effectiveProcessingDocument } from './conflict-evidence'
 import { documentaryState, readDocumentaryIndex } from './documentary-evidence'
-import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared, calculateParanaCommonIcms, compareDecimals, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
+import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared, calculateParanaCommonIcms,
+  calculateParanaPurchaseIcmsSt, compareDecimals, decimalText, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
 
 const answersInputName = 'fiscalAnswers'
 const version = 'PR_COMMON_2'
-const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed'] as const
+const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed'] as const
+const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'] as const
 const enums = {
   destination: ['RESALE', 'INDUSTRIALIZATION', 'FIXED_ASSET', 'OWN_USE'],
   discountTreatment: ['UNCONDITIONAL', 'CONDITIONAL'], ipiTreatment: ['INCLUDED', 'EXCLUDED'],
@@ -26,6 +28,14 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
     if (value === undefined) continue
     if ((boolFields as readonly string[]).includes(key)) {
       if (typeof value !== 'boolean') throw new Error('Escolha uma resposta válida.')
+    } else if ((decimalFields as readonly string[]).includes(key)) {
+      if (typeof value !== 'string') throw new Error('Informe um percentual válido.')
+      let normalized: string
+      try { normalized = decimalText(value) } catch { throw new Error('Informe um percentual válido.') }
+      if (compareDecimals(normalized, '0') < 0 || compareDecimals(normalized, key === 'stMvaPercent' ? '1000' : '100') > 0) {
+        throw new Error('O percentual está fora do limite permitido.')
+      }
+      result[key] = normalized
     } else if (Object.hasOwn(enums, key)) {
       if (typeof value !== 'string' || !(enums[key as keyof typeof enums] as readonly string[]).includes(value)) throw new Error('Escolha uma resposta válida.')
     } else throw new Error('Campo fiscal não permitido.')
@@ -39,7 +49,12 @@ export function readItemFiscalAnswers(memory?: CalculationMemory): ItemFiscalAns
   return text ? validateItemFiscalAnswers(JSON.parse(text)) : {}
 }
 
-function declared(item: NormalizedNfeItem): NonNullable<CalculationMemory['declared']> {
+function declared(item: NormalizedNfeItem, component: 'ICMS' | 'ICMS_ST' = 'ICMS'): NonNullable<CalculationMemory['declared']> {
+  if (component === 'ICMS_ST') return {
+    ...(item.declaredIcms?.stBaseAmount !== undefined ? { base: item.declaredIcms.stBaseAmount } : {}),
+    ...(item.declaredIcms?.stRate !== undefined ? { rate: item.declaredIcms.stRate } : {}),
+    ...(item.declaredIcms?.stAmount !== undefined ? { amount: item.declaredIcms.stAmount } : {}),
+  }
   return {
     ...(item.declaredIcms?.baseAmount !== undefined ? { base: item.declaredIcms.baseAmount } : {}),
     ...(item.declaredIcms?.rate !== undefined ? { rate: item.declaredIcms.rate } : {}),
@@ -93,9 +108,10 @@ function allocatedDocument(nfe: NormalizedNfe) {
 export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeItem,
   answers: ItemFiscalAnswers = {}, saved?: CalculationMemory, runId?: string, externalBlock?: string): ItemFiscalContext {
   const originalItem = item
+  const incomingPr = nfe.operationDirection === '0' && nfe.recipient?.state === 'PR'
   const indicator = nfe.recipient?.stateRegistrationIndicator
   const xmlTaxpayer = indicator === '1' || indicator === '2' ? true : indicator === '9' ? false : undefined
-  const questions: ItemFiscalQuestion[] = [
+  const commonQuestions: ItemFiscalQuestion[] = [
     { field: 'destination', label: 'Qual será a destinação deste produto pelo comprador?', options: [
       { value: 'RESALE', label: 'Revenda' }, { value: 'INDUSTRIALIZATION', label: 'Industrialização' },
       { value: 'FIXED_ASSET', label: 'Ativo imobilizado' }, { value: 'OWN_USE', label: 'Uso ou consumo' },
@@ -105,18 +121,37 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
     { field: 'petroleumOrFuel', label: 'Este produto é petróleo ou combustível?', options: yesNo },
     { field: 'ordinaryTaxTreatmentConfirmed', label: 'Confirma o enquadramento na tributação comum de 19,5%, sem ST, FCP, redução de base ou outro tratamento específico?', options: yesNo },
   ]
+  const questions: ItemFiscalQuestion[] = incomingPr ? [
+    { field: 'stApplicableConfirmed', label: 'Confirma que esta entrada está sujeita ao ICMS-ST e que o produto está enquadrado na tabela aplicável?', options: yesNo },
+    { field: 'stMvaPercent', label: 'MVA aplicada (%) — confira a Resolução SEFA 571/2019, as alterações e eventual ajuste interestadual para a data desta operação.', inputType: 'decimal' },
+    { field: 'stInternalRate', label: 'Alíquota interna do Paraná (%) aplicável a este NCM/CEST e vigência.', inputType: 'decimal' },
+    ...(item.declaredIcms?.rate === undefined ? [{ field: 'stOwnOperationRate' as const,
+      label: 'Alíquota da operação própria indicada para o cálculo da nota (%).', inputType: 'decimal' as const }] : []),
+  ] : commonQuestions
   let block = externalBlock
-  if (!block && (nfe.model !== '55' || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR'
+  if (!block && incomingPr && (nfe.model !== '55' || nfe.purposeCode !== '1' || item.includedInDocumentTotal === false)) {
+    block = 'Este cálculo inicial de ICMS-ST atende somente NF-e de compra destinadas ao Paraná, de finalidade normal e item incluído no documento.'
+  }
+  if (!block && incomingPr && item.declaredIcms?.stBaseMode && item.declaredIcms.stBaseMode !== '4') {
+    block = 'A nota usa modalidade de base ST diferente de MVA. Este cálculo segue somente a planilha de MVA.'
+  }
+  if (!block && incomingPr && (positive(item.declaredIcms?.fcpStAmount) || positive(item.declaredIcms?.fcpStRate))) {
+    block = 'FCP-ST exige um componente próprio e permanece fora deste primeiro cálculo.'
+  }
+  if (!block && !incomingPr && (nfe.model !== '55' || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR'
     || nfe.issuer.taxRegimeCode !== '3' || nfe.operationDirection !== '1' || nfe.purposeCode !== '1'
     || !['5101', '5102'].includes(item.cfop ?? '') || item.includedInDocumentTotal === false)) {
     block = 'Este primeiro cálculo atende NF-e de venda comum interna PR, CRT 3 e CFOP 5101/5102. Outros enquadramentos permanecem pendentes.'
   }
-  if (!block && !['00', '51'].includes(item.declaredIcms?.cst ?? '')) block = 'O CST desta nota exige outra regra fiscal antes do cálculo.'
+  if (!block && !incomingPr && !['00', '51'].includes(item.declaredIcms?.cst ?? '')) block = 'O CST desta nota exige outra regra fiscal antes do cálculo.'
   const tax = item.declaredIcms
   let allocationSteps: CalculationMemory['steps'] = []
   try {
-    if (!block && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseAmount) || positive(tax?.stAmount)
+    if (!block && !incomingPr && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseAmount) || positive(tax?.stAmount)
       || positive(tax?.fcpRate) || positive(tax?.fcpAmount) || positive(tax?.fcpStRate) || positive(tax?.fcpStAmount))) block = 'A nota indica redução de base, ST ou FCP; exige tratamento específico.'
+    if (!block && incomingPr && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseReductionPercent))) block = 'Redução de base do ICMS-ST exige regra específica e permanece pendente.'
+    if (!block && incomingPr && answers.stApplicableConfirmed === false) block = 'A resposta indica que o item não está sujeito ao ICMS-ST; o cálculo pela MVA não foi executado.'
+    if (!block && incomingPr && positive(item.discountAmount)) block = 'A planilha não define o tratamento de desconto na base ST; o item permanece pendente.'
     const allocated = allocatedDocument(nfe).get(item.itemNumber)
     if (allocated) { item = { ...allocated.item, ...item }; allocationSteps = allocated.steps }
     if (positive(item.discountAmount)) questions.push({ field: 'discountTreatment', label: 'O desconto depende de uma condição futura?', options: [
@@ -140,9 +175,23 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   if (answers.ipiTreatment === 'EXCLUDED' && (resolvedTaxpayer !== true || consumer)) {
     conflict = 'A exclusão do IPI exige operação entre contribuintes destinada à revenda ou industrialização.'
   }
-  let memory = block ? pendingCalculation('UNSUPPORTED', block, [], declared(item))
-    : conflict ? pendingCalculation('PENDING_DATA', conflict, [], declared(item))
-      : calculateParanaCommonIcms({
+  const declaredValues = declared(item, incomingPr ? 'ICMS_ST' : 'ICMS')
+  let memory = block ? pendingCalculation('UNSUPPORTED', block, [], declaredValues)
+    : conflict ? pendingCalculation('PENDING_DATA', conflict, [], declaredValues)
+      : incomingPr ? calculateParanaPurchaseIcmsSt({
+        ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}),
+        ...(nfe.issuer.state ? { issuerState: nfe.issuer.state } : {}), recipientState: 'PR',
+        ...(item.productAmount !== undefined ? { productAmount: item.productAmount } : {}),
+        ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}),
+        ...(item.freightAmount !== undefined ? { freightAmount: item.freightAmount } : {}),
+        ...(item.insuranceAmount !== undefined ? { insuranceAmount: item.insuranceAmount } : {}),
+        ...(item.otherAmount !== undefined ? { otherAmount: item.otherAmount } : {}),
+        ...(answers.stMvaPercent !== undefined ? { appliedMvaPercent: answers.stMvaPercent } : {}),
+        ...(answers.stInternalRate !== undefined ? { internalRate: answers.stInternalRate } : {}),
+        ...((answers.stOwnOperationRate ?? tax?.rate) !== undefined ? { ownOperationRate: answers.stOwnOperationRate ?? tax!.rate! } : {}),
+        ...(answers.stApplicableConfirmed !== undefined ? { applicationConfirmed: answers.stApplicableConfirmed } : {}),
+        declared: declaredValues,
+      }) : calculateParanaCommonIcms({
         ...answers,
         ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}),
         ...(nfe.issuer.state ? { issuerState: nfe.issuer.state } : {}),
@@ -153,11 +202,11 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
         ...(item.insuranceAmount !== undefined ? { insuranceAmount: item.insuranceAmount } : {}),
         ...(item.otherAmount !== undefined ? { otherAmount: item.otherAmount } : {}),
         ...(item.discountAmount !== undefined ? { discountAmount: item.discountAmount } : {}),
-        ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}), declared: declared(item),
+        ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}), declared: declaredValues,
       })
   memory = { ...memory, steps: [...allocationSteps, ...memory.steps],
     ...(memory.result ? { comparisons: [compareDeclared('BASE', memory.result.base, memory.declared?.base),
-      compareDeclared('ICMS', memory.result.amount, memory.declared?.amount)] } : {}), inputs: [
+      compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)] } : {}), inputs: [
     ...memory.inputs.map(entry => {
       const amountField = ['productAmount', ...allocatedFields, 'ipiAmount'] as const
       const field = amountField.find(field => field === entry.name)
@@ -174,7 +223,8 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
       `Emitente: ${nfe.issuer.state ?? 'UF ausente'} · CRT ${nfe.issuer.taxRegimeCode ?? 'ausente'}`,
       `Destinatário: ${nfe.recipient?.state ?? 'UF ausente'} · ${xmlTaxpayer === undefined ? 'condição de contribuinte não informada' : xmlTaxpayer ? 'contribuinte ICMS (XML)' : 'não contribuinte (XML)'}`,
       `CFOP ${item.cfop ?? 'ausente'} · CST ${tax?.cst ?? 'ausente'} · NCM ${item.ncm ?? 'ausente'}`,
-      'Conferência do ICMS próprio da operação. Crédito de compra e apuração não são calculados aqui.',
+      incomingPr ? 'Conferência do ICMS-ST de entrada pelo método da planilha; crédito de compra e apuração não são calculados aqui.'
+        : 'Conferência do ICMS próprio da operação. Crédito de compra e apuração não são calculados aqui.',
     ],
     calculation: saved && !block && !conflict ? { ...saved, ...(runId ? { runId } : {}) } : memory,
   }
@@ -205,6 +255,9 @@ function target(database: SqliteDatabase, batchId: string, documentId: string, i
 }
 
 function reuseKey(database: SqliteDatabase, document: NormalizedFiscalDocumentRecord, item: NormalizedNfeItem): FiscalAnswerDefinitionKey | undefined {
+  // Regras de ICMS-ST e seus percentuais dependem da vigência legal da operação;
+  // não reutilizar automaticamente MVA/alíquota em compras de períodos futuros.
+  if (document.normalized.operationDirection !== '1') return undefined
   const companyId = document.companyId
   const supplierCnpj = document.normalized.issuer.taxId
   const productCode = item.supplierProductCode?.trim()

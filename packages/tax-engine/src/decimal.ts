@@ -41,6 +41,12 @@ export function multiplyDecimals(left: string, right: string): FiscalDecimalText
   return canonical(parse(left).times(parse(right)))
 }
 
+export function divideDecimals(left: string, right: string): FiscalDecimalText {
+  const divisor = parse(right)
+  if (divisor.isZero()) throw new CalculationError(CalculationErrorCode.INVALID_DECIMAL_RESULT)
+  return canonical(parse(left).div(divisor))
+}
+
 /** Arredondamento monetário aprovado: por componente/item, HALF_UP. */
 export function roundMoney(value: string): FiscalDecimalText {
   return parse(value).toDecimalPlaces(2, FiscalDecimal.ROUND_HALF_UP).toFixed(2)

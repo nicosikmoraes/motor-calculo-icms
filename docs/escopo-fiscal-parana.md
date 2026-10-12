@@ -73,6 +73,14 @@ A destinação conflitante com `indFinal` ou exclusão indevida do IPI preservam
 pendência e as respostas. O resultado é conferência do ICMS da operação; não
 concede crédito nem integra automaticamente uma apuração definitiva.
 
+Compras destinadas ao Paraná também têm um primeiro cálculo de conferência de
+ICMS-ST por MVA (DT-049), baseado na planilha recebida. O usuário precisa
+confirmar incidência, MVA final e alíquotas para a data e classificação do item.
+Não há busca automática de NCM/CEST, tabela vigente ou ajuste de MVA
+interestadual; descontos, reduções, outras modalidades de base e FCP-ST continuam
+pendentes. O resultado é o ICMS-ST informado/conferido, não crédito de compra
+nem apuração.
+
 Não alterar automaticamente regras DRAFT para aprovadas nem inferir destinação
 apenas de CFOP, CST ou inscrição estadual. A reavaliação do catálogo de regras
 continua separada do cálculo, preservando seus registros anteriores.
@@ -109,8 +117,9 @@ pedem nova conferência. A memória registra definição e execução de origem;
 informa quando houve reaproveitamento. O alcance continua sendo o mesmo ICMS
 próprio comum, sem crédito automático ou apuração definitiva.
 
-Simples, MEI, operações interestaduais, importações, ST, FCP, benefícios específicos,
-outras alíquotas e vigências anteriores exigem incrementos próprios. O marco
+Simples, MEI, operações interestaduais de venda, importações, ST fora do método
+inicial de compras, FCP, benefícios específicos, outras alíquotas e vigências
+anteriores exigem incrementos próprios. O marco
 inicial não autoriza aplicar 19,5% sem conferir alterações legais posteriores;
 a seleção de regras por vigência continua sendo responsabilidade da integração.
 

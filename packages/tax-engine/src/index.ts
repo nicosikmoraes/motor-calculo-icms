@@ -6,6 +6,7 @@ export * from './decimal'
 export * from './proportional-allocation'
 export * from './declared-comparison'
 export * from './parana-common-icms'
+export * from './parana-purchase-icms-st'
 export * from './calculation-memory'
 
 /**

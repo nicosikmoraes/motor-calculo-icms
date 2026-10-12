@@ -31,14 +31,14 @@ export interface CalculationStep {
 
 export interface CalculationMemory {
   deferredAmount?: string
-  comparisons?: readonly import('./declared-comparison').DeclaredComparison[]
+  comparisons?: readonly (import('./declared-comparison').DeclaredComparison & { component: 'BASE' | 'ICMS' | 'ICMS_ST' })[]
   schemaVersion: 1
   status: CalculationStatus
   reason?: string
   rule?: { id: string; version: number; legalBasis: string }
   inputs: readonly CalculationInput[]
   steps: readonly CalculationStep[]
-  result?: { base: string; rate: string; amount: string }
+  result?: { component?: 'ICMS' | 'ICMS_ST'; base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
 }
 

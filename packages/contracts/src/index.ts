@@ -500,7 +500,7 @@ export enum CalculationInputTreatmentCode {
 export interface ItemCalculationSummary {
   deferredAmount?: string
   comparisons?: readonly {
-    component: 'BASE' | 'ICMS'; calculated: string; declared?: string; difference?: string; tolerance: string
+    component: 'BASE' | 'ICMS' | 'ICMS_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
     status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
   }[]
   status: `${CalculationStatusCode}`
@@ -510,7 +510,7 @@ export interface ItemCalculationSummary {
   rule?: { id: string; version: number; legalBasis: string }
   inputs: readonly { name: string; value?: string; source: string; treatment: `${CalculationInputTreatmentCode}`; reason?: string }[]
   steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
-  result?: { base: string; rate: string; amount: string }
+  result?: { component?: 'ICMS' | 'ICMS_ST'; base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
 }
 
@@ -522,12 +522,18 @@ export interface ItemFiscalAnswers {
   ordinaryTaxTreatmentConfirmed?: boolean
   discountTreatment?: 'UNCONDITIONAL' | 'CONDITIONAL'
   ipiTreatment?: 'INCLUDED' | 'EXCLUDED'
+  stApplicableConfirmed?: boolean
+  stMvaPercent?: string
+  stInternalRate?: string
+  stOwnOperationRate?: string
 }
 
 export interface ItemFiscalQuestion {
   field: keyof ItemFiscalAnswers
   label: string
-  options: readonly { value: string; label: string }[]
+  options?: readonly { value: string; label: string }[]
+  inputType?: 'decimal'
+  suggestedValue?: string
 }
 
 export interface ItemFiscalContext {
