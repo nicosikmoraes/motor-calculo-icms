@@ -23,6 +23,16 @@ describe('parseNfeXml', () => {
     expect(normalizeNfeXml(xml).recipient?.stateRegistrationIndicator).toBe('9')
     expect(normalizeNfeXml(xml.replace('<indIEDest>9</indIEDest>', '<indIEDest>1</indIEDest>')).recipient?.stateRegistrationIndicator).toBe('1')
   })
+  it('preserva ANP, tipo da operação com veículo e ICMS monofásico como evidências do XML', async () => {
+    const xml = (await fixture()).replace('</prod>', '<comb><cProdANP>001234567</cProdANP><descANP>Produto ANP</descANP></comb></prod>')
+      .replace('<imposto/>', '<imposto><ICMS><ICMS61><orig>0</orig><CST>61</CST><vICMSMonoRet>0.00</vICMSMonoRet></ICMS61></ICMS></imposto>')
+    const item = normalizeNfeXml(xml).items[0]!
+    expect(item).toMatchObject({ fuelAnpCode: '001234567', fuelDescription: 'Produto ANP',
+      declaredIcms: { cst: '61', monophasePreviouslyRetainedAmount: '0.00' } })
+    expect(item.declaredIcms?.amount).toBeUndefined()
+    const vehicle = normalizeNfeXml((await fixture()).replace('</prod>', '<veicProd><tpOp>3</tpOp></veicProd></prod>')).items[0]!
+    expect(vehicle.vehicleOperationType).toBe('3')
+  })
   it('extrai a identificação sem converter códigos com zeros à esquerda', async () => {
     const result = parseNfeXml(await fixture())
 

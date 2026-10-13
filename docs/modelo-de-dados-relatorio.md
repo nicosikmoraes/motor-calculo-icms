@@ -1,13 +1,14 @@
 # Modelo interno de dados de relatório — versão 1
 
-Estado: preparação técnica da fase 8. Não define planilha, abas, colunas,
-formatação, biblioteca XLSX ou total fiscal consolidado; essas decisões seguem em
-MD-07/MD-08.
+Estado: modelo técnico de snapshot implementado. A exportação XLSX e os subtotais
+de conferência estão implementados na DT-045 e extensões DT-046 a DT-052,
+atualmente layout 4. Homologação fiscal e futuras ampliações seguem em MD-07/MD-08.
 
 `buildReportData`, no pacote `reporting`, recebe um `BatchDetail` já carregado e
 metadados de geração (`generatedAt` com fuso e `appVersion`). Produz um snapshot
 independente, congelado recursivamente, sem consulta ao banco ou ao catálogo
-atual. Ainda não há botão de exportação ou geração de arquivo nesta entrega.
+atual. O snapshot alimenta a exportação Excel do lote e da conferência mensal;
+a geração preserva as memórias salvas, sem recalcular impostos.
 
 | Coleção | Evidência preservada |
 | --- | --- |
@@ -45,3 +46,23 @@ A ordem das coleções acompanha o snapshot de origem.
 Validação automatizada cobre preservação de precisão, fuso, versões e exclusões,
 isolamento do snapshot, lotes sem notas, memórias pendentes e calculadas,
 artefatos associados e referências inválidas.
+
+## Extensão por componentes — DT-051
+
+Na conferência implementada, o snapshot inclui ICMS-ST e o FCP-ST adicional com
+memórias independentes. A consolidação agrupa empresa, período, operação, ambiente,
+autorização e componente. Sua contagem geral representa documentos e itens físicos;
+a contagem dos grupos representa os itens conferidos naquele tributo.
+
+A identidade da evidência é documento + item + componente. Campos declarados de
+ICMS, ST e FCP-ST não são intercambiáveis. O XLSX layout 3 seleciona a memória do
+componente para valores, base, regra e auditoria e inclui comparações de base e
+alíquota. Diferenças monetárias continuam calculado menos declarado, com tolerância
+de R$ 0,01; o percentual do FCP-ST tem comparação exata.
+
+## Decisão de MVA específica — DT-052
+
+O XLSX layout 4 inclui a decisão versionada da MVA de combustíveis/veículos,
+com condições e fórmula, inclusive quando o componente de imposto está pendente.
+Essa decisão não preenche valores de imposto não calculados. Alíquota ST e FCP-ST
+são comparadas de forma exata; divergências de base/alíquota ficam nas evidências.

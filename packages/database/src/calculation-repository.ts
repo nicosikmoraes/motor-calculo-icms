@@ -69,10 +69,22 @@ export class SqliteCalculationRepository {
         record.previousRunId ?? null, record.engineVersion, record.createdAt,
       )
       for (const item of record.items) {
-        if (item.memory.schemaVersion !== 1
-          || (item.memory.status === CalculationStatusCode.CALCULATED && (!item.memory.result || !item.memory.rule || !item.memory.steps.length))
-          || (item.memory.status !== CalculationStatusCode.CALCULATED && item.memory.result)) {
+        const components = [item.memory, ...(item.memory.additionalComponents ?? [])]
+        const kinds = components.map(memory => memory.component ?? memory.result?.component ?? 'ICMS')
+        if (new Set(kinds).size !== kinds.length || (item.memory.additionalComponents?.length && kinds[0] !== 'ICMS_ST')) {
           throw new AppError(AppErrorCode.CALCULATION_MEMORY_INCONSISTENT)
+        }
+        for (const [index, memory] of components.entries()) {
+          if (memory.schemaVersion !== 1 || !(Object.values(CalculationStatusCode) as readonly string[]).includes(memory.status)
+            || !['ICMS', 'ICMS_ST', 'FCP_ST'].includes(kinds[index]!)
+            || (index > 0 && (kinds[index] !== 'FCP_ST' || 'additionalComponents' in memory))
+            || (index > 0 && memory.status === CalculationStatusCode.CALCULATED
+              && (item.memory.status !== CalculationStatusCode.CALCULATED || memory.result?.base !== item.memory.result?.base))
+            || (memory.component && memory.result && memory.component !== memory.result.component)
+            || (memory.status === CalculationStatusCode.CALCULATED && (!memory.result || !memory.rule || !memory.steps.length))
+            || (memory.status !== CalculationStatusCode.CALCULATED && memory.result)) {
+            throw new AppError(AppErrorCode.CALCULATION_MEMORY_INCONSISTENT)
+          }
         }
         this.database.run(
           `INSERT INTO resultados_item_calculo

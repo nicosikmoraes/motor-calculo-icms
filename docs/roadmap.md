@@ -9,14 +9,43 @@ em [Decisões técnicas](decisoes-tecnicas.md) e nos documentos definitivos.
 Não há datas fixadas neste momento. Cada fase somente recebe prazo depois que seu
 marco de decisão estiver aprovado e o escopo estiver suficientemente definido.
 
-**Revisão de andamento:** 28/09/2026, considerando a `main` até o PR #4 e o
-questionário de homologação enviado ao contador. Os campos de resposta do
-questionário ainda estavam vazios nesta revisão.
+**Revisão de andamento:** 12/10/2026, considerando a entrega integrada até o PR
+#39 e os incrementos de entradas ICMS-ST das DT-049 a DT-052. Esta revisão
+registra implementação e testes técnicos; a homologação por casos reais permanece
+pendente.
+
+## Próxima etapa: instalação de teste no Windows
+
+O recorte atual pode avançar para uma instalação de teste no Windows. Já existem
+instalador NSIS x64 por usuário e workflow que verifica tipagem, testes, build,
+backup/restauração, instalação, abertura do aplicativo, XLSX e worker distribuído.
+O `.exe` e seu SHA-256 ficam nos artefatos do workflow por 14 dias. Conferir o
+resultado do pipeline da versão a instalar; configuração existente não significa
+que toda execução futura passou. Veja [Distribuição Windows](distribuicao-windows.md).
+
+Antes de liberar para uso fiscal, ainda faltam:
+
+- comparar XMLs reais com o cálculo independente do contador, incluindo compras,
+  ICMS próprio, ST, FCP-ST e condições especiais de combustíveis/veículos;
+- validar em Windows de usuário final os diálogos, backup/restauração, importação,
+  exportação e atualização de uma instalação anterior;
+- definir assinatura, versões de Windows suportadas, canal de atualização e
+  recuperação de uma atualização que falhar;
+- fechar a política de retenção/expurgo dos XMLs (MD-09) e o procedimento de suporte.
+
+A cobertura fiscal atual é a conferência descrita em
+[Escopo fiscal PR](escopo-fiscal-parana.md) e [ICMS-ST de entradas](icms-st-entradas.md).
+Não cobre toda a Resolução 571: catálogo automático dos arts. 12/16 (144 linhas),
+MVAs específicas dos arts. 11/29 nas condições implementadas e MVA final manual
+nos demais casos elegíveis. Monofasia, bases por pauta/PMPF/preço prioritário,
+demais tabelas/vigências, reduções de ST e outros regimes seguem fora da cobertura.
+DIFAL, apuração de créditos/saldo e doações são expansões ainda abertas no roadmap;
+não impedem instalar e avaliar o recorte atual.
 
 ## Legenda
 
 - `[x]` concluído;
-- `[ ]` implementação ainda não iniciada;
+- `[ ]` trabalho ainda pendente, inclusive cobertura parcial ou homologação;
 - `PODE AVANÇAR` trabalho protegido das decisões ainda abertas;
 - `DECISÃO NECESSÁRIA` ponto em que implementar sem aprovação criaria regra
   fiscal, comportamento ou compromisso técnico indevido;
@@ -27,25 +56,26 @@ questionário ainda estavam vazios nesta revisão.
 | Fase | Resultado principal | Dependência para começar | Estado |
 |---|---|---|---|
 | 0 | Fundação do monorepo e shell desktop | Decisões técnicas já aprovadas | Concluída |
-| 1 | Contratos de ingestão e massa de testes | MD-01 e MD-02 | Núcleo NF-e/NFC-e entregue; protocolos e eventos posteriores |
-| 2 | Persistência local e cadastros básicos | MD-03 | Em andamento; faltam casos de uso, auditoria e fechamento do schema |
-| 3 | Ingestão completa de XML/ZIP | Fases 1 e 2; MD-04 | Núcleo NF-e/NFC-e entregue; protocolos e eventos posteriores |
-| 4 | Gestão e seleção de regras fiscais | Fase 2; MD-05/MD-06 para campos fiscais | Em andamento; ciclo de publicação e explicação pendentes |
-| 5 | Motor de ICMS próprio | Fase 4; MD-05 e casos MD-12 | Base decimal e memória preparadas; cálculo fiscal aguardando contador |
-| 6 | ST, DIFAL, FCP e tratamentos especiais | Fase 5; MD-06 e casos MD-12 | Aguardando contratos fiscais e prioridade do contador |
-| 7 | Ciclo documental, eventos e consolidação | Fases 3, 5 e 6; MD-07 | Histórico técnico parcial; regras documentais aguardando decisão |
-| 8 | Relatório XLSX auditável | Fase 7; MD-08 | Aguardando contrato do relatório e resultados consolidados |
-| 9 | Pacotes de configuração, retenção e backup | Fase 2; MD-09 e MD-10 | Aguardando decisões operacionais |
-| 10 | Escala, homologação e distribuição Windows | Todas as anteriores; MD-11 a MD-13 | Aguardando fases anteriores e homologação |
+| 1 | Contratos de ingestão e massa de testes | MD-01 e MD-02 | NF-e/NFC-e e ingestão estrutural de protocolos/eventos entregues; XSD próprio e tipos adicionais pendentes |
+| 2 | Persistência local e cadastros básicos | MD-03 | Cadastros, auditoria e schema do recorte atual entregues; ampliações fiscais posteriores |
+| 3 | Ingestão completa de XML/ZIP | Fases 1 e 2; MD-04 | NF-e/NFC-e e ingestão estrutural de protocolos/eventos entregues; XSD próprio e tipos adicionais pendentes |
+| 4 | Gestão e seleção de regras fiscais | Fase 2; MD-05/MD-06 para campos fiscais | Ciclo de versões e explicação entregues; resultados tributários configuráveis pendentes |
+| 5 | Motor de ICMS próprio | Fase 4; MD-05 e casos MD-12 | ICMS próprio comum PR, diferimento, rateio e conferência entregues; homologação real pendente |
+| 6 | ST, DIFAL, FCP e tratamentos especiais | Fase 5; MD-06 e casos MD-12 | ICMS-ST por MVA e FCP-ST no recorte PR entregues; demais módulos e cobertura pendentes |
+| 7 | Ciclo documental, eventos e consolidação | Fases 3, 5 e 6; MD-07 | Conferência mensal, conflitos e revisão cancelamento/CC-e entregues; demais efeitos pendentes |
+| 8 | Relatório XLSX auditável | Fase 7; MD-08 | Exportação XLSX layout 4 entregue; validação do contador e extensões pendentes |
+| 9 | Pacotes de configuração, retenção e backup | Fase 2; MD-09 e MD-10 | ICMSPACK e backup/restauração entregues; retenção fiscal dos XMLs pendente |
+| 10 | Escala, homologação e distribuição Windows | Todas as anteriores; MD-11 a MD-13 | Worker, retomada e instalador inicial entregues; homologação fiscal e Windows real pendentes |
 | P | Doações básicas com Stripe (US09) | Checkout, retorno seguro e webhook; validação acadêmica do fluxo | Planejada, independente das decisões fiscais do contador |
 
 ## Dependências do questionário enviado ao contador
 
 O questionário **ContabiliNico | Perguntas para homologação do cálculo de ICMS**
-continua sem respostas na revisão de 28/09/2026. As perguntas abaixo indicam o
-que falta aprovar; nenhuma alíquota de exemplo, fórmula ou caso sintético deve
-ser tratado como regra fiscal homologada antes da devolutiva com fundamento,
-vigência e responsável pela revisão.
+não tem uma devolutiva de homologação registrada nesta revisão. Desde a revisão
+de 28/09, o responsável aprovou o recorte PR e os incrementos DT-040 a DT-052;
+eles já estão implementados. As perguntas abaixo continuam úteis para ampliar o
+contrato e validar casos reais. Os exemplos sintéticos não substituem a devolutiva
+com fundamento, vigência e responsável pela revisão.
 
 | Perguntas | Decisão esperada | Marco e trabalho que dependem da resposta |
 |---|---|---|
@@ -57,15 +87,13 @@ vigência e responsável pela revisão.
 | 17–18 | Evidência necessária na memória de cálculo e liberação fiscal das regras | MD-05/MD-12; qualquer usuário local pode operar o ciclo de versões conforme DT-034, mas a liberação de regras tributárias reais ainda depende da validação fiscal |
 | Casos A–E | XMLs anonimizados, resultados independentes do declarado, fundamento, vigência e identificação do revisor | MD-12; testes de regressão e liberação fiscal da fase 5 e da fase 10 |
 
-**Pode avançar enquanto o contador responde:** terminar os itens técnicos das
-fases 2 e 4 que não fixam fórmula, alíquota ou tratamento fiscal; preparar
-infraestrutura decimal, testes sintéticos e estrutura de memória sem declarar
-resultado fiscal definitivo; desenvolver a trilha independente de doações.
+**Pode avançar enquanto os casos reais não chegam:** instalar e verificar o
+recorte atual no Windows, conferir backups e exportações e preparar o procedimento
+operacional. As decisões já aprovadas estão nos documentos de escopo e nas DTs.
 
-**Bloqueado pela devolutiva:** aprovar MD-05, publicar regras tributárias reais,
-concluir o motor de ICMS próprio, homologar seus resultados e avançar os módulos
-de MD-06. O contrato MD-07 recebe subsídios das respostas 14–15, mas também
-exige decisões próprias sobre eventos e precedência documental.
+**Ainda depende da devolutiva:** homologação fiscal (MD-12), ampliação dos contratos
+MD-05/MD-06 e efeitos documentais ainda não implementados de MD-07. A ausência de
+casos reais não impede a instalação técnica de teste.
 
 ## Marcos de decisão
 
@@ -156,7 +184,11 @@ exige decisões próprias sobre eventos e precedência documental.
 
 ### MD-05 — Contrato do ICMS próprio
 
-**Aqui precisamos decidir para avançar:**
+O recorte comum PR e sua precisão, composição e rateio estão aprovados nas
+DT-040 a DT-043. A lista abaixo descreve a cobertura completa ainda a ampliar
+e homologar; não bloqueia o contrato já implementado.
+
+**Contrato completo:**
 
 - fórmula completa do ICMS próprio;
 - composição da base com frete, seguro, desconto, despesas e IPI;
@@ -171,7 +203,11 @@ exige decisões próprias sobre eventos e precedência documental.
 
 ### MD-06 — Contratos dos demais módulos fiscais
 
-**Aqui precisamos decidir para avançar:**
+ST por MVA, FCP-ST e MVAs especiais no recorte PR estão implementados nas
+DT-049 a DT-052. Os demais métodos, produtos, datas e regimes precisam de
+contratos próprios e homologação.
+
+**Cobertura completa a contratar:**
 
 - ICMS-ST por MVA, MVA ajustada, pauta, PMPF e preço máximo;
 - DIFAL e partilha quando aplicável;
@@ -198,7 +234,11 @@ exige decisões próprias sobre eventos e precedência documental.
 
 ### MD-08 — Contrato do XLSX
 
-**Aqui precisamos decidir para avançar:**
+O contrato inicial com ExcelJS, abas e formatação está na DT-045; layout 4 e
+abas condicionais de eventos/conflitos seguem as DT-047 a DT-052. A lista abaixo
+guia a revisão com o contador e futuras extensões.
+
+**Contrato a homologar e ampliar:**
 
 - biblioteca de geração de XLSX;
 - abas definitivas e necessidade de uma aba `Eventos`;
@@ -223,7 +263,11 @@ exige decisões próprias sobre eventos e precedência documental.
 
 ### MD-10 — Backup e restauração
 
-**Aqui precisamos decidir para avançar:**
+Backup manual e diário, sete automáticas, destino escolhido e restauração validada
+do SQLite estão implementados nas DT-037/DT-039. Homologação operacional Windows,
+criptografia e ampliação do conteúdo permanecem pendentes.
+
+**Contrato operacional a homologar e ampliar:**
 
 - backup manual, automático ou ambos;
 - periodicidade e retenção;
@@ -263,9 +307,10 @@ exige decisões próprias sobre eventos e precedência documental.
 
 **Aqui precisamos decidir para avançar:**
 
-- versões do Windows e arquiteturas suportadas;
-- ferramenta e formato do instalador;
-- instalação por usuário ou por máquina;
+- [ ] homologar versões de Windows de usuário final suportadas;
+- [x] distribuição inicial x64;
+- [x] instalador NSIS configurado e verificação automatizada em Windows Server 2022;
+- [x] instalação por usuário com escolha de pasta;
 - assinatura de código;
 - atualização automática ou manual, canal e rollback;
 - compatibilidade e backup do banco durante atualizações.
@@ -323,9 +368,9 @@ ingestão prontos para receber a implementação.
 - [x] validar CNPJ, UF e identificadores normalizados no domínio;
 - [x] validar as datas e a vigência inicial dos perfis fiscais.
 
-**DECISÃO NECESSÁRIA:** a migration `0001` e os repositórios básicos já
-existem. Fechar o restante da MD-03 antes de persistir regras versionadas e
-auditoria de domínio.
+**Implementado:** cadastros, regras versionadas, documentos, cálculos e auditoria
+do recorte atual estão persistidos. Ampliações de campos tributários configuráveis
+continuam sujeitas aos contratos MD-05/MD-06.
 
 Após a decisão:
 
@@ -345,7 +390,7 @@ Após a decisão:
 - [x] testar criação, consulta, inativação, rollback e reinicialização para as
   entidades da migration `0001`;
 - [x] testar atualização versionada de organização, empresa, perfil e produto;
-- [ ] testar atualização versionada de regras quando seu schema for implementado.
+- [x] testar atualização versionada de regras no catálogo persistido (DT-034/DT-035).
 
 **SAÍDA:** cadastros permanecem íntegros após fechar e reabrir o aplicativo.
 
@@ -372,9 +417,10 @@ Após a decisão:
   diagnósticos.
 
 **Limite desta entrega:** a associação de protocolos e eventos é estrutural e
-restrita ao lote importado. Ainda faltam validação XSD própria, deduplicação e
-associação posterior de órfãos (MD-02). A precedência documental, reprocessamento
-e participação nos totais continuam em MD-07.
+com vínculo inicial no lote. A DT-047 acrescenta associação e revisão auditadas
+de cancelamento/CC-e entre lotes. Ainda faltam validação XSD própria, resolução de
+eventos inconsistentes, deduplicação ampliada e protocolos órfãos (MD-02).
+A precedência dos demais estados e tipos documentais continua em MD-07.
 
 **SAÍDA:** um lote real é importado de forma segura, idempotente e auditável, mas
 ainda sem promessa de cálculo fiscal completo.
@@ -407,20 +453,23 @@ cálculo podem ser cadastrados somente depois de MD-05 e MD-06.
 ### Fase 5 — Motor de ICMS próprio
 
 **Para concluir e liberar resultado fiscal definitivo:** fase 4, MD-05 e
-casos iniciais de MD-12 aprovados pelo contador. A preparação técnica já começou.
+casos iniciais de MD-12 aprovados pelo contador. O recorte comum interno PR já
+está implementado nas DT-040 a DT-044; ainda não está homologado por casos reais.
 
 - [x] preparar operações decimais com `decimal.js` e contrato tipado de memória;
 - [x] persistir execuções imutáveis e preservar a memória técnica disponível;
-- [ ] aprovar e aplicar escalas, divisões e política fiscal de arredondamento;
-- [ ] implementar composição e redução da base;
+- [x] aplicar precisão decimal, HALF_UP e tolerância de conferência aprovados para o recorte PR; homologação fiscal pendente;
+- [x] implementar composição da base comum PR, incluindo IPI/desconto confirmados;
+- [ ] implementar redução da base e benefícios além do recorte comum;
 - [ ] implementar cálculo por dentro;
-- [ ] implementar rateio rastreável;
-- [ ] calcular ICMS próprio por item;
-- [ ] comparar calculado e declarado por tolerância;
-- [ ] produzir memória de cálculo estruturada;
-- [ ] somar a nota a partir dos itens já arredondados;
-- [ ] impedir total definitivo quando houver item pendente;
-- [ ] criar testes de propriedade, limites e regressão.
+- [x] implementar rateio rastreável;
+- [x] calcular ICMS próprio por item;
+- [x] comparar calculado e declarado por tolerância;
+- [x] produzir memória de cálculo estruturada;
+- [x] somar a nota a partir dos itens já arredondados;
+- [x] excluir itens pendentes dos valores calculados e manter subtotais de conferência; apuração definitiva pendente;
+- [x] criar testes de limites, rateio, memória e regressão sintética do recorte;
+- [ ] executar regressão fiscal com XMLs reais aprovados pelo contador.
 
 **SAÍDA:** operação interna e interestadual de ICMS próprio passam pelos casos
 homologados com memória reproduzível.
@@ -431,10 +480,15 @@ homologados com memória reproduzível.
 
 Implementar em incrementos separados, cada um com casos homologados:
 
-- [ ] ICMS-ST;
+- [x] ICMS-ST de compras PR por MVA manual, catálogo dos arts. 12/16 e ajustes (DT-049/DT-050);
+- [x] MVAs condicionais de combustíveis não monofásicos e veículos (DT-052);
+- [ ] ICMS-ST fora desse recorte: demais tabelas/vigências, pauta/PMPF/preço prioritário, descontos e reduções;
+- [ ] tributação monofásica de combustíveis;
 - [ ] DIFAL;
-- [ ] FCP e FCP-ST;
-- [ ] isenção, não incidência, diferimento e desoneração;
+- [x] FCP-ST separado de 2% nas condições cobertas (DT-051/DT-052);
+- [ ] FCP próprio e FCP-ST fora do recorte;
+- [x] diferimento parcial do ICMS comum PR nas condições aprovadas;
+- [ ] demais isenções, não incidências, diferimentos e desonerações;
 - [ ] Simples Nacional e CST/CSOSN;
 - [ ] débito, crédito, estorno e valores informativos;
 - [ ] complementar e devolução.
@@ -454,12 +508,13 @@ mas nenhum é considerado concluído sem contrato fiscal e casos aprovados.
 - [ ] processar manifestações do destinatário;
 - [ ] tratar contingência;
 - [ ] vincular complementar, devolução e substituição;
-- [ ] reprocessar sem sobrescrever histórico;
-- [ ] separar situação documental, cálculo, caráter e participação no total;
+- [x] reavaliar e recalcular itens por novas execuções imutáveis;
+- [x] separar situação documental, cálculo, caráter e participação na conferência;
 - [x] comparar versões da mesma chave/ambiente e resolver conflitos com justificativa, reabertura e histórico (DT-048);
 - [x] reunir conferência mensal entre lotes por empresa, deduplicar cópias e rastrear origens (DT-046);
-- [ ] consolidar definitivo, provisório, diagnóstico e excluído;
-- [ ] preservar explicação de toda exclusão ou pendência.
+- [x] consolidar subtotais de conferência por componente, separando protocolo, pendências e exclusões;
+- [ ] homologar consolidação definitiva e ampliar precedência documental;
+- [x] preservar explicação das exclusões e pendências do recorte implementado.
 
 **SAÍDA:** a mesma entrada e as mesmas versões sempre produzem o mesmo estado e
 os mesmos totais.
@@ -471,19 +526,17 @@ os mesmos totais.
   protocolos e eventos; preservar versões, precisão e evidências sem gerar totais.
   Contrato técnico em [Modelo de dados do relatório](modelo-de-dados-relatorio.md).
 
-**DECISÃO NECESSÁRIA:** aprovar MD-08 antes de congelar abas e colunas.
+**Implementado:** contrato inicial DT-045 e extensões DT-046 a DT-052, atualmente layout 4. Aprovação fiscal e futuras extensões de MD-08 permanecem pendentes.
 
-Após a decisão:
-
-- [ ] gerar resumo de notas;
-- [ ] gerar detalhamento de itens;
-- [ ] gerar pendências, regras aplicadas e erros XML;
-- [ ] representar eventos e documentos excluídos;
-- [ ] usar células numéricas e datas corretamente tipadas;
-- [ ] adicionar filtros, congelamento e formatação aprovados;
-- [ ] reconciliar totais com os itens;
-- [ ] registrar versão do relatório, motor e regras;
-- [ ] testar conteúdo e estrutura do arquivo gerado.
+- [x] gerar resumo de notas;
+- [x] gerar detalhamento de itens;
+- [x] gerar pendências, regras aplicadas e erros XML;
+- [x] representar eventos e documentos excluídos;
+- [x] usar células monetárias numéricas quando a precisão permite e preservar a emissão original como texto;
+- [x] adicionar filtros, congelamento e formatação aprovados;
+- [x] reconciliar totais com os itens;
+- [x] registrar versão do relatório, motor e regras;
+- [x] testar conteúdo e estrutura do arquivo gerado.
 
 **SAÍDA:** XLSX aprovado pelo contador e reconciliado automaticamente nos testes.
 
@@ -532,10 +585,11 @@ sem confundir intercâmbio com backup.
 - [x] medir 1.000 notas sintéticas no ambiente Linux de desenvolvimento; homologação Windows pendente;
 - [ ] implementar logs locais e pacote seguro de diagnóstico;
 - [ ] executar a suíte fiscal homologada;
-- [ ] testar migração e recuperação do banco;
-- [ ] gerar instalador Windows;
+- [x] testar migrations, backup prévio e recuperação transacional automatizada; matriz de atualização em Windows real pendente;
+- [x] configurar geração do instalador Windows NSIS x64 por usuário e verificação no GitHub Actions;
 - [ ] assinar artefatos conforme decisão;
-- [ ] testar instalação limpa, atualização e rollback;
+- [x] automatizar instalação limpa, abertura, XLSX e importação/retomada no Windows Server 2022;
+- [ ] testar instalação, atualização e rollback em Windows de usuário final;
 - [ ] preparar manual operacional e checklist de suporte.
 
 **SAÍDA:** versão candidata do MVP com evidência fiscal, técnica e operacional.
@@ -558,21 +612,18 @@ cálculo de ICMS nem envia documentos fiscais ao Stripe.
 **SAÍDA:** doação testável de ponta a ponta, sem armazenar dados de cartão e sem
 marcar pedido como pago antes da confirmação verificada.
 
-## Ordem recomendada para as próximas reuniões de decisão
+## Ordem recomendada para os próximos incrementos
 
-1. **MD-03 e itens técnicos remanescentes de MD-01/MD-04:** concluir schema,
-   auditoria, fila e verificações de segurança sem depender do contador.
-2. **MD-05 e primeira parte de MD-12:** analisar as respostas 1–13 e os casos
-   A–E do contador para aprovar o primeiro cálculo homologável.
-3. **MD-06:** usar a resposta 16 e a seção 6 para priorizar e contratar um
-   módulo fiscal complementar por vez.
-4. **MD-07:** usar as respostas 14–15 e decisões documentais adicionais antes de
-   consolidar totais definitivos.
-5. **MD-08:** congelar o XLSX quando cálculo e estados consolidados estiverem estáveis.
-6. **MD-09 a MD-11 e MD-13:** fechar proteção, continuidade, escala e distribuição
-   antes da versão candidata.
-7. **Trilha P:** validar o enquadramento acadêmico da doação com o professor e
-   definir a integração online do Stripe; independe da revisão fiscal do contador.
+1. **MD-13 — instalação de teste:** conferir o pipeline, obter o instalador e
+   validar importação, perguntas fiscais, XLSX e backup/restauração no Windows.
+2. **MD-12 — casos reais:** comparar o resultado independente do contador com
+   XMLs representativos do recorte, especialmente ST/FCP-ST e MVAs especiais.
+3. **MD-09/MD-11/MD-13 — operação:** fechar retenção dos XMLs, suporte,
+   desempenho em máquina real, compatibilidade, assinatura e atualização.
+4. **MD-05/MD-06/MD-07 — expansão:** priorizar as operações reais que ficarem
+   fora da cobertura e implementar um contrato fiscal/documental por vez.
+5. **Trilha P — doações:** validar seu enquadramento acadêmico e definir a
+   integração online; independe da instalação de teste e da revisão fiscal.
 
 ## Critério geral para avançar entre fases
 

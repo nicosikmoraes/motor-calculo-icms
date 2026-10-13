@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { createExcelWorkbook, excelMoney, generateExcelReport } from '../src/excel-report'
 import { excelFixture } from './excel-report.fixture'
+import { buildBatchConsolidation } from '../src/consolidation'
 function column(sheet: ExcelJS.Worksheet, title: string): number {
   let found = 0
   sheet.getRow(5).eachCell((cell, index) => { if (cell.value === title) found = index })
@@ -9,6 +10,38 @@ function column(sheet: ExcelJS.Worksheet, title: string): number {
   return found
 }
 describe('exportação XLSX de conferência', () => {
+  it('identifica o componente e exporta o ST declarado em vez do ICMS próprio da mesma nota', () => {
+    const report = structuredClone(excelFixture())
+    const item = report.items[0]!
+    item.declaredIcmsStAmount = '106.30'
+    item.calculation = { component: 'ICMS_ST', status: 'CALCULATED', inputs: [], steps: [],
+      result: { component: 'ICMS_ST', base: '648.61', rate: '19.5', amount: '106.30' } }
+    report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: item.documentId, documentNumber: '0001',
+      accessKey: '0'.repeat(44), companyId: 'company', issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1',
+      authorization: 'UNVERIFIED', items: [{ itemNumber: item.itemNumber, declaredIcms: item.declaredIcmsAmount,
+        declaredIcmsSt: item.declaredIcmsStAmount, memory: { schemaVersion: 1, ...item.calculation } }] }])
+    const book = createExcelWorkbook(report)
+    const sheet = book.getWorksheet('Itens')!
+    expect(sheet.getCell(6, column(sheet, 'Componente calculado')).value).toBe('ICMS-ST')
+    expect(sheet.getCell(6, column(sheet, 'Imposto declarado original (R$)')).value).toBe(106.30)
+    const summary = book.getWorksheet('Resumo')!
+    expect(summary.getCell(6, column(summary, 'Componente conferido')).value).toBe('ICMS-ST')
+    expect(book.getWorksheet('Pendências e exclusões')!.getColumn(6).values).not.toContain('Diferimento')
+  })
+  it('exporta a decisão específica da MVA mesmo quando o imposto ainda não pode ser concluído', () => {
+    const report = structuredClone(excelFixture())
+    const item = report.items[0]!
+    item.calculation = { component: 'ICMS_ST', status: 'PENDING_DATA', inputs: [{ name: 'stSpecificMvaDecision',
+      value: JSON.stringify({ status: 'CALCULATED', originalMvaPercent: '30', appliedMvaPercent: '58.54', article: 11 }),
+      source: 'RULE/PR_ST_MVA_FUEL_VEHICLE_571/v1', treatment: 'INCLUDED' }], steps: [], reason: 'Falta conferir o imposto.' }
+    report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: 'doc', companyId: 'company', documentNumber: '1',
+      accessKey: '0'.repeat(44), issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1', authorization: 'UNVERIFIED',
+      items: [{ itemNumber: '1', memory: { schemaVersion: 1, ...item.calculation } }] }])
+    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    expect(sheet.getCell(6, column(sheet,'MVA aplicada (%)')).value).toBe('58.54')
+    expect(sheet.getCell(6, column(sheet,'Imposto calculado (R$)')).value).toBeNull()
+    expect(sheet.getCell(6, column(sheet,'Regra específica da MVA')).text).toContain('58.54')
+  })
   it('gera arquivo reabrível com quatro abas, filtros, cabeçalhos fixos e números conciliados', async () => {
     const report = excelFixture()
     const bytes = await generateExcelReport(report)
@@ -20,16 +53,17 @@ describe('exportação XLSX de conferência', () => {
       expect(sheet.getCell('A3').text).toContain('lote-teste')
     }
     const summary = book.getWorksheet('Resumo')!
-    expect(summary.getCell(6, column(summary, 'ICMS calculado (R$)')).value).toBe(120)
-    expect(summary.getCell(6, column(summary, 'ICMS declarado elegível (R$)')).value).toBe(129.98)
-    expect(summary.getCell(6, column(summary, 'ICMS declarado dos pares (R$)')).value).toBe(119.98)
+    expect(summary.getCell(6, column(summary, 'Imposto calculado (R$)')).value).toBe(120)
+    expect(summary.getCell(6, column(summary, 'Imposto declarado elegível (R$)')).value).toBe(129.98)
+    expect(summary.getCell(6, column(summary, 'Imposto declarado dos pares (R$)')).value).toBe(119.98)
     expect(summary.getCell(6, column(summary, 'Diferença líquida dos pares (R$)')).value).toBe(0.02)
     expect(summary.getCell(6, column(summary, 'Créditos de compras')).value).toBe('Não apurados')
     const items = book.getWorksheet('Itens')!
     expect(items.getCell(6, column(items, 'Chave de acesso')).value).toBe('0'.repeat(44))
     expect(items.getCell(6, column(items, 'Nota')).value).toBe('0001')
     expect(items.getCell(6, column(items, 'NCM')).value).toBe('01012100')
-    expect(items.getCell(7, column(items, 'ICMS calculado (R$)')).value).toBeNull()
+    expect(items.getCell(7, column(items, 'Imposto calculado (R$)')).value).toBeNull()
+    expect(items.getCell(6, column(items, 'Componente calculado')).value).toBe('ICMS')
     expect(book.getWorksheet('Divergências')!.getCell('F6').value).toBe('0001')
     const pend = book.getWorksheet('Pendências e exclusões')!
     expect(pend.getColumn(8).values).toContain('Defina a destinação.')
@@ -48,7 +82,7 @@ describe('exportação XLSX de conferência', () => {
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Produto')).value).toBe(report.items[0]!.description)
     expect(sheet.getCell(6, column(sheet, 'Produto')).type).toBe(ExcelJS.ValueType.String)
-    expect(sheet.getCell(6, column(sheet, 'ICMS declarado original (R$)')).value).toBe('12345678901234567890.01')
+    expect(sheet.getCell(6, column(sheet, 'Imposto declarado original (R$)')).value).toBe('12345678901234567890.01')
     for (const s of book.worksheets) s.eachRow(row => row.eachCell(cell => expect(cell.type).not.toBe(ExcelJS.ValueType.Formula)))
   })
   it('mostra abas vazias sem inventar registros e recusa consolidação ausente', () => {

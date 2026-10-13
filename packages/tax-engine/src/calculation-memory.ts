@@ -29,7 +29,9 @@ export interface CalculationStep {
   rounding?: { scale: number; mode: string }
 }
 
-export interface CalculationMemory {
+export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST'
+export interface CalculationComponentMemory {
+  component?: TaxComponent
   deferredAmount?: string
   comparisons?: readonly import('./declared-comparison').DeclaredComparison[]
   schemaVersion: 1
@@ -38,8 +40,11 @@ export interface CalculationMemory {
   rule?: { id: string; version: number; legalBasis: string }
   inputs: readonly CalculationInput[]
   steps: readonly CalculationStep[]
-  result?: { base: string; rate: string; amount: string }
+  result?: { component?: TaxComponent; base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
+}
+export interface CalculationMemory extends CalculationComponentMemory {
+  additionalComponents?: readonly CalculationComponentMemory[]
 }
 
 export function pendingCalculation(

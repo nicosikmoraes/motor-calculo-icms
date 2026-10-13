@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { taxComponentLabel } from '@motor/contracts'
 import { RouterLink } from 'vue-router'
 import { computed, ref } from 'vue'
 import type { BatchConsolidation } from '@motor/contracts'
@@ -22,15 +23,15 @@ function currency(value: string): string {
       <label>Mês <select v-model="period"><option value="">Todos</option><option v-for="month in periods" :key="month" :value="month">{{ month }}</option></select></label>
     </div>
     <article v-for="(group, index) in groups" :key="index" class="card">
-      <h3>{{ group.companyName ?? 'Empresa não identificada' }} · {{ group.period ?? 'Emissão inválida' }} · {{ group.perspective === 'SALES' ? 'Vendas' : group.perspective === 'PURCHASES' ? 'Compras' : 'Operação não identificada' }}</h3>
+      <h3>{{ group.companyName ?? 'Empresa não identificada' }} · {{ group.period ?? 'Emissão inválida' }} · {{ group.perspective === 'SALES' ? 'Vendas' : group.perspective === 'PURCHASES' ? 'Compras' : 'Operação não identificada' }} · {{ taxComponentLabel(group.component) }}</h3>
       <p>{{ group.environment === '1' ? 'Produção' : group.environment === '2' ? 'Homologação' : 'Ambiente desconhecido' }} · {{ group.authorization === 'WITH_PROTOCOL' ? 'Com protocolo de autorização associado' : 'Sem protocolo de autorização confirmado — subtotal provisório' }}</p>
-      <div class="table-wrap"><table><thead><tr><th>Base calculada</th><th>ICMS calculado</th><th>ICMS declarado elegível</th><th>ICMS diferido conhecido</th></tr></thead><tbody><tr><td>{{ currency(group.totals.calculatedBase) }}</td><td>{{ currency(group.totals.calculatedIcms) }}</td><td>{{ currency(group.totals.declaredIcms) }}</td><td>{{ currency(group.totals.deferredIcms) }}</td></tr></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Base calculada</th><th>Imposto calculado</th><th>Imposto declarado elegível</th><th>Imposto diferido conhecido</th></tr></thead><tbody><tr><td>{{ currency(group.totals.calculatedBase) }}</td><td>{{ currency(group.totals.calculatedIcms) }}</td><td>{{ currency(group.totals.declaredIcms) }}</td><td>{{ currency(group.totals.deferredIcms) }}</td></tr></tbody></table></div>
       <p>{{ group.counts.documents }} {{ monthly ? 'ocorrências de notas' : 'notas' }} · {{ group.counts.calculated }} itens calculados · {{ group.counts.pending }} pendentes · {{ group.counts.unsupported }} fora do escopo · {{ group.counts.excluded }} excluídos</p>
       <p>Comparação de {{ group.counts.comparableItems }} itens com ambos os valores: calculado {{ currency(group.totals.comparedCalculatedIcms) }}; declarado {{ currency(group.totals.comparedDeclaredIcms) }}. Diferença líquida {{ currency(group.totals.difference) }}; soma das diferenças absolutas {{ currency(group.totals.absoluteDifferences) }}.</p>
-      <p>{{ group.counts.divergentItems }} divergências acima de R$ 0,01 por item · {{ group.counts.withinToleranceItems }} diferenças dentro da tolerância. Declaração ausente: {{ group.counts.declaredMissing }}; inválida: {{ group.counts.declaredInvalid }}; diferimento sem informação: {{ group.counts.deferredMissing }}.</p>
+      <p>{{ group.counts.divergentItems }} itens com divergência de valor, base ou alíquota · {{ group.counts.withinToleranceItems }} diferenças dentro da tolerância. Declaração ausente: {{ group.counts.declaredMissing }}; inválida: {{ group.counts.declaredInvalid }}; diferimento sem informação: {{ group.counts.deferredMissing }}.</p>
     </article>
-    <details class="card"><summary>Rastreabilidade dos {{ evidence.length }} itens selecionados</summary>
-      <ul><li v-for="entry in evidence" :key="`${entry.documentId}:${entry.itemNumber}`">Nota {{ entry.documentNumber }}, item {{ entry.itemNumber }} — {{ entry.status }}<br><RouterLink v-if="monthly && entry.batchId" :to="{ path: `/lotes/${entry.batchId}`, hash: `#item-${entry.documentId}-${entry.itemNumber}` }">Abrir nota e item no lote de origem</RouterLink><br>Chave {{ entry.accessKey }} · execução {{ entry.runId ?? 'não salva' }} · motor {{ entry.engineVersion ?? 'indisponível' }}<br><span v-for="reason in entry.reasons" :key="reason">{{ reason }} </span><span v-if="entry.comparison">Diferença: {{ currency(entry.comparison.difference ?? '0.00') }}</span></li></ul>
+    <details class="card"><summary>Rastreabilidade de {{ evidence.length }} conferências de tributos</summary>
+      <ul><li v-for="entry in evidence" :key="`${entry.documentId}:${entry.itemNumber}:${entry.component}`">Nota {{ entry.documentNumber }}, item {{ entry.itemNumber }} · {{ taxComponentLabel(entry.component) }} — {{ entry.status }}<br><RouterLink v-if="monthly && entry.batchId" :to="{ path: `/lotes/${entry.batchId}`, hash: `#item-${entry.documentId}-${entry.itemNumber}` }">Abrir nota e item no lote de origem</RouterLink><br>Chave {{ entry.accessKey }} · execução {{ entry.runId ?? 'não salva' }} · motor {{ entry.engineVersion ?? 'indisponível' }}<br><span v-for="reason in entry.reasons" :key="reason">{{ reason }} </span><span v-if="entry.comparison">Diferença: {{ currency(entry.comparison.difference ?? '0.00') }}</span></li></ul>
     </details>
   </section>
 </template>

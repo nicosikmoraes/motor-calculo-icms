@@ -7,6 +7,21 @@ const doc = (changes: Partial<ConsolidationDocument> = {}): ConsolidationDocumen
   companyId: 'company', companyName: 'Empresa', issuedAt: '2026-09-30T23:30:00-03:00', perspective: 'SALES', environment: '1',
   authorization: 'WITH_PROTOCOL', runId: 'run', engineVersion: 'PR_COMMON_2', items: [{ itemNumber: '1', declaredIcms: '119.98', memory: memory() }], ...changes })
 describe('consolidação de conferência', () => {
+  it('separa ICMS próprio de ICMS-ST na mesma nota e compara cada valor com o componente declarado', () => {
+    const result = buildBatchConsolidation('batch', [doc({ perspective: 'PURCHASES', items: [
+      { itemNumber: '1', declaredIcms: '119.98', memory: memory() },
+      { itemNumber: '2', declaredIcms: '20.17', declaredIcmsSt: '106.30', memory: {
+        schemaVersion: 1, component: 'ICMS_ST', status: 'CALCULATED', inputs: [], steps: [],
+        result: { component: 'ICMS_ST', base: '648.61', rate: '19.5', amount: '106.30' },
+      } },
+    ] })])
+    expect(result.groups).toHaveLength(2)
+    expect(result.counts.documents).toBe(1)
+    const st = result.groups.find(g => g.component === 'ICMS_ST')!
+    expect(st.totals).toMatchObject({ calculatedIcms: '106.30', declaredIcms: '106.30', difference: '0.00' })
+    expect(st.counts.deferredMissing).toBe(0)
+    expect(result.evidence[1]?.comparison).toMatchObject({ component: 'ICMS_ST', status: 'MATCH' })
+  })
   it('preserva mês civil e rejeita data inválida', () => {
     expect(fiscalPeriod(doc().issuedAt)).toBe('2026-09')
     expect(fiscalPeriod('2026-02-30T00:00:00Z')).toBeUndefined()

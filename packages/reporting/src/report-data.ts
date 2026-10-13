@@ -3,6 +3,8 @@ import type {
   FiscalDocumentSummary, FiscalItemSummary, RuleEvaluationSummary,
 } from '@motor/contracts'
 
+import { itemCalculationComponents } from '@motor/contracts'
+
 export interface ReportMetadata {
   generatedAt: string
   appVersion: string
@@ -103,9 +105,11 @@ export function buildReportData(source: BatchDetail, metadata: ReportMetadata): 
           selected: assessment.kind === 'SELECTED' && assessment.selectedRuleId === rule.ruleId
             && (assessment.selectedRuleVersion === undefined || assessment.selectedRuleVersion === rule.version) })
       }
-      if (item.calculation.status !== 'CALCULATED') pendencies.push({ ...reference,
-        scope: 'CALCULATION', code: item.calculation.status,
-        ...(item.calculation.reason ? { detail: item.calculation.reason } : {}) })
+      for (const component of itemCalculationComponents(item.calculation)) {
+        if (component.status !== 'CALCULATED' || component.reviewReason) pendencies.push({ ...reference,
+          scope: 'CALCULATION', code: component.reviewReason ? component.reviewStatus ?? 'PENDING_RULE' : component.status,
+          detail: `${component.component ?? 'ICMS'}: ${component.reviewReason ?? component.reason ?? 'Cálculo pendente.'}` })
+      }
     }
   }
   for (const artifact of snapshot.artifacts) {

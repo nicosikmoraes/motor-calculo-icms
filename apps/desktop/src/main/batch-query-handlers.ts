@@ -152,9 +152,12 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
             const run = latestCalculations.get(id)
             const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
             const calculation = buildItemFiscalContext(normalized, item, readItemFiscalAnswers(saved?.memory), saved?.memory, run?.id,
-              fiscalBlocks.get(id)).calculation
+              fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
-            return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion } : calculation
+            return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
+              ...(saved.memory.status === 'CALCULATED' && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && (readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined || (calculation.inputs.some(input => input.name === 'stSpecificMvaDecision') && !saved.memory.inputs.some(input => input.name === 'stSpecificMvaDecision')))
+                ? { reviewReason: `${calculation.reason ?? 'Confirme a incidência de FCP-ST e revise a alíquota interna.'} O cálculo anterior está preservado para auditoria.`,
+                    reviewStatus: calculation.status === 'CALCULATED' ? 'PENDING_DATA' as const : calculation.status } : {}) } : calculation
           })(),
           ...(selectedAssessment ? { ruleAssessment: selectedAssessment } : {}),
           ...(runId && ruleAssessments?.[item.itemNumber]
@@ -171,6 +174,10 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
           ...(item.cfop ? { cfop: item.cfop } : {}),
           ...(item.productAmount ? { productAmount: item.productAmount } : {}),
           ...(item.declaredIcms?.amount ? { declaredIcmsAmount: item.declaredIcms.amount } : {}),
+          ...(item.declaredIcms?.stAmount !== undefined ? { declaredIcmsStAmount: item.declaredIcms.stAmount } : {}),
+          ...(item.declaredIcms?.fcpStAmount !== undefined ? { declaredFcpStAmount: item.declaredIcms.fcpStAmount } : {}),
+          ...(item.declaredIcms?.fcpStBaseAmount !== undefined ? { declaredFcpStBaseAmount: item.declaredIcms.fcpStBaseAmount } : {}),
+          ...(item.declaredIcms?.fcpStRate !== undefined ? { declaredFcpStRate: item.declaredIcms.fcpStRate } : {}),
         }
       }),
     })),

@@ -481,6 +481,10 @@ export interface FiscalItemSummary {
   cfop?: string
   productAmount?: string
   declaredIcmsAmount?: string
+  declaredIcmsStAmount?: string
+  declaredFcpStAmount?: string
+  declaredFcpStBaseAmount?: string
+  declaredFcpStRate?: string
   calculation: ItemCalculationSummary
 }
 
@@ -497,10 +501,14 @@ export enum CalculationInputTreatmentCode {
   UNDECIDED = 'UNDECIDED',
 }
 
-export interface ItemCalculationSummary {
+export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST'
+export interface ItemComponentCalculationSummary {
+  component?: TaxComponent
+  reviewReason?: string
+  reviewStatus?: Exclude<`${CalculationStatusCode}`, 'CALCULATED'>
   deferredAmount?: string
   comparisons?: readonly {
-    component: 'BASE' | 'ICMS'; calculated: string; declared?: string; difference?: string; tolerance: string
+    component: 'BASE' | 'RATE' | 'ICMS' | 'ICMS_ST' | 'FCP_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
     status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
   }[]
   status: `${CalculationStatusCode}`
@@ -510,8 +518,24 @@ export interface ItemCalculationSummary {
   rule?: { id: string; version: number; legalBasis: string }
   inputs: readonly { name: string; value?: string; source: string; treatment: `${CalculationInputTreatmentCode}`; reason?: string }[]
   steps: readonly { name: string; operation: string; inputs: Readonly<Record<string, string>>; result: string; rounding?: { scale: number; mode: string } }[]
-  result?: { base: string; rate: string; amount: string }
+  result?: { component?: TaxComponent; base: string; rate: string; amount: string }
   declared?: { base?: string; rate?: string; amount?: string }
+}
+export interface ItemCalculationSummary extends ItemComponentCalculationSummary {
+  additionalComponents?: readonly ItemComponentCalculationSummary[]
+}
+export function itemCalculationComponents(calculation: ItemCalculationSummary): readonly ItemComponentCalculationSummary[] {
+  return [calculation, ...(calculation.additionalComponents ?? [])]
+}
+/** Situação do item: cada componente conserva o resultado e a pendência próprios. */
+export function itemCalculationStatus(calculation: ItemCalculationSummary): `${CalculationStatusCode}` {
+  const components = itemCalculationComponents(calculation)
+  const review = components.find(component => component.reviewReason)
+  if (review) return review.reviewStatus ?? 'PENDING_RULE'
+  if (components.some(component => component.status === 'UNSUPPORTED')) return 'UNSUPPORTED'
+  if (components.some(component => component.status === 'PENDING_RULE')) return 'PENDING_RULE'
+  if (components.some(component => component.status === 'PENDING_DATA')) return 'PENDING_DATA'
+  return 'CALCULATED'
 }
 
 export interface ItemFiscalAnswers {
@@ -522,15 +546,46 @@ export interface ItemFiscalAnswers {
   ordinaryTaxTreatmentConfirmed?: boolean
   discountTreatment?: 'UNCONDITIONAL' | 'CONDITIONAL'
   ipiTreatment?: 'INCLUDED' | 'EXCLUDED'
+  stApplicableConfirmed?: boolean
+  stMvaPercent?: string
+  stInternalRate?: string
+  stOwnOperationRate?: string
+  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4' | 'SPECIFIC_RULE'
+  stSpecificRuleConfirmed?: boolean
+  stSpecificEffectiveRate?: string
+  stFuelCategory?: 'PETROLEUM_NONINCIDENCE' | 'SHALE_OIL' | 'OTHER'
+  stFuelArt50OperationBaseConfirmed?: boolean
+  stFuelMonophaseConfirmed?: boolean
+  stVehicleNewForResaleConfirmed?: boolean
+  stVehicleMvaFallbackConfirmed?: boolean
+  stVehicleImportedConfirmed?: boolean
+  stVehicleImportPriceFloorConfirmed?: boolean
+  stSupplierNormalConfirmed?: boolean
+  fcpStApplicableConfirmed?: boolean
+  stInternalRateIncludesFcp?: boolean
 }
 
 export interface ItemFiscalQuestion {
   field: keyof ItemFiscalAnswers
   label: string
-  options: readonly { value: string; label: string }[]
+  options?: readonly { value: string; label: string }[]
+  inputType?: 'decimal'
+  suggestedValue?: string
 }
 
+export interface SpecificStMvaSummary {
+  status: 'CALCULATED' | 'PENDING_DATA' | 'PENDING_RULE' | 'UNSUPPORTED'
+  sector: 'FUEL' | 'VEHICLE'; article: 11 | 29; reason?: string
+  originalMvaPercent?: string; appliedMvaPercent?: string
+  legalBasis: string; sourceUrl: string
+}
 export interface ItemFiscalContext {
+  stSpecificMva?: SpecificStMvaSummary
+  stMvaReference?: {
+    status: string; reason?: string; catalogId?: string; catalogVersion?: number
+    ruleId?: string; description?: string; originalMvaPercent?: string; validFrom?: string
+    verifiedThrough?: string; sourceUrl?: string; legalBasis?: string
+  }
   reuseAvailable?: boolean
   reuseNotice?: string
   definitionId?: string
@@ -675,6 +730,7 @@ export interface ConsolidationTotals {
   comparedCalculatedIcms: string; comparedDeclaredIcms: string; difference: string; absoluteDifferences: string
 }
 export interface ConsolidationGroup {
+  component?: TaxComponent
   companyId?: string; companyName?: string; period?: string
   environment: '1' | '2' | 'UNKNOWN'
   perspective: ConsolidationPerspective
@@ -692,6 +748,7 @@ export interface MonthlyConference {
 }
 
 export interface ConsolidationEvidence {
+  component?: TaxComponent
   batchId?: string
 
   documentId: string; itemNumber: string; accessKey: string; documentNumber: string
@@ -702,6 +759,7 @@ export interface ConsolidationEvidence {
   runId?: string; engineVersion?: string
   calculatedIcms?: string; declaredIcms?: string; deferredIcms?: string
   comparison?: NonNullable<ItemCalculationSummary['comparisons']>[number]
+  comparisons?: ItemComponentCalculationSummary['comparisons']
 }
 export interface BatchConsolidation {
   schemaVersion: 1; batchId: string; generatedAt: string
@@ -847,4 +905,14 @@ export interface DocumentConflictSummary {
 export interface SaveConflictResolutionInput {
   accessKey: string; environmentCode: string; documentId: string; action: 'SELECT' | 'REOPEN'
   reason: string; expectedSnapshot: string; requestId: string
+}
+
+/** Divergências de base e alíquota também exigem conferência, independentemente do valor. */
+export function consolidationEvidenceDivergent(evidence: ConsolidationEvidence): boolean {
+  return evidence.comparison?.status === 'DIFFERENT' || Boolean(evidence.comparisons?.some(comparison => comparison.status === 'DIFFERENT'))
+}
+
+/** Rótulo compartilhado dos componentes, sem somar tributos distintos. */
+export function taxComponentLabel(component?: TaxComponent): string {
+  return component === 'FCP_ST' ? 'FCP-ST' : component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS'
 }

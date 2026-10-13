@@ -73,6 +73,16 @@ A destinação conflitante com `indFinal` ou exclusão indevida do IPI preservam
 pendência e as respostas. O resultado é conferência do ICMS da operação; não
 concede crédito nem integra automaticamente uma apuração definitiva.
 
+Compras destinadas ao Paraná também têm um primeiro cálculo de conferência de
+ICMS-ST por MVA (DT-049), ampliado na DT-050 com consulta das 144 linhas dos
+arts. 12 e 16 da Resolução 571/2019 na redação da Resolução 1245/2025, para
+01/04/2026 a 12/10/2026. O usuário confirma incidência, descrição legal e
+alíquotas; o sistema encontra a MVA por NCM/CEST e oferece o ajuste para
+importados interestaduais a 4% de remetente CRT 3. Fora do catálogo, exige
+MVA final informada. A DT-051 separa o FCP-ST de 2%, exige confirmação da incidência e informa se a alíquota contém o FECOP. Descontos, reduções, FCP próprio, outras modalidades e regimes continuam pendentes. A DT-052 automatiza as MVAs específicas de combustíveis não monofásicos e veículos, mediante confirmação das condições de preços e enquadramento. A conferência usa a perspectiva da empresa selecionada e
+mantém os componentes próprios e ST separados nos subtotais. Veja o contrato
+em [icms-st-entradas.md](icms-st-entradas.md).
+
 Não alterar automaticamente regras DRAFT para aprovadas nem inferir destinação
 apenas de CFOP, CST ou inscrição estadual. A reavaliação do catálogo de regras
 continua separada do cálculo, preservando seus registros anteriores.
@@ -109,8 +119,9 @@ pedem nova conferência. A memória registra definição e execução de origem;
 informa quando houve reaproveitamento. O alcance continua sendo o mesmo ICMS
 próprio comum, sem crédito automático ou apuração definitiva.
 
-Simples, MEI, operações interestaduais, importações, ST, FCP, benefícios específicos,
-outras alíquotas e vigências anteriores exigem incrementos próprios. O marco
+Simples, MEI, operações interestaduais de venda, importações, ST fora do método
+inicial de compras, FCP fora da DT-051, benefícios específicos, outras alíquotas e vigências
+anteriores exigem incrementos próprios. O marco
 inicial não autoriza aplicar 19,5% sem conferir alterações legais posteriores;
 a seleção de regras por vigência continua sendo responsabilidade da integração.
 

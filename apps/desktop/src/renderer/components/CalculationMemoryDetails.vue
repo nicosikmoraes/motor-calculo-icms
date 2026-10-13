@@ -1,37 +1,40 @@
 <script setup lang="ts">
-import type { ItemCalculationSummary } from '@motor/contracts'
+import { itemCalculationComponents, itemCalculationStatus, taxComponentLabel, type ItemCalculationSummary } from '@motor/contracts'
 import { computed } from 'vue'
 
 const props = defineProps<{ calculation: ItemCalculationSummary }>()
-const visibleInputs = computed(() => props.calculation.inputs.filter(input => !['fiscalAnswers', 'answerRequestId', 'answerReuseScope', 'definitionAtSave', 'reuseDefinitionId', 'reuseSourceRunId'].includes(input.name)))
+const components = computed(() => itemCalculationComponents(props.calculation))
+const visibleInputs = (component: ItemCalculationSummary) => component.inputs.filter(input => !['fiscalAnswers', 'answerRequestId', 'answerReuseScope', 'definitionAtSave', 'reuseDefinitionId', 'reuseSourceRunId'].includes(input.name))
 const reused = computed(() => props.calculation.inputs.some(input => input.name === 'reuseDefinitionId'))
 const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da tolerância', DIFFERENT: 'Divergência', NOT_DECLARED: 'Não informado no XML', INVALID_DECLARED: 'Valor declarado inválido' }
 </script>
 
 <template>
   <details class="calculation-memory">
-    <summary>{{ calculation.status === 'CALCULATED' ? 'Memória do cálculo' : 'Cálculo fiscal pendente' }}</summary>
-    <div class="calculation-body">
-      <p v-if="calculation.reason">{{ calculation.reason }}</p>
+    <summary>{{ itemCalculationStatus(calculation) === 'CALCULATED' ? 'Memória do cálculo' : 'Cálculo fiscal pendente' }}</summary>
+    <p v-if="calculation.reviewReason">{{ calculation.reviewReason }}</p>
+    <div v-for="component in components" :key="component.component ?? component.result?.component ?? 'ICMS'" class="calculation-body">
+      <p><strong>{{ taxComponentLabel(component.component ?? component.result?.component) }}</strong></p>
+      <p v-if="component.reason">{{ component.reason }}</p>
       <p v-if="reused">Respostas reaproveitadas de uma definição anterior desta empresa e produto do fornecedor.</p>
       <p v-if="calculation.runId">Execução {{ calculation.runId }} · Motor {{ calculation.engineVersion }}</p>
-      <p v-if="calculation.rule">Regra {{ calculation.rule.id }} · versão {{ calculation.rule.version }} · {{ calculation.rule.legalBasis }}</p>
-      <p v-if="visibleInputs.length"><strong>Entradas:</strong></p>
-      <ul v-if="visibleInputs.length">
-        <li v-for="input in visibleInputs" :key="input.name">
+      <p v-if="component.rule">Regra {{ component.rule.id }} · versão {{ component.rule.version }} · {{ component.rule.legalBasis }}</p>
+      <p v-if="visibleInputs(component).length"><strong>Entradas:</strong></p>
+      <ul v-if="visibleInputs(component).length">
+        <li v-for="input in visibleInputs(component)" :key="input.name">
           {{ input.name }}: {{ input.value ?? 'ausente' }} · {{ input.source }} · {{ input.treatment === 'UNDECIDED' ? 'tratamento pendente' : input.treatment === 'INCLUDED' ? 'incluído' : 'excluído' }}
         </li>
       </ul>
-      <p v-if="calculation.declared">Declarado no XML: base {{ calculation.declared.base ?? '—' }} · alíquota {{ calculation.declared.rate ?? '—' }} · ICMS {{ calculation.declared.amount ?? '—' }}</p>
-      <ol v-if="calculation.steps.length">
-        <li v-for="(step, index) in calculation.steps" :key="index">{{ step.name }}: {{ step.operation }} = {{ step.result }}</li>
+      <p v-if="component.declared">Declarado no XML ({{ taxComponentLabel(component.component ?? component.result?.component) }}): base {{ component.declared.base ?? '—' }} · alíquota {{ component.declared.rate ?? '—' }} · valor {{ component.declared.amount ?? '—' }}</p>
+      <ol v-if="component.steps.length">
+        <li v-for="(step, index) in component.steps" :key="index">{{ step.name }}: {{ step.operation }} = {{ step.result }}</li>
       </ol>
-      <p v-if="calculation.result"><strong>Calculado:</strong> base {{ calculation.result.base }} · alíquota {{ calculation.result.rate }} · ICMS {{ calculation.result.amount }}</p>
+      <p v-if="component.result"><strong>{{ `${taxComponentLabel(component.result.component)} calculado:` }}</strong> base {{ component.result.base }} · alíquota {{ component.result.rate }} · {{ taxComponentLabel(component.result.component) }} {{ component.result.amount }}</p>
       <p v-else>Nenhum valor calculado foi aprovado para este item.</p>
-      <template v-if="calculation.comparisons?.length">
+      <template v-if="component.comparisons?.length">
         <p><strong>Conferência com o XML:</strong> diferença = calculado − declarado.</p>
-        <ul><li v-for="comparison in calculation.comparisons" :key="comparison.component">
-          {{ comparison.component === 'BASE' ? 'Base do ICMS' : 'ICMS devido' }}: {{ comparisonLabels[comparison.status] }}
+        <ul><li v-for="comparison in component.comparisons" :key="comparison.component">
+          {{ comparison.component === 'BASE' ? 'Base' : comparison.component === 'RATE' ? 'Alíquota (%)' : taxComponentLabel(comparison.component) }}: {{ comparisonLabels[comparison.status] }}
           · calculado {{ comparison.calculated }} · declarado {{ comparison.declared ?? '—' }}
           · diferença {{ comparison.difference ?? '—' }} · tolerância {{ comparison.tolerance }}
         </li></ul>

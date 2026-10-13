@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { itemCalculationStatus, itemCalculationComponents } from '@motor/contracts'
 import { RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -27,13 +28,13 @@ const focusedItem = ref('')
 const openDocuments = ref(new Set<string>())
 const fiscalIndex = ref(0)
 const fiscalPendingItems = computed(() => detail.value?.documents.flatMap(document => document.items
-  .filter(item => ['PENDING_DATA', 'PENDING_RULE'].includes(item.calculation.status))
+  .filter(item => ['PENDING_DATA', 'PENDING_RULE'].includes(itemCalculationStatus(item.calculation)))
   .map(item => ({ document, item }))) ?? [])
 const currentFiscalItem = computed(() => fiscalPendingItems.value[Math.min(fiscalIndex.value, Math.max(0, fiscalPendingItems.value.length - 1))])
 const calculatedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
-  .filter(item => item.calculation.status === 'CALCULATED').length ?? 0)
+  .filter(item => itemCalculationStatus(item.calculation) === 'CALCULATED').length ?? 0)
 const unsupportedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
-  .filter(item => item.calculation.status === 'UNSUPPORTED').length ?? 0)
+  .filter(item => itemCalculationStatus(item.calculation) === 'UNSUPPORTED').length ?? 0)
 const itemCount = computed(() => detail.value?.documents.reduce((total, document) => total + document.items.length, 0) ?? 0)
 const comparison = computed(() => {
   if (!selectedRunId.value || !detail.value) return null
@@ -155,13 +156,16 @@ function dateTime(value?: string): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : value
 }
 function calculationLabel(item: FiscalItemSummary): string {
-  return ({ CALCULATED: 'Calculado', PENDING_DATA: 'Dados pendentes', PENDING_RULE: 'Regra pendente', UNSUPPORTED: 'Fora do escopo' })[item.calculation.status]
+  return ({ CALCULATED: 'Calculado', PENDING_DATA: 'Dados pendentes', PENDING_RULE: 'Regra pendente', UNSUPPORTED: 'Fora do escopo' })[itemCalculationStatus(item.calculation)]
+}
+function isIcmsSt(item: FiscalItemSummary): boolean {
+  return (item.calculation.component ?? item.calculation.result?.component) === 'ICMS_ST'
 }
 function isDivergent(item: FiscalItemSummary): boolean {
-  return Boolean(item.calculation.comparisons?.some(c => c.status === 'DIFFERENT'))
+  return Boolean(itemCalculationComponents(item.calculation).some(component => component.comparisons?.some(c => c.status === 'DIFFERENT')))
 }
 function documentCalculated(document: FiscalDocumentSummary): number {
-  return document.items.filter(i => i.calculation.status === 'CALCULATED').length
+  return document.items.filter(i => itemCalculationStatus(i.calculation) === 'CALCULATED').length
 }
 function ingestionLabel(value: string): string {
   return ({ RECEBIDO: 'Recebido', VALIDANDO: 'Validando', PROCESSANDO: 'Processando', CONCLUIDO: 'Concluído', PROCESSADO: 'Processado',
@@ -177,8 +181,8 @@ const visibleDocuments = computed(() => {
       document.recipientName, ...document.items.flatMap(i => [i.description, i.supplierProductCode, i.ncm, i.cfop])]
       .some(value => value?.toLocaleLowerCase('pt-BR').includes(query))
     const matchesFilter = documentFilter.value === 'all'
-      || (documentFilter.value === 'calculated' && document.items.some(i => i.calculation.status === 'CALCULATED'))
-      || (documentFilter.value === 'pending' && document.items.some(i => ['PENDING_DATA', 'PENDING_RULE'].includes(i.calculation.status)))
+      || (documentFilter.value === 'calculated' && document.items.some(i => itemCalculationStatus(i.calculation) === 'CALCULATED'))
+      || (documentFilter.value === 'pending' && document.items.some(i => ['PENDING_DATA', 'PENDING_RULE'].includes(itemCalculationStatus(i.calculation))))
       || (documentFilter.value === 'divergent' && document.items.some(isDivergent))
     return matchesSearch && matchesFilter
   }) ?? []
@@ -284,8 +288,8 @@ watch(() => route.params.id, () => {
             <p v-if="document.documentaryReason" class="inline-notice">{{ document.documentaryReason }} <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { key: document.accessKey } }">Revisar eventos</RouterLink></p>
             <p v-else-if="document.documentaryStatus === 'CCE_APPROVED'" class="inline-notice">CC-e revisada: uso do XML original autorizado. <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { key: document.accessKey } }">Ver decisões</RouterLink></p>
             <article v-for="item in document.items" :key="item.itemNumber" :id="`item-${document.id}-${item.itemNumber}`" class="fiscal-item" :class="{ 'item-focused': focusedItem === `item-${document.id}-${item.itemNumber}` }">
-              <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="item.calculation.status === 'CALCULATED' ? 'badge-green' : item.calculation.status === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
-              <div class="item-values"><div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div><div><span>ICMS declarado</span><strong>{{ money(item.declaredIcmsAmount) }}</strong></div><div><span>ICMS calculado</span><strong>{{ money(item.calculation.result?.amount) }}</strong></div><div><span>ICMS diferido</span><strong>{{ money(item.calculation.deferredAmount) }}</strong></div></div>
+              <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="itemCalculationStatus(item.calculation) === 'CALCULATED' ? 'badge-green' : itemCalculationStatus(item.calculation) === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
+              <div class="item-values"><div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div><div><span>{{ isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div><div><span>{{ isIcmsSt(item) ? 'ICMS-ST calculado' : 'ICMS calculado' }}</span><strong>{{ money(item.calculation.result?.amount) }}</strong></div><template v-if="item.calculation.additionalComponents?.some(c => c.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined"><div><span>FCP-ST declarado</span><strong>{{ money(item.declaredFcpStAmount) }}</strong></div><div><span>FCP-ST calculado</span><strong>{{ money(item.calculation.additionalComponents?.find(c => c.component === 'FCP_ST')?.result?.amount) }}</strong></div></template><div><span>ICMS diferido</span><strong>{{ money(item.calculation.deferredAmount) }}</strong></div></div>
               <details class="item-analysis" :open="focusedItem === `item-${document.id}-${item.itemNumber}`"><summary>Conferir dados e análise do item <span class="analysis-toggle" aria-hidden="true"></span></summary><div class="item-analysis-grid"><div class="item-analysis-block"><h5>Cálculo da operação</h5><p class="muted">Complete as respostas ou confira a memória do resultado.</p><ItemFiscalQuestions :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="loadDetail" /><CalculationMemoryDetails :calculation="item.calculation" /></div><div class="item-analysis-block"><h5>Cadastro e enquadramento</h5><p class="muted">Classificação e seleção de regras deste produto.</p><ItemClassificationDetails :item="item" /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action"><label>Perfil fiscal do produto<select v-model="selectedProfiles[itemKey(document, item)]"><option value="">Escolher perfil</option><option v-for="profile in profilesByCompany[document.companyId]" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label><button class="button secondary" type="button" :disabled="saving || !selectedProfiles[itemKey(document, item)]" @click="linkItem(document, item)">Vincular</button></div></div></div></details>
             </article>
           </div>

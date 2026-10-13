@@ -979,3 +979,117 @@ permanecem intactos. O XLSX inclui Conflitos e decisões com identificação de 
 ocorrência, conteúdo escolhido, motivo, origem e histórico. Valores salvos para
 auditoria permanecem separados dos totais. Esta entrega depende do PR #36; não
 altera o escopo de ICMS comum nem implementa créditos ou saldo a recolher.
+
+## DT-049 — Primeira conferência de ICMS-ST em compras destinadas ao Paraná
+
+Em 12/10/2026, foi autorizado iniciar a conferência de compras/entradas usando
+a planilha recebida como referência de fórmula. A implementação cobre NF-e
+modelo 55, finalidade normal, item incluído no documento e destinatário no PR.
+Exige confirmação manual da incidência de ST, da MVA final aplicável na data,
+da alíquota interna para o produto e da alíquota própria da operação. Usa
+BC ST = (produto + IPI + frete + seguro + outras despesas informadas) ×
+(1 + MVA/100), e ICMS-ST = BC ST × alíquota interna − ICMS próprio; arredonda
+o resultado a centavos. O caso numérico da planilha foi reproduzido: R$ 106,30.
+
+O sistema não seleciona NCM/CEST, não busca MVA em tabela, não decide se a MVA
+interestadual deve ser ajustada e não escolhe alíquota ou vigência. Essas
+informações permanecem explícitas e auditáveis na memória do cálculo. Desconto,
+redução de base, modalidade de ST diferente de MVA, FCP-ST e resultado negativo
+ficam pendentes. A conferência não calcula crédito de entrada nem apura saldo.
+O fluxo de ICMS próprio de vendas permanece independente.
+
+A planilha não tem campos de frete, seguro e outras despesas, mas o motor inclui
+valores desses campos quando informados no XML. O PDF enviado não contém as
+alterações legais mais recentes: a Resolução SEFA 982/2023 alterou a Resolução
+571/2019 e a Resolução SEFA 1245/2025 previu efeitos a partir de 01/04/2026.
+Por isso, a planilha e o PDF servem de referência de método, não de cadastro
+automático da MVA vigente. Fontes oficiais: [Resolução SEFA 982/2023](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=307248),
+[Resolução SEFA 1245/2025](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=381258) e
+[página da SEFA/PR sobre substituição tributária](https://www.fazenda.pr.gov.br/Pagina/ICMS-Substituicao-tributaria).
+
+## DT-050 — Catálogo de MVA e conferência de entradas por componente
+
+Em 12/10/2026, foi autorizado continuar as partes pendentes do ICMS-ST. A versão
+PR_FISCAL_3 reconhece a compra pela empresa analisada, inclusive nota do fornecedor
+com tpNF=1 e entrada emitida pela compradora com tpNF=0. Mantém o recorte de
+conferência para operações subsequentes, fornecedor CRT 3 e CST 00/10; dados que
+indiquem consumidor final, não contribuinte, outro CST ou tratamento especial
+exigem outro módulo.
+
+O catálogo embarcado consulta NCM/CEST nas 144 linhas dos arts. 12 e 16 da
+Resolução 571/2019, na redação da Resolução 1245/2025, de 01/04/2026 até a data
+conferida de 12/10/2026. A tela exibe a descrição e exige confirmação da incidência
+e do enquadramento. Não aprova regras DRAFT nem infere automaticamente incidência
+a partir do código. Ausência, ambiguidade ou data fora da cobertura mantém a
+alternativa de MVA final informada. O cálculo oferece MVA original e ajuste para
+importados interestaduais a 4% de fornecedor normal, segundo a fórmula da SEFA/PR.
+Usa a razão exata no imposto, sem arredondar a MVA intermediária de exibição.
+
+A dedução no modo catálogo usa o ICMS próprio da NF-e, exibido para conferência;
+o modo planilha sem encargos conserva produto × alíquota. Com encargos, exige o
+valor próprio para não presumir a base. Desconto rateado também permanece pendente.
+Cada cálculo salva fonte, hash do ato, linha e versão da tabela. Memórias históricas
+são preservadas e ST não gera definição de respostas para próximas notas.
+
+A consolidação por lote/mês agrupa o componente, compara ST com ST e conserva
+a contagem de ocorrências de notas sem duplicar pelo número de componentes.
+Telas e XLSX identificam o componente e guardam a referência da MVA. Contrato,
+fórmulas, limites e fontes: [icms-st-entradas.md](icms-st-entradas.md).
+
+## DT-051 — FCP-ST separado na conferência de entradas do Paraná
+
+Em 12/10/2026, após o merge local da DT-050, foi autorizado avançar para o FCP-ST.
+A versão PR_FISCAL_4 exige decisão explícita de incidência, data/NCM e significado
+da alíquota informada. Usa a carga com os dois pontos do FECOP no ajuste da MVA;
+calcula ICMS-ST pela alíquota de ICMS separada e FCP-ST de 2% sobre a base ST
+calculada em centavos, sem deduzir ICMS próprio nem compensar créditos.
+
+O recorte preserva os requisitos da compra por MVA, fornecedor normal e CST 00/10.
+As categorias do art. 14A e exceções de xampus/desodorantes ficam versionadas e
+registradas na memória. Veículos, combustíveis e FCP próprio diferente de zero
+exigem tratamento próprio. A cobertura temporal limita a regra embarcada até a
+data conferida, sem presumir revogação. Fundamento: Lei 11.580/1996, art. 14A;
+RICMS/PR, Anexo IX, art. 1º, §§ 9º/10, e Anexo XII; orientação SEFA sobre FECOP.
+
+FCP-ST guarda status, regra, entradas, resultado e comparações independentes em
+additionalComponents. Campos vBCFCPST, pFCPST e vFCPST são conferidos com o componente
+correspondente. O banco grava e valida o conjunto atomicamente, mantendo o formato
+JSON e as execuções anteriores. ST antiga sem decisão de FCP exige revisão antes
+de totalizar; o resultado original continua disponível para auditoria.
+
+Lotes e conferência mensal contam notas/itens físicos uma vez e agrupam tributos
+separadamente. Divergências de base e alíquota também ficam visíveis. XLSX layout 3
+exporta resultado, declarado, regra e auditoria da memória correta de cada tributo.
+Contrato e fontes: [icms-st-entradas.md](icms-st-entradas.md).
+
+## DT-052 — MVA específica para combustíveis e veículos
+
+Em 12/10/2026, foi autorizado automatizar as fórmulas e percentuais condicionais
+dos arts. 11 e 29 da Resolução 571/2019, para depois comparar um caso real.
+PR_FISCAL_5 identifica o segmento e pede confirmação de classificação, descrição,
+vigência e condições da base. A seleção da MVA é independente da conclusão do
+imposto e guarda sua memória na mesma execução.
+
+Combustível com não incidência interestadual usa 130/(1−carga efetiva)−100, com
+MVA arredondada a duas casas antes da base; operações internas usam 30%.
+Xisto usa 14,79% e demais produtos do art. 11 usam 30%, com ajuste geral nas
+operações interestaduais. Preços prioritários/COTEPE/PMPF ou monofasia impedem
+aplicar o valor da operação com MVA. Origem, CST, ANP e campos monofásicos ficam
+registrados, sem calcular o imposto monofásico.
+
+Veículos usam 30% no art. 136, II, e duas rodas 34% no § 4º, após confirmação de
+inexistência dos preços aplicáveis, veículo novo para revenda e, para importados,
+piso de II/IPI. NCM/CEST conflitantes, consumidor final, retorno/industrialização
+ou preço prioritário exigem outro tratamento. Ajuste normal a 4/7/12 usa razão
+exata e conserva MVA original se a carga interna é inferior à interestadual.
+
+A regra FCP-ST v2 inclui veículos novos nas condições confirmadas, desde
+04/08/2021, com componente de 2% separado. A carga efetiva da MVA deve reconciliar
+com ICMS mais FECOP. Alíquota ST também tem conferência exata contra o XML.
+Memórias históricas de veículos/combustíveis sem condições específicas ficam
+fora dos totais até revisão, conservando resultado original. XLSX layout 4
+exporta a decisão específica mesmo sem imposto concluído. A consolidação conta
+cada item físico da ocorrência uma vez, independentemente dos componentes.
+
+O contrato, as condições e as fontes estão em [icms-st-entradas.md](icms-st-entradas.md).
+A entrega não conclui as demais tabelas da Resolução 571 nem a homologação fiscal.

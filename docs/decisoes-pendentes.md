@@ -22,9 +22,9 @@ do lote por empresa e mês está disponível (DT-044), assim como sua exportaç�
 exportação por empresa/mês. Apuração fiscal, créditos e os demais tratamentos seguem pendentes.
 
 1. Fórmulas e condições completas de ICMS próprio.
-2. Base reduzida, cálculo por dentro e composição de frete, seguro, desconto, despesas e IPI.
-3. ICMS-ST por MVA, MVA ajustada, pauta, PMPF e preço máximo.
-4. DIFAL, partilha quando aplicável e FCP/FCP-ST.
+2. Base reduzida, cálculo por dentro e regras completas de frete, seguro, desconto, despesas e IPI.
+3. ICMS-ST completo: demais tabelas e vigências históricas, incidência e alíquota automáticas, pauta/PMPF/preço máximo, descontos, reduções e validação por contador. Conferência manual e catálogo de 144 linhas estão nas DT-049/DT-050; FCP-ST separado nas condições cobertas está na DT-051; MVAs condicionais de combustíveis e veículos estão na DT-052. Tributação monofásica e demais bases prioritárias permanecem pendentes.
+4. DIFAL, partilha quando aplicável, FCP próprio e FCP-ST fora do recorte das DT-051/DT-052.
 5. Isenção, não incidência, diferimento, desoneração e benefícios.
 6. Simples Nacional, CST/CSOSN e hipóteses de crédito.
 7. Débito, crédito, estorno e valores apenas informativos na perspectiva da empresa analisada.
@@ -39,17 +39,16 @@ Pendências e exclusões. Inclui filtros, painéis fixos, moeda, datas originais
 rastreabilidade. Exporta os totais de conferência já salvos, com ambientes e
 protocolos separados, sem fórmulas fiscais ou total definitivo inventado.
 
-1. Decidir se o histórico completo de eventos exige uma aba própria `Eventos`.
+1. Ampliar, conforme os novos tipos documentais aprovados, a aba Eventos e revisões já implementada na DT-047. Conflitos e decisões está implementada na DT-048; o layout 4 também exporta ST/FCP-ST e decisões de MVA específica.
 2. Ampliar o relatório quando forem aprovadas a apuração entre lotes e as regras de crédito.
 
 ## Prioridade 4 — persistência local
 
 1. `node:sqlite` sem ORM foi aprovado na DT-027; falta homologar o runtime no
    instalador Windows antes da distribuição.
-2. Completar o schema físico de perfis fiscais, produtos, regras, documentos e
-   cálculos. A migration `0001` já cobre organização, empresa, lote e ocorrência
-   de arquivo; a política de inativação e proteção contra exclusões em cascata foi
-   aprovada na DT-028.
+2. Ampliar o schema quando novos módulos fiscais forem aprovados. Perfis, produtos,
+   regras, documentos, cálculos e decisões auditadas do recorte atual já estão
+   persistidos; a proteção de histórico está na DT-028 e nas DTs posteriores.
 3. Definir a matriz de versões antigas suportadas nos testes de atualização. A
    política de migrations foi aprovada na DT-027.
 4. Detalhes de índices e restrições do schema. A idempotência de execução foi
@@ -98,8 +97,8 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 ## Prioridade 9 — instalação e atualização
 
-1. Versões do Windows suportadas e arquitetura de processador.
-2. Formato do instalador e instalação por usuário ou por máquina.
+1. Homologar versões de Windows de usuário final suportadas. A distribuição inicial é x64; o workflow usa Windows Server 2022.
+2. Homologar o instalador NSIS por usuário já configurado, incluindo diálogos, unidade externa, atualização e rollback em máquina real. Veja [Distribuição Windows](distribuicao-windows.md).
 3. Assinatura de código e tratamento dos alertas do Windows.
 4. Atualização automática ou manual, canal estável e possibilidade de rollback.
 5. Política de compatibilidade do banco durante atualização.
@@ -108,8 +107,8 @@ O princípio já aprovado é retenção padrão de um mês, com período configu
 
 1. Homologar o parser com massa anonimizada representativa, teste de carga e instalador Windows; a prova de conceito e as versões iniciais já estão registradas.
 2. Biblioteca de decimal exato: `decimal.js` escolhida na DT-032; falta aprovar escala, operações de divisão/rateio e arredondamento fiscal no MD-05.
-3. Biblioteca de geração de XLSX.
-4. Empacotamento e distribuição do Electron.
+3. Homologar as exportações reais; ExcelJS 4.4.0 e o contrato XLSX estão implementados na DT-045 e extensões.
+4. Homologar a distribuição Electron no Windows de usuário final; empacotamento NSIS e verificações automatizadas já estão configurados.
 5. Formato, retenção e exportação de logs de suporte.
 6. Métricas locais de lote sem envio de dados para terceiros no MVP.
 

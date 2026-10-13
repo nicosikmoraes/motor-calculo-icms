@@ -78,7 +78,10 @@ describe('revisão documental entre lotes', () => {
     expect(book.getWorksheet('Eventos e revisões')?.getCell('K6').value).toBe(e.batchId)
     expect(book.getWorksheet('Eventos e revisões')?.getCell('O6').value).toContain('ASSOCIATE')
     const items = book.getWorksheet('Itens')!
-    expect(items.getRow(6).getCell(items.columnCount).value).toBe(120)
+    let auditColumn = 0
+    items.getRow(5).eachCell((cell, column) => { if (cell.value === 'Imposto salvo para auditoria (R$)') auditColumn = column })
+    expect(auditColumn).toBeGreaterThan(0)
+    expect(items.getRow(6).getCell(auditColumn).value).toBe(120)
     expect(() => createExcelWorkbook(buildReportData(queryBatchDetail(database, e.batchId), { generatedAt: now, appVersion: 'test' }))).not.toThrow()
     expect(new SqliteCalculationRepository(database).latestByDocument(n.documentId)?.id).toBe(n.run.id)
     expect(new SqliteBatchRepository(database).listDocumentArtifacts(e.batchId)[0]?.association).toBe('ORPHAN')
