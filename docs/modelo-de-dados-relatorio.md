@@ -1,13 +1,14 @@
 # Modelo interno de dados de relatório — versão 1
 
-Estado: preparação técnica da fase 8. Não define planilha, abas, colunas,
-formatação, biblioteca XLSX ou total fiscal consolidado; essas decisões seguem em
-MD-07/MD-08.
+Estado: modelo técnico de snapshot implementado. A exportação XLSX e os subtotais
+de conferência estão implementados na DT-045 e extensões DT-046 a DT-052,
+atualmente layout 4. Homologação fiscal e futuras ampliações seguem em MD-07/MD-08.
 
 `buildReportData`, no pacote `reporting`, recebe um `BatchDetail` já carregado e
 metadados de geração (`generatedAt` com fuso e `appVersion`). Produz um snapshot
 independente, congelado recursivamente, sem consulta ao banco ou ao catálogo
-atual. Ainda não há botão de exportação ou geração de arquivo nesta entrega.
+atual. O snapshot alimenta a exportação Excel do lote e da conferência mensal;
+a geração preserva as memórias salvas, sem recalcular impostos.
 
 | Coleção | Evidência preservada |
 | --- | --- |
