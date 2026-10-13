@@ -6,6 +6,8 @@ const labels: Record<string, string> = {
   finalConsumerIndicator: 'Consumidor final', presenceIndicator: 'Presença do comprador', taxId: 'CNPJ / CPF', taxIdType: 'Tipo de identificação',
   name: 'Nome', stateRegistration: 'Inscrição estadual', stateRegistrationIndicator: 'Contribuinte', state: 'UF', taxRegimeCode: 'Regime tributário',
   itemNumber: 'Número do item', supplierProductCode: 'Código do produto', description: 'Descrição', ncm: 'NCM', cest: 'CEST', cfop: 'CFOP',
+  fuelAnpCode: 'Código ANP', fuelDescription: 'Descrição ANP', vehicleOperationType: 'Tipo de operação com veículo',
+  monophaseAmount: 'ICMS monofásico', monophaseRetainedAmount: 'ICMS monofásico retido', monophasePreviouslyRetainedAmount: 'ICMS monofásico retido anteriormente',
   commercialUnit: 'Unidade comercial', commercialQuantity: 'Quantidade comercial', commercialUnitAmount: 'Valor unitário comercial', productAmount: 'Valor dos produtos',
   tributaryUnit: 'Unidade tributável', tributaryQuantity: 'Quantidade tributável', tributaryUnitAmount: 'Valor unitário tributável',
   freightAmount: 'Frete', insuranceAmount: 'Seguro', discountAmount: 'Desconto', otherAmount: 'Outras despesas', ipiAmount: 'IPI',

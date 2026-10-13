@@ -119,6 +119,90 @@ describe('conferência de ICMS-ST de compras', () => {
   })
 })
 
+describe('MVA específica de combustíveis e veículos no fluxo de entrada', () => {
+  const fuelAnswers: ItemFiscalAnswers = { stApplicableConfirmed: true, stSpecificRuleConfirmed: true,
+    stMvaMode: 'SPECIFIC_RULE', stFuelCategory: 'PETROLEUM_NONINCIDENCE', stFuelArt50OperationBaseConfirmed: true,
+    stFuelMonophaseConfirmed: false, stSpecificEffectiveRate: '18', stInternalRate: '18', fcpStApplicableConfirmed: false }
+  const vehicleAnswers: ItemFiscalAnswers = { stApplicableConfirmed: true, stSpecificRuleConfirmed: true, stMvaMode: 'SPECIFIC_RULE',
+    stVehicleNewForResaleConfirmed: true, stVehicleMvaFallbackConfirmed: true, stVehicleImportedConfirmed: true,
+    stVehicleImportPriceFloorConfirmed: true, stSpecificEffectiveRate: '12', stInternalRate: '12',
+    fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: true }
+  it('grava a MVA do art. 11, aplica seu arredondamento e confirma os totais da entrada', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' }, { productAmount: '1000',
+      ncm: '27101999', cest: '0600700', fuelAnpCode: '520101001', fuelDescription: 'Óleo combustível',
+      declaredIcms: { cst: '10', rate: '0', amount: '0', stBaseMode: '4', stBaseAmount: '1585.40', stAmount: '285.37', fcpStAmount: '0' } })
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'specific-fuel', answers: fuelAnswers })
+    expect(result.stSpecificMva).toMatchObject({ status: 'CALCULATED', appliedMvaPercent: '58.54', article: 11 })
+    expect(result.calculation.result).toMatchObject({ base: '1585.40', amount: '285.37' })
+    const decision = JSON.parse(result.calculation.inputs.find(input => input.name === 'stSpecificMvaDecision')!.value!)
+    expect(decision.rule.version).toBe(1)
+    expect(decision.steps.at(-1).rounding).toMatchObject({ scale: 2 })
+    expect(getBatchConsolidation(db, next.batchId).counts).toMatchObject({ documents: 1, items: 1, calculated: 1 })
+    expect(saveItemFiscalAnswers(db, { ...next, requestId: 'specific-fuel', answers: fuelAnswers }).runId).toBe(result.runId)
+  })
+  it('ajusta o veículo importado e separa o FECOP usando a carga efetiva de 12%', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' }, { productAmount: '1000',
+      ncm: '87032390', cest: '2500700', vehicleOperationType: '2', declaredIcms: { cst: '10', originCode: '1', rate: '4', amount: '40',
+        stBaseMode: '4', stBaseAmount: '1418.18', stAmount: '101.82', fcpStBaseAmount: '1418.18', fcpStRate: '2', fcpStAmount: '28.36' } })
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'specific-vehicle', answers: vehicleAnswers })
+    expect(result.stSpecificMva).toMatchObject({ originalMvaPercent: '30', appliedMvaPercent: '41.81818181818181818182' })
+    expect(result.calculation.result).toMatchObject({ base: '1418.18', rate: '10', amount: '101.82' })
+    expect(result.calculation.additionalComponents?.[0]?.result).toMatchObject({ component: 'FCP_ST', amount: '28.36' })
+    const summary = getBatchConsolidation(db, next.batchId)
+    expect(summary.counts).toMatchObject({ documents: 1, items: 1, calculated: 1, divergentItems: 0 })
+    expect(summary.groups.map(g => g.component).sort()).toEqual(['FCP_ST','ICMS_ST'])
+  })
+  it('mantém a MVA visível quando o imposto está pendente por carga efetiva incoerente ou preço prioritário', () => {
+    const item = { ...nfe.items[0]!, productAmount: '1000', ncm: '27101999', cest: '0600700', declaredIcms: { cst: '10', amount: '0', rate: '0' } }
+    const note = { ...nfe, issuer: { ...nfe.issuer, state: 'SP' }, items: [item] }
+    const inconsistent = buildItemFiscalContext(note, item, { ...fuelAnswers, stInternalRate: '19.5' })
+    expect(inconsistent.stSpecificMva?.status).toBe('CALCULATED')
+    expect(inconsistent.calculation.status).toBe('PENDING_DATA')
+    expect(inconsistent.calculation.reason).toContain('carga efetiva')
+    const priced = buildItemFiscalContext(note, item, { ...fuelAnswers, stFuelArt50OperationBaseConfirmed: false })
+    expect(priced.stSpecificMva?.status).toBe('PENDING_RULE')
+    expect(priced.calculation.result).toBeUndefined()
+  })
+  it('permite salvar a MVA pela carga efetiva de um item com redução, mantendo o imposto fora do escopo', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '1' }, { productAmount: '1000',
+      ncm: '27101999', cest: '0600700', declaredIcms: { cst: '70', rate: '12', amount: '120', stBaseMode: '4', stBaseReductionPercent: '40' } })
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'mva-only', answers: {
+      ...fuelAnswers, stFuelCategory: 'OTHER', stInternalRate: '30',
+    } })
+    expect(result.stSpecificMva).toMatchObject({ status: 'CALCULATED', appliedMvaPercent: '39.5121951219512195122' })
+    expect(result.calculation.status).toBe('UNSUPPORTED')
+    expect(result.calculation.result).toBeUndefined()
+    expect(result.blockedReason).toBeUndefined()
+    expect(getBatchConsolidation(db, next.batchId).counts.calculated).toBe(0)
+  })
+  it('seleciona 34% para duas rodas nacionais e exige revisão de uma memória anterior sem condições específicas', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'PR' }, environmentCode: '1' }, { productAmount: '1000',
+      ncm: '87112020', cest: '2600100', declaredIcms: { cst: '10', originCode: '0', rate: '10', amount: '100', stBaseMode: '4' } })
+    const old = new SqliteCalculationRepository(db).save({ ...next, requestId: 'old-moto', engineVersion: 'PR_FISCAL_4', items: [
+      { itemNumber: '1', memory: { schemaVersion: 1, status: 'CALCULATED', component: 'ICMS_ST',
+        rule: { id: 'OLD', version: 1, legalBasis: 'Memória anterior' }, steps: [{ name: 'ST', operation: 'manual', inputs: {}, result: '34' }],
+        inputs: [{ name: 'fiscalAnswers', value: JSON.stringify({ stApplicableConfirmed: true, fcpStApplicableConfirmed: false }), source: 'USER/current_item', treatment: 'INCLUDED' }],
+        result: { component: 'ICMS_ST', base: '1340.00', rate: '10', amount: '34.00' } } },
+    ] })
+    expect(getBatchConsolidation(db, next.batchId).counts.calculated).toBe(0)
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.items[0]?.memory).toEqual(old.items[0]?.memory)
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'new-moto', expectedRunId: old.id, answers: {
+      ...vehicleAnswers, stVehicleImportedConfirmed: false,
+    } })
+    expect(result.stSpecificMva).toMatchObject({ status: 'CALCULATED', originalMvaPercent: '34', appliedMvaPercent: '34' })
+    expect(result.calculation.result).toMatchObject({ base: '1340.00', amount: '34.00' })
+    expect(result.calculation.additionalComponents?.[0]?.result?.amount).toBe('26.80')
+  })
+  it('não utiliza o PDF em combustível monofásico nem aceita burlar a regra com MVA manual', () => {
+    const item = { ...nfe.items[0]!, ncm: '27101259', cest: '0600200', declaredIcms: { cst: '10', amount: '0', rate: '0' } }
+    const note = { ...nfe, issuer: { ...nfe.issuer, state: 'SP' }, items: [item] }
+    const result = buildItemFiscalContext(note, item, { ...fuelAnswers, stMvaMode: 'MANUAL_APPLIED', stMvaPercent: '30' })
+    expect(result.stSpecificMva?.status).toBe('UNSUPPORTED')
+    expect(result.calculation.reason).toContain('monofásico')
+    expect(result.calculation.result).toBeUndefined()
+  })
+})
+
 beforeEach(() => {
   db = new SqliteDatabase(':memory:')
   runSqlMigrations(db, CORE_MIGRATIONS, { appVersion: 'test' })

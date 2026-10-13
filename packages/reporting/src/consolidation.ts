@@ -36,7 +36,7 @@ function freeze<T>(value: T): T {
 }
 /** Consolidação de conferência: usa exclusivamente as memórias persistidas, sem apurar crédito. */
 export function buildBatchConsolidation(batchId: string, documents: readonly ConsolidationDocument[], generatedAt = new Date().toISOString()): BatchConsolidation {
-  const declarations = new Map(documents.flatMap(doc => doc.items.map(item => [JSON.stringify([doc.documentId, item.itemNumber]), item] as const)))
+  const physical: { item: ConsolidationDocument['items'][number]; entries: ConsolidationEvidence[] }[] = []
   const groupDocuments = new Map<string, Set<string>>()
   const groups = new Map<string, ConsolidationGroup>(), evidence: ConsolidationEvidence[] = []
   const duplicates = new Map<string, number>()
@@ -52,6 +52,8 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
         : doc.perspective === 'UNDETERMINED' ? 'Empresa não identificada como emitente ou destinatária exclusiva.'
           : doc.environment === 'UNKNOWN' ? 'Ambiente não identificado.' : undefined)
     for (const item of doc.items) {
+      const componentEvidence: ConsolidationEvidence[] = []
+      physical.push({ item, entries: componentEvidence })
       const components: (CalculationComponentMemory | undefined)[] = [item.memory, ...(item.memory?.additionalComponents ?? [])]
       if ([item.declaredFcpSt, item.declaredFcpStBase, item.declaredFcpStRate].some(value => value !== undefined)
         && !(zeroFcpDeclaration(item) && item.memory?.inputs.some(input => input.name === 'fcpStApplicableConfirmed' && input.value === 'false'))
@@ -78,7 +80,7 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
         const entry: ConsolidationEvidence = { component, documentId: doc.documentId, ...(doc.batchId ? { batchId: doc.batchId } : {}), accessKey: doc.accessKey, documentNumber: doc.documentNumber,
           itemNumber: item.itemNumber, ...(doc.companyId ? { companyId: doc.companyId } : {}), ...(period ? { period } : {}), environment: doc.environment,
           perspective: doc.perspective, authorization: doc.authorization, status: 'PENDING', reasons: [], ...(doc.runId ? { runId: doc.runId } : {}), ...(doc.engineVersion ? { engineVersion: doc.engineVersion } : {}) }
-        if (exclusion) { entry.status = 'EXCLUDED'; entry.reasons = [exclusion]; group.counts.excluded++; evidence.push(entry); continue }
+        if (exclusion) { entry.status = 'EXCLUDED'; entry.reasons = [exclusion]; group.counts.excluded++; evidence.push(entry); componentEvidence.push(entry); continue }
         const originalDeclared = component === 'FCP_ST' ? item.declaredFcpSt : component === 'ICMS_ST' ? item.declaredIcmsSt : item.declaredIcms
         const declared = money(originalDeclared)
         if (declared !== undefined) { entry.declaredIcms = declared; sum('declaredIcms', declared) }
@@ -107,18 +109,13 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
           group.counts[entry.status === 'UNSUPPORTED' ? 'unsupported' : 'pending']++
           entry.reasons = [component === 'FCP_ST' && memory?.status === 'CALCULATED' && item.memory?.status !== 'CALCULATED' ? 'A base de ICMS-ST exige nova conferência antes de totalizar o FCP-ST.' : memory?.reason ?? (memory?.status === 'CALCULATED' ? 'Resultado monetário inválido ou incompleto.' : 'Cálculo ainda não salvo.')]
         }
-        evidence.push(entry)
+        evidence.push(entry); componentEvidence.push(entry)
       }
     }
   }
   // Contagens globais representam itens físicos; grupos representam componentes tributários.
   const total = counts()
-  const physical = new Map<string, ConsolidationEvidence[]>()
-  for (const entry of evidence) {
-    const key = JSON.stringify([entry.documentId, entry.itemNumber])
-    physical.set(key, [...(physical.get(key) ?? []), entry])
-  }
-  for (const entries of physical.values()) {
+  for (const { item: originals, entries } of physical) {
     total.items++
     if (entries.every(e => e.status === 'EXCLUDED')) total.excluded++
     else if (entries.some(e => e.status === 'UNSUPPORTED')) total.unsupported++
@@ -126,7 +123,6 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
     else total.calculated++
     const eligible = entries.filter(e => e.status !== 'EXCLUDED')
     if (eligible.some(e => e.declaredIcms === undefined)) {
-      const originals = declarations.get(JSON.stringify([entries[0]!.documentId, entries[0]!.itemNumber]))
       if (eligible.some(e => e.declaredIcms === undefined && (e.component === 'FCP_ST' ? originals?.declaredFcpSt : e.component === 'ICMS_ST' ? originals?.declaredIcmsSt : originals?.declaredIcms) !== undefined)) total.declaredInvalid++
       if (eligible.some(e => e.declaredIcms === undefined && (e.component === 'FCP_ST' ? originals?.declaredFcpSt : e.component === 'ICMS_ST' ? originals?.declaredIcmsSt : originals?.declaredIcms) === undefined)) total.declaredMissing++
     }

@@ -1,6 +1,6 @@
 # Conferência de ICMS-ST em compras destinadas ao Paraná
 
-## Cobertura das DT-050 e DT-051
+## Cobertura das DT-050, DT-051 e DT-052
 
 NF-e modelo 55, finalidade normal, mercadoria destinada ao Paraná, fornecedor
 no regime normal (CRT 3), CST 00/10, sem redução de base ou desconto. A DT-051 acrescenta o FCP-ST no recorte descrito abaixo. O usuário
@@ -81,6 +81,69 @@ exibição como uma nova entrada. Não há cálculo fiscal em ponto flutuante.
 Descontos rateados do total também permanecem pendentes. IPI total divergente
 dos itens e distribuição de encargos impossível continuam bloqueando o cálculo.
 
+## Fórmulas específicas de combustíveis e veículos (DT-052)
+
+O aplicativo identifica candidatos por NCM, CEST e código ANP. Essa identificação
+abre perguntas sobre a operação; não confirma automaticamente incidência ou a
+inexistência dos preços legais. A decisão da MVA específica é salva com regra,
+versão, data, condições, entradas e fórmula. A MVA pode ficar calculada mesmo
+quando o imposto ainda está pendente. A cobertura da regra é 04/07/2019 a
+12/10/2026, a data até a qual esta versão foi conferida.
+
+Combustíveis/lubrificantes do art. 11 exigem confirmar a hipótese do art. 50 do
+Anexo IX pelo valor da operação, incluindo encargos: sem preço final do art. 47,
+PMPF/margem COTEPE dos arts. 48/49 ou preço de autoridade para o substituto. Esses
+preços têm precedência e, quando existentes, impedem esta base pelo XML. O usuário
+também confirma o regime não monofásico e a categoria legal do produto.
+
+- Derivado de petróleo com não incidência interestadual: MVA interna de 30%; em
+  operação interestadual, `130 / (1 − carga interna efetiva/100) − 100`. A MVA é
+  arredondada HALF_UP a duas casas **antes** de formar a base ST. ICMS próprio
+  diferente de zero conflita com essa categoria e mantém pendência.
+- Óleo combustível de xisto: MVA original de 14,79%.
+- Demais produtos abrangidos pelo art. 11: MVA original de 30%.
+
+As duas últimas categorias usam o ajuste geral do art. 1º, § 5º, nas operações
+interestaduais de remetente normal a 4%, 7% ou 12%. Carga interna inferior à
+interestadual conserva a MVA original (§ 6º). O cálculo mantém a razão exata;
+a exibição com 20 casas não passa a ser uma nova entrada fiscal.
+
+Para veículos do art. 29, o binômio NCM/CEST é conferido contra os códigos da
+tabela do art. 134 contemplados nesta versão. O usuário confirma veículo novo
+para revenda, descrição, vigência, encargos/acessórios e ausência de condições de
+industrialização, remessa com retorno ou faturamento direto ao consumidor.
+
+- MVA original de 30%: hipótese do art. 136, II, fora do inciso I e sem preço
+  máximo/único fixado para a venda.
+- MVA original de 34%: veículo de duas rodas, sem os preços do § 3º, na hipótese
+  do § 4º. A classificação 8711/26.001.00 não substitui a confirmação de duas rodas.
+
+Veículo importado exige confirmar que o preço da operação atende ao piso das
+bases de II/IPI (§ 1º). Origem XML incompatível com resposta de veículo nacional
+mantém pendência. Operações interestaduais também usam a carga efetiva com FECOP
+no ajuste geral; alíquota própria diferente de 4/7/12 exige revisão.
+
+O FCP-ST de veículos novos na hipótese confirmada é separado em 2%, a partir de
+04/08/2021 (Lei 20.554/2021, publicada em 06/05/2021, com noventa dias para os
+arts. 1º/2º/3º). Antes dessa vigência, o aplicativo exige confirmação da não
+incidência. A versão da regra FCP passa a 2. Para combustíveis/lubrificantes
+confirmados fora das categorias de FECOP desta versão, a resposta de não incidência
+é aceita; gasolina e outros tratamentos históricos especiais exigem revisão.
+
+CST monofásicos 02/15/53/61, campos próprios de ICMS monofásico (inclusive zero)
+e combustíveis reconhecidos no regime por NCM/data impedem aplicar MVA. Código
+ANP, descrição, tipo de operação do veículo e valores monofásicos declarados são
+preservados na normalização e na comparação de documentos. Não se calcula ICMS
+monofásico por quantidade nesta entrega.
+
+A carga efetiva informada para MVA precisa reconciliar com o ICMS mais FECOP
+usado no imposto. XML com redução de base continua exigindo módulo próprio para
+o imposto, embora a MVA possa ser calculada pela carga efetiva confirmada.
+Novas execuções guardam a decisão completa. ST antiga de combustível/veículo
+sem essa decisão pede nova conferência antes de totalizar, preservando a memória.
+O XLSX 4 inclui MVA e referência da regra mesmo quando não há imposto concluído;
+base, valor e alíquota de ST/FCP-ST são conferidos com seus campos do XML.
+
 ## FCP-ST / FECOP (DT-051)
 
 A incidência é uma resposta explícita em cada conferência de ST. A ausência dos
@@ -94,7 +157,7 @@ Categorias cobertas do art. 14A da Lei 11.580/1996: água mineral (2201), bebida
 desodorantes 330720 são exceções expressas. O código restringe a consulta; a
 descrição legal e a operação concreta continuam exigindo confirmação. Responder
 não incidência para NCM de categoria coberta, ou contra campos positivos de FCP-ST,
-mantém pendência para revisão. Veículos e combustíveis exigem regra própria.
+mantém pendência para revisão. Veículos e combustíveis precisam das condições específicas da DT-052; demais hipóteses exigem tratamento próprio.
 
 Quando incidente, o usuário informa se a alíquota digitada contém os dois pontos
 do adicional. Por exemplo, 25% com FECOP corresponde a 23% de ICMS e 2% de FECOP.
@@ -125,7 +188,7 @@ reescreve silenciosamente.
 
 ## Histórico e relatórios
 
-O motor registra novas execuções com versão `PR_FISCAL_4` e preserva memórias
+O motor registra novas execuções com versão `PR_FISCAL_5` e preserva memórias
 anteriores. As respostas de ST não são reaproveitadas automaticamente em notas
 futuras. Definições antigas de ICMS próprio precisam corresponder à nova versão
 do contexto antes de outro reaproveitamento.
@@ -136,7 +199,7 @@ alterar o resultado original guardado para auditoria.
 
 Lotes e conferência mensal distinguem ICMS próprio, ICMS-ST e FCP-ST mesmo dentro de
 uma nota. Comparam cada componente com seu campo declarado, e notas e itens físicos são contados uma vez no resumo geral, mesmo com dois tributos. O XLSX identifica o componente e
-inclui MVA original, MVA aplicada e a referência salva da tabela. O layout XLSX 3 usa a memória específica de cada componente nas colunas de resultado, regra e auditoria.
+inclui MVA original, MVA aplicada e a referência salva da tabela. O layout XLSX 4 usa a memória específica de cada componente nas colunas de resultado, regra e auditoria.
 
 ## Fontes e pendências
 
@@ -145,10 +208,16 @@ inclui MVA original, MVA aplicada e a referência salva da tabela. O layout XLSX
 - [Lei PR 11.580/1996, art. 14A — adicional e categorias](https://www.legislacao.pr.gov.br/legislacao/pesquisarAto.do?action=exibir&codAto=278020&codTipoAto=1&tipoVisualizacao=compilado).
 - [RICMS/PR, Anexo IX §§ 9º/10 e Anexo XII — carga efetiva e FECOP](https://www.fazenda.pr.gov.br/sites/default/arquivos_restritos/files/documento/2020-06/106201707871.pdf).
 - [SEFA/PR — orientação de FECOP sobre a base ST sem dedução do ICMS próprio](https://atendimento.fazenda.pr.gov.br/sacsefa/portal/assuntosReferente/16).
+- [Lei PR 20.554/2021 — adicional de veículos e início dos efeitos](https://www.legislacao.pr.gov.br/legislacao/listarAtosAno.do?action=exibirImpressao&codAto=247729).
+- [CONFAZ 132/1992 — preços, piso de importação e MVA de veículos](https://www.confaz.fazenda.gov.br/legislacao/convenios/1992/CV132_92).
+- [CONFAZ 52/1993 — preços e MVA de duas rodas](https://www.confaz.fazenda.gov.br/legislacao/convenios/1993/CV052_93).
+- [CONFAZ 199/2022 — início da monofasia de diesel, biodiesel e GLP](https://www.confaz.fazenda.gov.br/legislacao/convenios/2022/CV199_22).
+- [CONFAZ 15/2023 — gasolina e etanol anidro](https://www.confaz.fazenda.gov.br/legislacao/convenios/2023/CV015_23).
+- [SEFA/PR — ICMS monofásico de combustíveis](https://atendimento.fazenda.pr.gov.br/sacsefa/portal/assuntosReferente/51).
 - [LC 87/1996, art. 8º, II e § 5º — base ST e diferença para o imposto próprio](https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp87.htm).
 
 Ainda faltam as demais tabelas e vigências históricas, seleção completa da
-incidência e alíquota, FCP próprio e demais modalidades de FCP, descontos, reduções, pauta/PMPF/preço máximo,
+incidência e alíquota, FCP próprio e demais modalidades de FCP, descontos, reduções, pauta/PMPF/preço máximo e casos fora da DT-052,
 Simples Nacional, créditos/apuração e homologação com XMLs e resultados aprovados
 pelo contador. Esses casos não passam a ser considerados cobertos pela inclusão
 do catálogo.

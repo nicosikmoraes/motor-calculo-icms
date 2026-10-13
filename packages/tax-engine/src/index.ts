@@ -21,3 +21,5 @@ export interface TaxCalculator {
 }
 
 export * from './rule-condition-catalog'
+
+export * from './parana-specific-st-mva'

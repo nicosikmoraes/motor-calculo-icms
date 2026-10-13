@@ -12,11 +12,12 @@ import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared,
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
 const answersInputName = 'fiscalAnswers'
-const version = 'PR_FISCAL_4'
-const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed', 'fcpStApplicableConfirmed', 'stInternalRateIncludesFcp'] as const
-const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'] as const
+const version = 'PR_FISCAL_5'
+const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed', 'fcpStApplicableConfirmed', 'stInternalRateIncludesFcp', 'stSpecificRuleConfirmed', 'stFuelArt50OperationBaseConfirmed', 'stFuelMonophaseConfirmed', 'stVehicleNewForResaleConfirmed', 'stVehicleMvaFallbackConfirmed', 'stVehicleImportedConfirmed', 'stVehicleImportPriceFloorConfirmed'] as const
+const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate'] as const
 const enums = {
-  stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4'],
+  stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4', 'SPECIFIC_RULE'],
+  stFuelCategory: ['PETROLEUM_NONINCIDENCE', 'SHALE_OIL', 'OTHER'],
   destination: ['RESALE', 'INDUSTRIALIZATION', 'FIXED_ASSET', 'OWN_USE'],
   discountTreatment: ['UNCONDITIONAL', 'CONDITIONAL'], ipiTreatment: ['INCLUDED', 'EXCLUDED'],
 } as const
@@ -137,9 +138,11 @@ function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeIt
     ],
   }
   if (memory.result) memory.comparisons = [compareDeclared('BASE', memory.result.base, memory.declared?.base),
+    ...(memory.result.component === 'ICMS_ST' ? [compareDeclared('RATE', memory.result.rate, memory.declared?.rate, '0')] : []),
     compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)]
   return { ...context, ...(runId ? { runId } : {}),
     calculation: saved && !context.blockedReason
+      && !(context.stSpecificMva && !saved.inputs.some(input => input.name === 'stSpecificMvaDecision'))
       && !((saved.component ?? saved.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved).fcpStApplicableConfirmed === undefined) ? { ...saved, ...(runId ? { runId } : {}) } : memory }
 }
 

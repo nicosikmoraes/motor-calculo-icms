@@ -1061,3 +1061,35 @@ Lotes e conferência mensal contam notas/itens físicos uma vez e agrupam tribut
 separadamente. Divergências de base e alíquota também ficam visíveis. XLSX layout 3
 exporta resultado, declarado, regra e auditoria da memória correta de cada tributo.
 Contrato e fontes: [icms-st-entradas.md](icms-st-entradas.md).
+
+## DT-052 — MVA específica para combustíveis e veículos
+
+Em 12/10/2026, foi autorizado automatizar as fórmulas e percentuais condicionais
+dos arts. 11 e 29 da Resolução 571/2019, para depois comparar um caso real.
+PR_FISCAL_5 identifica o segmento e pede confirmação de classificação, descrição,
+vigência e condições da base. A seleção da MVA é independente da conclusão do
+imposto e guarda sua memória na mesma execução.
+
+Combustível com não incidência interestadual usa 130/(1−carga efetiva)−100, com
+MVA arredondada a duas casas antes da base; operações internas usam 30%.
+Xisto usa 14,79% e demais produtos do art. 11 usam 30%, com ajuste geral nas
+operações interestaduais. Preços prioritários/COTEPE/PMPF ou monofasia impedem
+aplicar o valor da operação com MVA. Origem, CST, ANP e campos monofásicos ficam
+registrados, sem calcular o imposto monofásico.
+
+Veículos usam 30% no art. 136, II, e duas rodas 34% no § 4º, após confirmação de
+inexistência dos preços aplicáveis, veículo novo para revenda e, para importados,
+piso de II/IPI. NCM/CEST conflitantes, consumidor final, retorno/industrialização
+ou preço prioritário exigem outro tratamento. Ajuste normal a 4/7/12 usa razão
+exata e conserva MVA original se a carga interna é inferior à interestadual.
+
+A regra FCP-ST v2 inclui veículos novos nas condições confirmadas, desde
+04/08/2021, com componente de 2% separado. A carga efetiva da MVA deve reconciliar
+com ICMS mais FECOP. Alíquota ST também tem conferência exata contra o XML.
+Memórias históricas de veículos/combustíveis sem condições específicas ficam
+fora dos totais até revisão, conservando resultado original. XLSX layout 4
+exporta a decisão específica mesmo sem imposto concluído. A consolidação conta
+cada item físico da ocorrência uma vez, independentemente dos componentes.
+
+O contrato, as condições e as fontes estão em [icms-st-entradas.md](icms-st-entradas.md).
+A entrega não conclui as demais tabelas da Resolução 571 nem a homologação fiscal.

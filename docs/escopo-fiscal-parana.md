@@ -79,7 +79,7 @@ arts. 12 e 16 da Resolução 571/2019 na redação da Resolução 1245/2025, par
 01/04/2026 a 12/10/2026. O usuário confirma incidência, descrição legal e
 alíquotas; o sistema encontra a MVA por NCM/CEST e oferece o ajuste para
 importados interestaduais a 4% de remetente CRT 3. Fora do catálogo, exige
-MVA final informada. A DT-051 separa o FCP-ST de 2%, exige confirmação da incidência e informa se a alíquota contém o FECOP. Descontos, reduções, FCP próprio, outras modalidades e regimes continuam pendentes. A conferência usa a perspectiva da empresa selecionada e
+MVA final informada. A DT-051 separa o FCP-ST de 2%, exige confirmação da incidência e informa se a alíquota contém o FECOP. Descontos, reduções, FCP próprio, outras modalidades e regimes continuam pendentes. A DT-052 automatiza as MVAs específicas de combustíveis não monofásicos e veículos, mediante confirmação das condições de preços e enquadramento. A conferência usa a perspectiva da empresa selecionada e
 mantém os componentes próprios e ST separados nos subtotais. Veja o contrato
 em [icms-st-entradas.md](icms-st-entradas.md).
 

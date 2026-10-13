@@ -35,7 +35,7 @@ function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, colu
   for (const [row, value] of [
     [1, `ContabiliNico · ${name}`],
     [2, `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
-    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 3`],
+    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 4`],
   ] as const) {
     sheet.mergeCells(row, 1, row, Math.min(4, columns.length))
     sheet.getCell(row, 1).value = value
@@ -102,11 +102,13 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
     monetary('Imposto declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
     text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra'),
     monetary('Base salva para auditoria'), monetary('Imposto salvo para auditoria'),
-    text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Base declarada do componente'), text('Alíquota declarada do componente (%)'), text('Alíquota calculada do componente (%)'), text('Referência FCP-ST', 50)],
+    text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Base declarada do componente'), text('Alíquota declarada do componente (%)'), text('Alíquota calculada do componente (%)'), text('Referência FCP-ST', 50), text('Regra específica da MVA', 60)],
     summary.evidence.map(entry => {
       const item = items.get(JSON.stringify([entry.documentId, entry.itemNumber]))
       if (!item || !documents.has(entry.documentId)) throw new Error('Evidência referencia item ou documento ausente.')
       const calculation = itemCalculationComponents(item.calculation).find(memory => (memory.component ?? memory.result?.component ?? 'ICMS') === (entry.component ?? 'ICMS'))
+      const specificInput = item.calculation.inputs.find(input => input.name === 'stSpecificMvaDecision')?.value
+      const specific = specificInput ? JSON.parse(specificInput) as { originalMvaPercent?: string; appliedMvaPercent?: string } : undefined
       return [...identity(entry), item.supplierProductCode, item.description, item.ncm, item.cfop, documents.get(entry.documentId)?.issuedAt,
         label(entry.status), taxComponentLabel(entry.component),
         entry.status === 'CALCULATED' ? calculation?.result?.base : undefined, entry.calculatedIcms,
@@ -114,11 +116,11 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
         entry.deferredIcms, entry.comparison?.difference, entry.comparison ? label(entry.comparison.status) : 'Sem comparação',
         entry.reasons.join('\n'), entry.runId, entry.engineVersion, calculation?.rule?.id, calculation?.rule?.version,
         calculation?.result?.base, calculation?.result?.amount,
-        item.calculation.inputs.find(input => input.name === 'originalMvaPercent')?.value,
-        item.calculation.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent,
+        item.calculation.inputs.find(input => input.name === 'originalMvaPercent')?.value ?? specific?.originalMvaPercent,
+        item.calculation.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent ?? specific?.appliedMvaPercent,
         item.calculation.inputs.find(input => input.name === 'mvaCatalogRow')?.value,
         entry.component === 'FCP_ST' ? item.declaredFcpStBaseAmount : calculation?.declared?.base,
-        entry.component === 'FCP_ST' ? item.declaredFcpStRate : calculation?.declared?.rate, calculation?.result?.rate, calculation?.inputs.find(input => input.name === 'fcpStRule')?.value]
+        entry.component === 'FCP_ST' ? item.declaredFcpStRate : calculation?.declared?.rate, calculation?.result?.rate, calculation?.inputs.find(input => input.name === 'fcpStRule')?.value, specificInput]
     }))
   addSheet(book, report, 'Divergências', [...identityColumns, text('Componente calculado'), monetary('Imposto calculado'), monetary('Imposto declarado'),
     monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor'), text('Campo conferido'), text('Calculado exato'), text('Declarado exato'), text('Diferença exata'), text('Unidade')],

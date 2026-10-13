@@ -15,7 +15,7 @@ export interface ParanaPurchaseIcmsStInput {
   /** Percentual final que será aplicado, confirmado pelo contador na vigência da operação. */
   appliedMvaPercent?: string
   originalMvaPercent?: string
-  mvaMode?: 'APPLIED_MANUAL' | 'ORIGINAL' | 'ADJUSTED_IMPORT_4'
+  mvaMode?: 'APPLIED_MANUAL' | 'ORIGINAL' | 'ADJUSTED_IMPORT_4' | 'ADJUSTED_INTERSTATE'
   merchandiseOrigin?: string
   supplierRegime?: string
   /** Alíquota interna do PR informada pela regra fiscal aplicável ao NCM/CEST. */
@@ -98,7 +98,10 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
       || input.supplierRegime !== '3')) {
       return pending('O ajuste automático cobre operação interestadual a 4%, mercadoria importada (origem 1, 2, 3 ou 8) e remetente do regime normal. Confira esses dados.')
     }
-    if (mvaMode === 'ADJUSTED_IMPORT_4' && compareDecimals(adjustmentRate, '100') >= 0) {
+    const adjustedMode = mvaMode === 'ADJUSTED_IMPORT_4' || mvaMode === 'ADJUSTED_INTERSTATE'
+    if (mvaMode === 'ADJUSTED_INTERSTATE' && (input.issuerState === input.recipientState || !['4','7','12'].includes(ownRate)
+      || (ownRate === '4' && !['1','2','3','8'].includes(input.merchandiseOrigin ?? '')))) return pending('O ajuste interestadual específico exige operação interestadual normal a 4%, 7% ou 12% e origem compatível.')
+    if (adjustedMode && compareDecimals(adjustmentRate, '100') >= 0) {
       return pending('A alíquota interna deve ser inferior a 100% para ajustar a MVA.')
     }
     if (compareDecimals(amounts.discount, '0') > 0) {
@@ -113,11 +116,12 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     const operationBase = addDecimals(amounts.product, amounts.ipi, amounts.freight, amounts.insurance, amounts.other)
     // Manter a razão sem arredondar a MVA intermediária. A divisão de exibição
     // tem 20 casas; base/ICMS finais são calculados diretamente da razão exata.
-    const multiplierNumerator = mvaMode === 'ADJUSTED_IMPORT_4'
-      ? multiplyDecimals(addDecimals('100', mva), '96') : addDecimals('100', mva)
-    const multiplierDenominator = mvaMode === 'ADJUSTED_IMPORT_4'
+    const adjustMva = adjustedMode && compareDecimals(adjustmentRate, ownRate) >= 0
+    const multiplierNumerator = adjustMva
+      ? multiplyDecimals(addDecimals('100', mva), subtractDecimals('100', ownRate)) : addDecimals('100', mva)
+    const multiplierDenominator = adjustMva
       ? multiplyDecimals('100', subtractDecimals('100', adjustmentRate)) : '100'
-    const appliedMva = mvaMode === 'ADJUSTED_IMPORT_4'
+    const appliedMva = adjustMva
       ? divideDecimals(multiplyDecimals(subtractDecimals(multiplierNumerator, multiplierDenominator), '100'), multiplierDenominator, 20) : mva
     const stBaseNumerator = multiplyDecimals(operationBase, multiplierNumerator)
     const stBase = divideDecimals(stBaseNumerator, multiplierDenominator, 20)
@@ -131,13 +135,14 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
 
     return {
       schemaVersion: 1, status: 'CALCULATED', component: 'ICMS_ST',
-      rule: { id: 'PARANA_PURCHASE_ICMS_ST_MVA', version: 3,
-        legalBasis: legalBasis + (mvaMode === 'ADJUSTED_IMPORT_4' ? '; SEFA/PR, Cálculo da MVA ajustada para importados sujeitos a 4%' : '') },
+      rule: { id: 'PARANA_PURCHASE_ICMS_ST_MVA', version: 4,
+        legalBasis: legalBasis + (mvaMode === 'ADJUSTED_IMPORT_4' ? '; SEFA/PR, Cálculo da MVA ajustada para importados sujeitos a 4%'
+          : mvaMode === 'ADJUSTED_INTERSTATE' ? '; RICMS/PR, Anexo IX, art. 1º, §§ 5º e 6º (ajuste geral interestadual)' : '') },
       inputs: inputs.map(entry => ({ ...entry, treatment: entry.name === 'discountAmount' && compareDecimals(amounts.discount, '0') === 0
         ? 'EXCLUDED' : 'INCLUDED' })),
       steps: [
-        ...(mvaMode === 'ADJUSTED_IMPORT_4' ? [{ name: 'MVA ajustada para importados a 4%',
-          operation: '[(1 + MVA original/100) × (1 − 4/100) ÷ (1 − alíquota interna/100) − 1] × 100; exibição com 20 casas, razão exata usada no imposto',
+        ...(adjustedMode ? [{ name: mvaMode === 'ADJUSTED_IMPORT_4' ? 'MVA ajustada para importados a 4%' : 'MVA ajustada interestadual',
+          operation: adjustMva ? '[(1 + MVA original/100) × (1 − alíquota interestadual/100) ÷ (1 − carga interna/100) − 1] × 100; exibição com 20 casas, razão exata usada no imposto' : 'Carga interna inferior à interestadual: usar MVA original, art. 1º, § 6º',
           inputs: { originalMvaPercent: mva, interstateRate: ownRate, internalRate: adjustmentRate, icmsInternalRate: internalRate, multiplierNumerator, multiplierDenominator }, result: appliedMva,
           rounding: { scale: 20, mode: 'HALF_UP_DISPLAY_ONLY' } }] : []),
         { name: 'Base antes da MVA', operation: 'valor do produto + IPI + frete + seguro + outras despesas informadas',

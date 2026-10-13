@@ -12,6 +12,7 @@ const error = ref('')
 const notice = ref('')
 const reuseScope = ref<'CURRENT_ITEM' | 'FUTURE_NOTES'>('CURRENT_ITEM')
 const visibleQuestions = computed(() => context.value?.questions.filter(question => (question.field !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
+  && (question.field !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
   && (question.field !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true')) ?? [])
 
 async function load(event: Event): Promise<void> {
@@ -26,6 +27,7 @@ async function load(event: Event): Promise<void> {
       ...context.value.questions.map(question => [question.field, question.suggestedValue ?? '']),
       ...Object.entries(context.value.answers).map(([key, value]) => [key, String(value)]),
     ])
+    if (context.value.stSpecificMva) selections.value.stMvaMode = 'SPECIFIC_RULE'
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível carregar as perguntas.' }
   finally { loading.value = false }
 }
@@ -39,9 +41,10 @@ async function save(): Promise<void> {
     // Copiar valores escalares antes da ponte Electron: proxies Vue não são clonáveis.
     const answers = Object.fromEntries(Object.entries(selections.value).filter(([key, value]) => value !== ''
       && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
+      && (key !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
       && (key !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true'))
       .map(([key, value]) => [key, value === 'true' ? true : value === 'false' ? false
-        : key.startsWith('st') && ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate'].includes(key)
+        : key.startsWith('st') && ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate'].includes(key)
           ? value!.trim().replace(',', '.') : value])) as ItemFiscalAnswers
     context.value = await window.desktopApi.saveItemFiscalAnswers({
       batchId: props.batchId, documentId: props.documentId, itemNumber: props.itemNumber,
@@ -68,7 +71,7 @@ async function save(): Promise<void> {
       <p v-if="notice" role="status" class="form-success">{{ notice }}</p>
       <template v-if="context && !loading">
         <p v-for="fact in context.xmlFacts" :key="fact">{{ fact }}</p>
-        <div v-if="context.stMvaReference" class="fiscal-note">
+        <div v-if="context.stMvaReference && !context.stSpecificMva" class="fiscal-note">
           <template v-if="context.stMvaReference.status === 'FOUND'">
             <p><strong>MVA original encontrada: {{ context.stMvaReference.originalMvaPercent }}%</strong></p>
             <p>{{ context.stMvaReference.description }}</p>
@@ -76,6 +79,13 @@ async function save(): Promise<void> {
             <p><a :href="context.stMvaReference.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar tabela oficial</a>. Confirme a descrição e as condições da operação. O ajuste automático atende importados interestaduais a 4% de fornecedor do regime normal.</p>
           </template>
           <p v-else>{{ context.stMvaReference.reason }}</p>
+        </div>
+        <div v-if="context.stSpecificMva" class="fiscal-note">
+          <p><strong>MVA específica de {{ context.stSpecificMva.sector === 'FUEL' ? 'combustíveis/lubrificantes' : 'veículos' }} · art. {{ context.stSpecificMva.article }}</strong></p>
+          <p v-if="context.stSpecificMva.status === 'CALCULATED'">MVA original: {{ context.stSpecificMva.originalMvaPercent }}% · MVA aplicada: {{ context.stSpecificMva.appliedMvaPercent }}%.</p>
+          <p v-if="context.stSpecificMva.reason">{{ context.stSpecificMva.reason }}</p>
+          <p>{{ context.stSpecificMva.legalBasis }}. <a :href="context.stSpecificMva.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar a resolução</a>.</p>
+          <p>A seleção da MVA fica registrada mesmo quando ainda faltam dados para concluir o imposto.</p>
         </div>
         <p v-if="context.reuseNotice">{{ context.reuseNotice }}</p>
         <p v-if="context.blockedReason" role="status">{{ context.blockedReason }}</p>

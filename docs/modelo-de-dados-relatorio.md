@@ -58,3 +58,10 @@ ICMS, ST e FCP-ST não são intercambiáveis. O XLSX layout 3 seleciona a memór
 componente para valores, base, regra e auditoria e inclui comparações de base e
 alíquota. Diferenças monetárias continuam calculado menos declarado, com tolerância
 de R$ 0,01; o percentual do FCP-ST tem comparação exata.
+
+## Decisão de MVA específica — DT-052
+
+O XLSX layout 4 inclui a decisão versionada da MVA de combustíveis/veículos,
+com condições e fórmula, inclusive quando o componente de imposto está pendente.
+Essa decisão não preenche valores de imposto não calculados. Alíquota ST e FCP-ST
+são comparadas de forma exata; divergências de base/alíquota ficam nas evidências.

@@ -21,6 +21,9 @@ export interface NormalizedDeclaredIcms {
   originCode?: string
   cst?: string
   csosn?: string
+  monophaseAmount?: DecimalText
+  monophaseRetainedAmount?: DecimalText
+  monophasePreviouslyRetainedAmount?: DecimalText
   baseMode?: string
   baseReductionPercent?: DecimalText
   baseAmount?: DecimalText
@@ -55,6 +58,9 @@ export interface NormalizedNfeItem {
   ncm?: string
   cest?: string
   cfop?: string
+  fuelAnpCode?: string
+  fuelDescription?: string
+  vehicleOperationType?: string
   commercialUnit?: string
   commercialQuantity?: DecimalText
   commercialUnitAmount?: DecimalText

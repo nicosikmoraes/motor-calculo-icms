@@ -23,10 +23,24 @@ describe('exportação XLSX de conferência', () => {
     const book = createExcelWorkbook(report)
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Componente calculado')).value).toBe('ICMS-ST')
-    expect(sheet.getCell(6, column(sheet, 'ICMS declarado original (R$)')).value).toBe(106.30)
+    expect(sheet.getCell(6, column(sheet, 'Imposto declarado original (R$)')).value).toBe(106.30)
     const summary = book.getWorksheet('Resumo')!
     expect(summary.getCell(6, column(summary, 'Componente conferido')).value).toBe('ICMS-ST')
     expect(book.getWorksheet('Pendências e exclusões')!.getColumn(6).values).not.toContain('Diferimento')
+  })
+  it('exporta a decisão específica da MVA mesmo quando o imposto ainda não pode ser concluído', () => {
+    const report = structuredClone(excelFixture())
+    const item = report.items[0]!
+    item.calculation = { component: 'ICMS_ST', status: 'PENDING_DATA', inputs: [{ name: 'stSpecificMvaDecision',
+      value: JSON.stringify({ status: 'CALCULATED', originalMvaPercent: '30', appliedMvaPercent: '58.54', article: 11 }),
+      source: 'RULE/PR_ST_MVA_FUEL_VEHICLE_571/v1', treatment: 'INCLUDED' }], steps: [], reason: 'Falta conferir o imposto.' }
+    report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: 'doc', companyId: 'company', documentNumber: '1',
+      accessKey: '0'.repeat(44), issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1', authorization: 'UNVERIFIED',
+      items: [{ itemNumber: '1', memory: { schemaVersion: 1, ...item.calculation } }] }])
+    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    expect(sheet.getCell(6, column(sheet,'MVA aplicada (%)')).value).toBe('58.54')
+    expect(sheet.getCell(6, column(sheet,'Imposto calculado (R$)')).value).toBeNull()
+    expect(sheet.getCell(6, column(sheet,'Regra específica da MVA')).text).toContain('58.54')
   })
   it('gera arquivo reabrível com quatro abas, filtros, cabeçalhos fixos e números conciliados', async () => {
     const report = excelFixture()
@@ -68,7 +82,7 @@ describe('exportação XLSX de conferência', () => {
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Produto')).value).toBe(report.items[0]!.description)
     expect(sheet.getCell(6, column(sheet, 'Produto')).type).toBe(ExcelJS.ValueType.String)
-    expect(sheet.getCell(6, column(sheet, 'ICMS declarado original (R$)')).value).toBe('12345678901234567890.01')
+    expect(sheet.getCell(6, column(sheet, 'Imposto declarado original (R$)')).value).toBe('12345678901234567890.01')
     for (const s of book.worksheets) s.eachRow(row => row.eachCell(cell => expect(cell.type).not.toBe(ExcelJS.ValueType.Formula)))
   })
   it('mostra abas vazias sem inventar registros e recusa consolidação ausente', () => {

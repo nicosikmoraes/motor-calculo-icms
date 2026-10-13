@@ -550,7 +550,16 @@ export interface ItemFiscalAnswers {
   stMvaPercent?: string
   stInternalRate?: string
   stOwnOperationRate?: string
-  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4'
+  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4' | 'SPECIFIC_RULE'
+  stSpecificRuleConfirmed?: boolean
+  stSpecificEffectiveRate?: string
+  stFuelCategory?: 'PETROLEUM_NONINCIDENCE' | 'SHALE_OIL' | 'OTHER'
+  stFuelArt50OperationBaseConfirmed?: boolean
+  stFuelMonophaseConfirmed?: boolean
+  stVehicleNewForResaleConfirmed?: boolean
+  stVehicleMvaFallbackConfirmed?: boolean
+  stVehicleImportedConfirmed?: boolean
+  stVehicleImportPriceFloorConfirmed?: boolean
   stSupplierNormalConfirmed?: boolean
   fcpStApplicableConfirmed?: boolean
   stInternalRateIncludesFcp?: boolean
@@ -564,7 +573,14 @@ export interface ItemFiscalQuestion {
   suggestedValue?: string
 }
 
+export interface SpecificStMvaSummary {
+  status: 'CALCULATED' | 'PENDING_DATA' | 'PENDING_RULE' | 'UNSUPPORTED'
+  sector: 'FUEL' | 'VEHICLE'; article: 11 | 29; reason?: string
+  originalMvaPercent?: string; appliedMvaPercent?: string
+  legalBasis: string; sourceUrl: string
+}
 export interface ItemFiscalContext {
+  stSpecificMva?: SpecificStMvaSummary
   stMvaReference?: {
     status: string; reason?: string; catalogId?: string; catalogVersion?: number
     ruleId?: string; description?: string; originalMvaPercent?: string; validFrom?: string

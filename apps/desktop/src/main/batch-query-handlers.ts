@@ -155,7 +155,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
               fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
-              ...(saved.memory.status === 'CALCULATED' && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined
+              ...(saved.memory.status === 'CALCULATED' && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && (readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined || (calculation.inputs.some(input => input.name === 'stSpecificMvaDecision') && !saved.memory.inputs.some(input => input.name === 'stSpecificMvaDecision')))
                 ? { reviewReason: `${calculation.reason ?? 'Confirme a incidência de FCP-ST e revise a alíquota interna.'} O cálculo anterior está preservado para auditoria.`,
                     reviewStatus: calculation.status === 'CALCULATED' ? 'PENDING_DATA' as const : calculation.status } : {}) } : calculation
           })(),

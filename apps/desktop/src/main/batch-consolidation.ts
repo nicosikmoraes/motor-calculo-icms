@@ -1,3 +1,4 @@
+import { specificStSector } from '@motor/tax-engine'
 import { buildBatchConsolidation, type ConsolidationDocument } from '@motor/reporting'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
 import { documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-cases'
@@ -66,6 +67,10 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
               memory: { ...memory, status: 'UNSUPPORTED' as const,
                 reason: 'A memória de ICMS-ST exige nova conferência da perspectiva da empresa, do regime ou do enquadramento. O resultado anterior está preservado para auditoria.' } }
           }
+          if (specificStSector(item.ncm, item.cest, item.fuelAnpCode) && !memory.inputs.some(input => input.name === 'stSpecificMvaDecision')) return {
+            itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount,
+            declaredFcpSt: item.declaredIcms?.fcpStAmount, declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
+            memory: { ...memory, status: 'PENDING_RULE' as const, reason: 'A MVA de combustível ou veículo exige nova conferência das condições específicas. O resultado anterior está preservado para auditoria.' } }
           if (answers.fcpStApplicableConfirmed === undefined) return { itemNumber: item.itemNumber,
             declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
             declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,

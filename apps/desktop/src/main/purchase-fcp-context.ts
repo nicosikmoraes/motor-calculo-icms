@@ -1,12 +1,14 @@
 import type { ItemFiscalAnswers, ItemFiscalQuestion } from '@motor/contracts'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
 import { addDecimals, subtractDecimals, compareDecimals, calculateParanaFcpSt, paranaFcpStCoverage,
-  pendingCalculation, PARANA_FCP_ST_RULE, type CalculationComponentMemory } from '@motor/tax-engine'
+  pendingCalculation, PARANA_FCP_ST_RULE, type CalculationComponentMemory, type SpecificStMvaDecision } from '@motor/tax-engine'
 
 /** A escolha de incidência é explícita; ausência dos campos FCP não equivale a não incidência. */
-export function preparePurchaseFcpContext(nfe: NormalizedNfe, item: NormalizedNfeItem, answers: ItemFiscalAnswers) {
+export function preparePurchaseFcpContext(nfe: NormalizedNfe, item: NormalizedNfeItem, answers: ItemFiscalAnswers, specific?: SpecificStMvaDecision) {
   const tax = item.declaredIcms
-  const coverage = paranaFcpStCoverage(nfe.issuedAt?.slice(0, 10), item.ncm)
+  const specialConditions = { vehicleStConditionsConfirmed: specific?.sector === 'VEHICLE' && specific.status === 'CALCULATED',
+    fuelStConditionsConfirmed: specific?.sector === 'FUEL' && specific.status === 'CALCULATED' }
+  const coverage = paranaFcpStCoverage(nfe.issuedAt?.slice(0, 10), item.ncm, specialConditions)
   const declared = {
     ...(tax?.fcpStBaseAmount !== undefined ? { base: tax.fcpStBaseAmount } : {}),
     ...(tax?.fcpStRate !== undefined ? { rate: tax.fcpStRate } : {}),
@@ -52,7 +54,7 @@ export function preparePurchaseFcpContext(nfe: NormalizedNfe, item: NormalizedNf
     ], declared), component: 'FCP_ST' }
     return calculateParanaFcpSt({
       ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}), ...(item.ncm ? { ncm: item.ncm } : {}),
-      recipientState: 'PR', applicationConfirmed: true,
+      recipientState: 'PR', applicationConfirmed: true, ...specialConditions,
       baseConfirmed: primary.status === 'CALCULATED',
       ...(primary.status === 'CALCULATED' && primary.result ? { baseAmount: primary.result.base } : {}),
       ...(tax?.fcpAmount !== undefined ? { ownFcpAmount: tax.fcpAmount } : {}), declared,
