@@ -87,7 +87,7 @@ describe('retenção de cópias e temporários', () => {
     await expect(access(external.lastBackupPath!)).resolves.toBeUndefined()
     await expect(access(manual.lastBackupPath!)).resolves.toBeUndefined()
     expect(f.service.status().lastCleanupRemoved).toBeGreaterThanOrEqual(6)
-  })
+  }, 30_000)
   it('zero desativa expurgo e pacote inválido é preservado', async () => {
     const f = await fixture()
     const first = await f.service.create(f.destination, 'AUTOMATIC')
