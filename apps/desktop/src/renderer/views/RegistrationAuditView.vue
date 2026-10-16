@@ -81,7 +81,7 @@ onMounted(() => void load())
         <p>Revisão {{ event.revision }} · Seu computador</p>
         <ul><li v-for="(change, field) in event.changes" :key="field">
           <strong>{{ fieldLabels[String(field)] ?? field }}:</strong>
-          <span v-if="change.before !== null"> {{ valueLabel(change.before) }} → </span>{{ valueLabel(change.after) }}
+          <span v-if="change.before !== null"> Anterior: {{ valueLabel(change.before) }} · Atual: </span>{{ valueLabel(change.after) }}
         </li></ul>
       </li>
     </ol>

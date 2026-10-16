@@ -13,10 +13,63 @@ No MVP não existe distinção de permissões: todos os usuários da instalaçã
 
 ### Consultar um lote importado
 
-Abra **Histórico** para consultar os lotes persistidos. A tela de detalhes mostra
-empresa, totais, documentos normalizados, itens, ambiente, hashes, repetições,
-conflitos e diagnósticos. Esses dados permanecem disponíveis depois de reiniciar o
-aplicativo; ainda não representam um cálculo fiscal concluído.
+A **Visão geral** mostra notas recebidas, notas com cálculo salvo e itens que
+precisam de conferência. Filtre por empresa e pelo mês da importação; o gráfico
+pode ser agrupado por empresa ou data. Clique nas barras de uma empresa para
+filtrar o painel. **Atualizar** consulta novamente as memórias salvas.
+
+Uma nota é contada como calculada quando todos os seus itens com CFOP iniciado em **6**
+têm resultado salvo. O gráfico circular separa notas calculadas, notas aguardando
+cálculo, notas sem itens com CFOP iniciado em 6 e notas fora dos totais pela política documental.
+Divergências são contadas por item e podem ocorrer em notas já calculadas.
+O painel não executa nem modifica cálculos.
+
+Use **Gerenciar empresas** para abrir os cadastros e **Ver histórico** para
+consultar todas as importações. Os atalhos em **O que falta conferir** abrem o
+lote correspondente. Perfis fiscais, regras, conflitos, revisão documental,
+auditoria, transferência de cadastros e backup ficam em **Configurações**.
+
+Abra **Histórico de lotes** para consultar as importações em uma linha do tempo,
+agrupadas pelo mês de recebimento. Busque pelo nome do lote, empresa ou CNPJ e
+filtre por período, empresa e situação. O resumo no topo considera todo o
+histórico; os filtros delimitam a lista. Empresas inativas continuam disponíveis
+para consulta. Nos lotes mistos, o filtro de empresa seleciona o lote completo,
+preservando as contagens de todas as empresas que ele contém.
+
+Clique em qualquer parte do cartão para abrir o lote. As contagens distinguem
+notas recebidas, notas com cálculo salvo, itens pendentes ou divergentes e
+arquivos. Revisões documentais, exclusões e diagnósticos aparecem quando existem.
+A importação concluída não significa que a conferência fiscal esteja concluída.
+Use **Atualizar histórico** para consultar novamente os resultados salvos.
+
+A tela de detalhes reúne empresa, totais, notas e itens, ambiente, arquivos,
+hashes, repetições, conflitos e diagnósticos. Esses dados permanecem disponíveis
+depois de reiniciar o aplicativo. Importações interrompidas continuam visíveis no
+histórico e podem ser retomadas com os arquivos de origem no mesmo local.
+
+O detalhe abre em **Notas e itens**, com a primeira nota expandida. Os produtos
+aparecem em cards em sequência, com valor do produto, imposto declarado, imposto
+calculado e diferença alinhados. ICMS diferido e FCP-ST aparecem quando existem.
+A diferença usa a comparação salva do mesmo produto e componente tributário.
+Abra **Dados e memória de cálculo** para conferir respostas, enquadramento e
+memória. A identificação completa fica em **Identificação da nota e chave de
+acesso**. Os quatro indicadores do topo continuam abrindo as respectivas áreas
+e filtros da conferência.
+
+### Exportar produtos para Excel
+
+No detalhe do lote, use **Exportar Excel**. A primeira aba, **Itens**, tem uma linha
+por produto de cada nota: nota, série, número do item, código, descrição, ICMS
+declarado, ICMS calculado e diferença. NCM, CFOP, valor do produto, empresa, CNPJ,
+emissão e chave de acesso também ficam nessa linha. ICMS-ST e FCP-ST têm colunas
+próprias, sem repetir o produto em novas linhas. O mesmo produto em notas
+diferentes mantém uma linha para cada nota.
+
+Produtos pendentes e excluídos continuam identificados. Cálculos indisponíveis
+ficam em branco; memórias preservadas para auditoria aparecem em colunas próprias.
+As abas de resumo, divergências e pendências conservam as evidências da
+conferência. A exportação mensal usa essa mesma organização, incluindo o lote de
+origem de cada produto. O arquivo registra o layout XLSX 6.
 
 ### Atividades contábeis
 
@@ -44,6 +97,21 @@ instalação. O MVP mantém uma única organização local; o nome pode ser alte
 posteriormente na tela **Empresas**.
 
 ### 2.1 Cadastrar a empresa
+
+A tela **Empresas** apresenta a carteira em cartões. Busque por razão social,
+nome fantasia ou CNPJ (com ou sem pontuação) e filtre por situação e UF.
+Os cartões mostram notas, lotes e itens a conferir, considerando o histórico
+completo da empresa. Revisões documentais aparecem separadamente no resumo.
+
+Use **Cadastrar empresa** para abrir o formulário. **Editar** atualiza o cadastro,
+mantendo o CNPJ como vínculo permanente com as notas. **Abrir empresa** mostra os
+dados cadastrais e o acompanhamento dos cálculos; **Ver lotes** abre diretamente
+o histórico daquela empresa. O botão **Abrir lote** leva à conferência completa
+do lote, que pode conter documentos de mais de uma empresa.
+
+No detalhe é possível inativar ou reativar o cadastro. A inativação remove a
+empresa das novas importações e mantém seus documentos e histórico disponíveis.
+Use **Escritório** ou **Editar escritório** para alterar o nome da instalação.
 
 No cadastro inicial, informe CNPJ, razão social e UF; o nome fantasia é opcional.
 Quando o cadastro nasce de uma importação, esses dados podem vir preenchidos pelo
@@ -99,11 +167,12 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 ## 3. Processar um lote
 
 1. Acesse **Novo lote** e selecione XMLs individuais ou um ZIP.
-2. Revise a empresa analisada de cada nota. O sistema sugere automaticamente
-   o emitente quando ele já está cadastrado.
+2. O sistema identifica empresas cadastradas pelo CNPJ do XML. Nas compras
+   com ST destinadas ao Paraná, sugere a compradora; nos demais casos, usa a
+   única empresa compatível ou pede a escolha quando há duas possibilidades.
 3. Para cada nota ainda sem empresa, cadastre o CNPJ necessário e confirme a
-   associação. O cadastro nunca é criado automaticamente. Se a empresa analisada
-   for a destinatária, escolha-a explicitamente na nota.
+   associação. O cadastro rápido traz CNPJ, nome e UF do XML, e a empresa salva
+   já fica associada às notas correspondentes. O cadastro não é criado sem envio.
 4. Confirme o ambiente e processe o lote. Um mesmo ZIP pode conter empresas
    diferentes, mas nenhuma nota reconhecida é processada sem associação.
 5. Acompanhe o contador de entradas durante a inspeção e o processamento. Use
@@ -121,6 +190,68 @@ nem os totais; a revisão dos efeitos documentais será feita em etapa posterior
 O usuário não informa alíquota, finalidade ou tratamento durante o envio. O sistema usa os cadastros previamente aprovados.
 
 ## 4. Interpretar o resultado
+
+### Cálculo automático dos parâmetros do XML
+
+Após importar, o aplicativo grava o cálculo somente dos itens cujo **CFOP começa
+com 6** e que têm dados suficientes. A presença de ICMS declarado não seleciona
+o item: sem esse valor, ele continua elegível, mas fica pendente se faltar um
+dado necessário à fórmula. Em notas com CFOPs diferentes, cada produto segue
+seu próprio CFOP. Os demais produtos permanecem visíveis na nota e no Excel,
+com o motivo da exclusão e sem participar dos totais calculados. Memórias
+anteriores são preservadas para auditoria. Nas compras com ST declarada que correspondem a uma única
+linha do catálogo vigente, obtém a MVA por NCM, CEST e data e combina com as
+alíquotas e valores do XML. O resultado aparece como **Calculado por XML e
+catálogo**. A tela mostra a origem dos percentuais, sem pedir que sejam
+digitados novamente. Os demais cenários cobertos podem aparecer como
+**Calculado pelo XML**, conferindo os parâmetros declarados.
+Esse cálculo confere a declaração recebida. A revisão do enquadramento pelas
+regras fiscais continua disponível em **Revisar enquadramento fiscal**.
+
+Na aba **Revisão**, ficam os itens com dados ausentes ou divergências, incluindo
+os que já foram calculados automaticamente. Se a tabela indicar 47,77% e o
+XML declarar 0%, o cálculo por catálogo usa a tabela e mostra a divergência de
+MVA em percentual. A conferência exclusiva dos parâmetros declarados mantém
+a margem do XML. Uma alteração manual de MVA é aceita e suas diferenças são
+calculadas, preservando o histórico.
+Modalidades não suportadas continuam com o motivo da pendência. Respostas
+manuais anteriores são preservadas. O XLSX traz o CNPJ da empresa no cabeçalho,
+nas linhas da conferência e no nome sugerido para o arquivo.
+
+**Salvar e calcular** indica junto a cada campo o dado ausente ou inválido e
+leva o foco ao primeiro problema. **Salvar rascunho** guarda respostas
+incompletas e informa que o cálculo continua pendente. Na alíquota interna,
+**Usar valor do XML** restaura o percentual de pICMSST e indica que o FECOP
+está separado. Um cálculo concluído avança a fila; divergências continuam
+disponíveis para conferência.
+
+### Conferir e calcular com menos perguntas
+
+Na aba **Revisão**, os itens sem cálculo permanecem disponíveis para revisão,
+inclusive os que ficaram fora do escopo depois de uma resposta. A tela informa o
+motivo e permite corrigir as respostas quando a operação estiver coberta.
+
+Em operações comuns internas no Paraná, escolha a destinação e revise a
+confirmação resumida: destinatário fora da construção civil, produto que não é
+petróleo/combustível e enquadramento comum de 19,5%, com diferimento quando
+aplicável. **Confirmar cenário e calcular** registra sua confirmação dessas
+condições. Os dados lidos do XML ficam disponíveis em **Dados já lidos da nota**;
+o indicador de consumidor final orienta a destinação sem escolher entre
+uso/consumo e ativo, ou entre revenda e industrialização. Para exceções, abra as
+perguntas individuais.
+
+Quando houver itens ainda sem cálculo com o mesmo contexto fiscal na nota,
+**Onde aplicar esta confirmação?** oferece os itens compatíveis e mostra os
+códigos que receberão as respostas. Confira se as condições declaradas e a
+destinação valem para todos eles. Cada produto mantém sua base, seus encargos,
+seu rateio e sua memória de cálculo. Itens já calculados são preservados.
+Essa opção não cria uma definição para notas futuras.
+
+Para um produto recorrente, a opção **Nas próximas notas desta empresa, para
+este produto do fornecedor** continua disponível no ICMS próprio. As próximas
+notas compatíveis reaproveitam a definição salva; mudanças no contexto exigem
+nova conferência. ICMS-ST mantém as confirmações de incidência e de enquadramento
+por operação.
 
 ### Calculada aderente
 

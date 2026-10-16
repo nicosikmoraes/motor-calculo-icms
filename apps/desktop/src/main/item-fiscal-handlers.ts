@@ -24,7 +24,12 @@ export function registerItemFiscalHandlers(): void {
       itemNumber: text(input.itemNumber, 'Item'), requestId: text(input.requestId, 'Solicitação'),
       ...(input.expectedRunId !== undefined ? { expectedRunId: text(input.expectedRunId, 'Execução anterior') } : {}),
       answers: validateItemFiscalAnswers(input.answers),
+      ...(input.calculationMode !== undefined ? { calculationMode: (() => {
+        if (input.calculationMode !== 'XML' && input.calculationMode !== 'FISCAL_RULE' && input.calculationMode !== 'AUTOMATIC') throw new Error('Modo de cálculo inválido.')
+        return input.calculationMode
+      })() } : {}),
       ...(input.reuseScope !== undefined ? { reuseScope: (() => {
+        if (input.reuseScope === 'MATCHING_NOTE_ITEMS') return 'MATCHING_NOTE_ITEMS'
         if (input.reuseScope !== 'CURRENT_ITEM' && input.reuseScope !== 'FUTURE_NOTES') throw new Error('Alcance das respostas inválido.')
         return input.reuseScope
       })() } : {}),

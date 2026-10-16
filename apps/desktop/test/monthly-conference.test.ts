@@ -28,7 +28,7 @@ function addNote(options: { key?: string; hash?: string; month?: string; company
     normalized: { kind: 'NFE', layoutVersion: '4.00', model: '55', accessKey: key, number: '0001', series: '01', issuedAt: `${options.month ?? '2026-09'}-30T23:30:00-03:00`, environmentCode: '1',
       issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
       recipient: { state: 'PR', taxId: '11444777000161', taxIdType: 'CNPJ' }, declaredTotals: {}, source,
-      items: [{ itemNumber: '1', supplierProductCode: '001', productAmount: '1000', declaredIcms: { cst: '00', amount: '120.00' }, source }] } }])
+      items: [{ itemNumber: '1', cfop: '6102', supplierProductCode: '001', productAmount: '1000', declaredIcms: { cst: '00', amount: '120.00' }, source }] } }])
   const run = save(batchId, documentId, options.amount ?? '120.00')
   return { batchId, documentId, run }
 }
@@ -65,10 +65,10 @@ describe('consulta mensal persistida', () => {
     addNote({ company: otherCompany, key: '4'.repeat(44) })
     const report = queryMonthlyReport(database, input(), 'test')
     const book = createExcelWorkbook(report)
-    expect(book.worksheets.map(s => s.name)).toEqual(['Resumo', 'Itens', 'Divergências', 'Pendências e exclusões', 'Lotes'])
+    expect(book.worksheets.map(s => s.name)).toEqual(['Itens', 'Resumo', 'Divergências', 'Pendências e exclusões', 'Lotes'])
     expect(report.documents).toHaveLength(2)
     expect(book.getWorksheet('Resumo')?.getCell('G6').value).toBe(120)
-    expect(book.getWorksheet('Itens')?.getColumn(10).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
+    expect(book.getWorksheet('Itens')?.getColumn((book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Lote de origem')).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
     expect(book.getWorksheet('Pendências e exclusões')?.getColumn(10).values).toContain(duplicate.batchId)
     expect(book.getWorksheet('Lotes')?.getColumn(1).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
     const before = report.consolidation?.groups[0]?.totals.calculatedIcms

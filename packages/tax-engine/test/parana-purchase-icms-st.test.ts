@@ -32,6 +32,7 @@ describe('ICMS-ST de compras no Paraná pela planilha informada', () => {
     expect(calculateParanaPurchaseIcmsSt(withoutMva).status).toBe('PENDING_DATA')
     expect(calculateParanaPurchaseIcmsSt(withoutInternalRate).status).toBe('PENDING_DATA')
     expect(calculateParanaPurchaseIcmsSt(withoutOwnRate).status).toBe('PENDING_DATA')
+    expect(calculateParanaPurchaseIcmsSt(withoutInternalRate).reason).toBe('Preencha alíquota interna de ICMS para concluir o cálculo de ICMS-ST.')
   })
 
   it('distingue a dedução da planilha da dedução do ICMS informado e não presume a base própria com encargos', () => {

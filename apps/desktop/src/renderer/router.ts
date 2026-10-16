@@ -15,7 +15,11 @@ import RegistrationAuditView from './views/RegistrationAuditView.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
-  scrollBehavior() { return { top: 0 } },
+  scrollBehavior(to, from) {
+    // A busca do histórico atualiza a URL sem deslocar o campo em edição.
+    if (to.path === '/lotes' && from.path === to.path) return false
+    return { top: 0 }
+  },
   routes: [
     { path: '/conflitos-notas', component: DocumentConflictsView },
     { path: '/revisao-documental', component: DocumentReviewView },

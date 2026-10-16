@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { isCalculationEligibleCfop } from '@motor/domain'
 import { itemCalculationStatus, itemCalculationComponents } from '@motor/contracts'
-import { RendererErrorMessage } from '../error-messages'
+import { desktopErrorMessage, RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import type { BatchDetail, FiscalProfileSummary, FiscalItemSummary, FiscalDocumentSummary } from '@motor/contracts'
@@ -14,6 +15,7 @@ const route = useRoute()
 const detail = ref<BatchDetail | null>(null)
 const error = ref('')
 const notice = ref('')
+const noticePending = ref(false)
 const saving = ref(false)
 const exporting = ref(false)
 const reassessing = ref(false)
@@ -21,20 +23,22 @@ const selectedRunId = ref('')
 const profilesByCompany = ref<Record<string, readonly FiscalProfileSummary[]>>({})
 const selectedProfiles = ref<Record<string, string>>({})
 type DetailPanel = 'overview' | 'documents' | 'pending' | 'files'
-const activePanel = ref<DetailPanel>('overview')
+const activePanel = ref<DetailPanel>('documents')
 const search = ref('')
 const documentFilter = ref('all')
 const focusedItem = ref('')
 const openDocuments = ref(new Set<string>())
 const fiscalIndex = ref(0)
 const fiscalPendingItems = computed(() => detail.value?.documents.flatMap(document => document.items
-  .filter(item => ['PENDING_DATA', 'PENDING_RULE'].includes(itemCalculationStatus(item.calculation)))
+  .filter(item => (!hasSavedCalculation(item) || isDivergent(item)) && isEligibleItem(item))
   .map(item => ({ document, item }))) ?? [])
+const excludedCfopCount = computed(() => detail.value?.documents.flatMap(document => document.items)
+  .filter(item => !isEligibleItem(item)).length ?? 0)
 const currentFiscalItem = computed(() => fiscalPendingItems.value[Math.min(fiscalIndex.value, Math.max(0, fiscalPendingItems.value.length - 1))])
 const calculatedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
-  .filter(item => itemCalculationStatus(item.calculation) === 'CALCULATED').length ?? 0)
+  .filter(hasSavedCalculation).length ?? 0)
 const unsupportedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
-  .filter(item => itemCalculationStatus(item.calculation) === 'UNSUPPORTED').length ?? 0)
+  .filter(item => isEligibleItem(item) && itemCalculationStatus(item.calculation) === 'UNSUPPORTED').length ?? 0)
 const itemCount = computed(() => detail.value?.documents.reduce((total, document) => total + document.items.length, 0) ?? 0)
 const comparison = computed(() => {
   if (!selectedRunId.value || !detail.value) return null
@@ -75,9 +79,27 @@ async function loadDetail(): Promise<void> {
   profilesByCompany.value = Object.fromEntries(entries)
 }
 
+async function handleFiscalSaved(outcome: { status: string; message: string; divergent?: boolean }): Promise<void> {
+  const reviewedKey = activePanel.value === 'pending' && currentFiscalItem.value ? itemKey(currentFiscalItem.value.document, currentFiscalItem.value.item) : undefined
+  notice.value = outcome.message
+  noticePending.value = outcome.status !== 'CALCULATED' || Boolean(outcome.divergent)
+  error.value = ''
+  try {
+    await loadDetail()
+    fiscalIndex.value = Math.min(fiscalIndex.value, Math.max(0, fiscalPendingItems.value.length - 1))
+    if (outcome.status === 'CALCULATED' && reviewedKey && fiscalPendingItems.value.length > 1) {
+      const reviewedIndex = fiscalPendingItems.value.findIndex(entry => itemKey(entry.document, entry.item) === reviewedKey)
+      if (reviewedIndex >= 0) fiscalIndex.value = (reviewedIndex + 1) % fiscalPendingItems.value.length
+    }
+  } catch (cause) {
+    error.value = desktopErrorMessage(cause, 'As respostas foram salvas, mas não foi possível atualizar a lista. Reabra o lote para consultar o resultado.')
+  }
+}
+
 async function exportExcel(): Promise<void> {
   if (!detail.value || exporting.value) return
   exporting.value = true; error.value = ''; notice.value = ''
+  noticePending.value = false
   try {
     const result = await window.desktopApi.exportBatchExcel(detail.value.batch.id)
     if (result) notice.value = `Excel exportado: ${result.path}`
@@ -156,16 +178,44 @@ function dateTime(value?: string): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : value
 }
 function calculationLabel(item: FiscalItemSummary): string {
+  if (!isEligibleItem(item)) return 'Fora do cálculo · CFOP'
+  if (hasSavedCalculation(item) && item.calculation.inputs.some(input => input.name === 'automaticCatalogCalculation')) return 'Calculado por XML e catálogo'
+  if (hasSavedCalculation(item) && item.calculation.inputs.some(input => input.name === 'automaticXmlCalculation')) return 'Calculado pelo XML'
+  if (itemCalculationStatus(item.calculation) === 'CALCULATED' && !item.calculation.runId) return 'Aguardando confirmação'
   return ({ CALCULATED: 'Calculado', PENDING_DATA: 'Dados pendentes', PENDING_RULE: 'Regra pendente', UNSUPPORTED: 'Fora do escopo' })[itemCalculationStatus(item.calculation)]
+}
+function hasSavedCalculation(item: FiscalItemSummary): boolean {
+  return isEligibleItem(item) && Boolean(item.calculation.runId) && itemCalculationStatus(item.calculation) === 'CALCULATED'
 }
 function isIcmsSt(item: FiscalItemSummary): boolean {
   return (item.calculation.component ?? item.calculation.result?.component) === 'ICMS_ST'
 }
 function isDivergent(item: FiscalItemSummary): boolean {
-  return Boolean(itemCalculationComponents(item.calculation).some(component => component.comparisons?.some(c => c.status === 'DIFFERENT')))
+  return isEligibleItem(item) && Boolean(itemCalculationComponents(item.calculation).some(component => component.comparisons?.some(c => c.status === 'DIFFERENT')))
+}
+function isEligibleItem(item: FiscalItemSummary): boolean {
+  return isCalculationEligibleCfop(item.cfop)
+}
+// A diferença exibida vem da consolidação salva do mesmo item e componente.
+const amountComparisons = computed(() => new Map(detail.value?.consolidation?.evidence
+  .filter(entry => entry.status === 'CALCULATED' && entry.comparison)
+  .map(entry => [JSON.stringify([entry.documentId, entry.itemNumber, entry.component ?? 'ICMS']), entry.comparison!] as const) ?? []))
+function amountComparison(document: FiscalDocumentSummary, item: FiscalItemSummary) {
+  return amountComparisons.value.get(JSON.stringify([document.id, item.itemNumber, isIcmsSt(item) ? 'ICMS_ST' : 'ICMS']))
+}
+function documentReviewCount(document: FiscalDocumentSummary): number {
+  return document.items.filter(item => (!hasSavedCalculation(item) || isDivergent(item)) && isEligibleItem(item)).length
+}
+function documentState(document: FiscalDocumentSummary): string {
+  if (!document.eligibleForProcessing) return 'Pendente'
+  const eligible = document.items.filter(isEligibleItem)
+  if (!eligible.length) return 'Fora do cálculo · CFOP'
+  const reviewCount = documentReviewCount(document)
+  if (reviewCount) return `${reviewCount} para revisar`
+  return eligible.length > 0 && documentCalculated(document) === eligible.length ? 'Conferida' : 'Importada para análise'
 }
 function documentCalculated(document: FiscalDocumentSummary): number {
-  return document.items.filter(i => itemCalculationStatus(i.calculation) === 'CALCULATED').length
+  return document.items.filter(hasSavedCalculation).length
 }
 function ingestionLabel(value: string): string {
   return ({ RECEBIDO: 'Recebido', VALIDANDO: 'Validando', PROCESSANDO: 'Processando', CONCLUIDO: 'Concluído', PROCESSADO: 'Processado',
@@ -173,7 +223,8 @@ function ingestionLabel(value: string): string {
     ORIGINAL: 'Original', REPETIDA: 'Repetida', SEM_CONFLITO: 'Sem conflito', CONFLITO_CONTEUDO: 'Conteúdo conflitante' } as Record<string, string>)[value] ?? value
 }
 const divergentCount = computed(() => detail.value?.documents.flatMap(d => d.items).filter(isDivergent).length ?? 0)
-const calculatedPercent = computed(() => itemCount.value ? Math.round(calculatedCount.value / itemCount.value * 100) : 0)
+const eligibleItemCount = computed(() => itemCount.value - excludedCfopCount.value)
+const calculatedPercent = computed(() => eligibleItemCount.value ? Math.round(calculatedCount.value / eligibleItemCount.value * 100) : 0)
 const visibleDocuments = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('pt-BR')
   return detail.value?.documents.filter(document => {
@@ -181,8 +232,9 @@ const visibleDocuments = computed(() => {
       document.recipientName, ...document.items.flatMap(i => [i.description, i.supplierProductCode, i.ncm, i.cfop])]
       .some(value => value?.toLocaleLowerCase('pt-BR').includes(query))
     const matchesFilter = documentFilter.value === 'all'
-      || (documentFilter.value === 'calculated' && document.items.some(i => itemCalculationStatus(i.calculation) === 'CALCULATED'))
-      || (documentFilter.value === 'pending' && document.items.some(i => ['PENDING_DATA', 'PENDING_RULE'].includes(itemCalculationStatus(i.calculation))))
+      || (documentFilter.value === 'cfop6' && document.items.some(isEligibleItem))
+      || (documentFilter.value === 'calculated' && document.items.some(hasSavedCalculation))
+      || (documentFilter.value === 'pending' && document.items.some(i => isEligibleItem(i) && !hasSavedCalculation(i)))
       || (documentFilter.value === 'divergent' && document.items.some(isDivergent))
     return matchesSearch && matchesFilter
   }) ?? []
@@ -198,6 +250,7 @@ function showItem(document: FiscalDocumentSummary, item: FiscalItemSummary): voi
 }
 async function revealHash(): Promise<void> {
   if (route.query.painel === 'files') activePanel.value = 'files'
+  if (route.query.painel === 'pending') activePanel.value = 'pending'
   if (!route.hash || !detail.value) return
   const note = detail.value.documents.find(document => `#nota-${document.id}` === route.hash)
   if (note) {
@@ -216,14 +269,19 @@ async function revealHash(): Promise<void> {
 }
 async function initialize(): Promise<void> {
   error.value = ''
-  try { await loadDetail(); await revealHash() }
+  try {
+    await loadDetail()
+    const firstDocument = detail.value?.documents[0]
+    if (firstDocument && !route.hash) openDocuments.value.add(firstDocument.id)
+    await revealHash()
+  }
   catch (cause) { error.value = cause instanceof Error ? cause.message : RendererErrorMessage.BATCH_LOAD }
 }
 onMounted(initialize)
 watch(() => route.hash, revealHash)
 watch(() => route.query.painel, revealHash)
 watch(() => route.params.id, () => {
-  detail.value = null; selectedRunId.value = ''; activePanel.value = 'overview'; fiscalIndex.value = 0
+  detail.value = null; selectedRunId.value = ''; activePanel.value = 'documents'; fiscalIndex.value = 0
   focusedItem.value = ''; openDocuments.value.clear(); search.value = ''; documentFilter.value = 'all'
   void initialize()
 })
@@ -233,7 +291,7 @@ watch(() => route.params.id, () => {
   <section class="batch-detail">
     <nav class="breadcrumb" aria-label="Localização"><RouterLink to="/lotes">Histórico</RouterLink><span aria-hidden="true">/</span><span>Detalhe do lote</span></nav>
     <p v-if="error" class="form-error notice" role="alert">{{ error }}</p>
-    <p v-if="notice" class="form-success notice" role="status">{{ notice }}</p>
+    <p v-if="notice" class="notice" :class="noticePending ? 'inline-notice' : 'form-success'" role="status">{{ notice }}</p>
     <div v-if="!detail" class="card loading-card" role="status"><span class="loading-dot" aria-hidden="true"></span>{{ error ? 'O lote não pôde ser carregado.' : 'Carregando os dados do lote…' }}<button v-if="error" class="button secondary" @click="initialize">Tentar novamente</button></div>
     <template v-if="detail">
       <header class="batch-header">
@@ -241,31 +299,31 @@ watch(() => route.params.id, () => {
           <h2>{{ detail.batch.originalName || 'Lote fiscal' }}</h2>
           <p>{{ detail.batch.companyName || 'Empresa não informada' }}<span aria-hidden="true"> · </span>Importado em {{ dateTime(detail.batch.receivedAt) }}</p>
         </div>
-        <div class="header-actions"><button class="button primary" type="button" :disabled="exporting || saving || reassessing" @click="exportExcel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg>{{ exporting ? 'Exportando…' : 'Exportar Excel' }}</button><small>Todas as empresas e meses deste lote</small></div>
+        <div class="header-actions"><button class="button primary" type="button" :disabled="exporting || saving || reassessing" @click="exportExcel">{{ exporting ? 'Exportando…' : 'Exportar Excel' }}</button><small>Todas as empresas e meses deste lote</small></div>
       </header>
 
       <div class="batch-metrics" aria-label="Situação dos itens">
         <button class="card metric" @click="showDocuments()"><span class="metric-caption">Documentos fiscais<span class="metric-symbol" aria-hidden="true">▤</span></span><strong>{{ detail.batch.totalDocuments }}</strong><small>{{ itemCount }} itens neste lote</small></button>
-        <button class="card metric" @click="showDocuments('calculated')"><span class="metric-caption">Itens calculados<span class="metric-symbol green" aria-hidden="true">✓</span></span><strong>{{ calculatedCount }}<span class="metric-denominator"> / {{ itemCount }}</span></strong><small>{{ calculatedPercent }}% dos itens com cálculo salvo</small></button>
-        <button class="card metric" @click="activePanel = 'pending'"><span class="metric-caption">Dados fiscais pendentes<span class="metric-symbol amber" aria-hidden="true">!</span></span><strong>{{ fiscalPendingItems.length }}</strong><small>{{ unsupportedCount }} itens fora do escopo</small></button>
+        <button class="card metric" @click="showDocuments('calculated')"><span class="metric-caption">Itens calculados<span class="metric-symbol green" aria-hidden="true">✓</span></span><strong>{{ calculatedCount }}<span class="metric-denominator"> / {{ eligibleItemCount }}</span></strong><small>{{ calculatedPercent }}% dos itens com CFOP 6 com cálculo salvo</small></button>
+        <button class="card metric" @click="activePanel = 'pending'"><span class="metric-caption">Itens para revisar<span class="metric-symbol amber" aria-hidden="true">!</span></span><strong>{{ fiscalPendingItems.length }}</strong><small>{{ unsupportedCount }} itens fora do escopo</small></button>
         <button class="card metric" @click="showDocuments('divergent')"><span class="metric-caption">Itens com divergência<span class="metric-symbol rose" aria-hidden="true">≠</span></span><strong>{{ divergentCount }}</strong><small>Base ou ICMS acima da tolerância</small></button>
       </div>
 
       <nav class="detail-navigation" aria-label="Áreas do lote">
         <button :aria-pressed="activePanel === 'overview'" :class="{ active: activePanel === 'overview' }" @click="activePanel = 'overview'">Resumo</button>
         <button :aria-pressed="activePanel === 'documents'" :class="{ active: activePanel === 'documents' }" @click="activePanel = 'documents'">Notas e itens <span>{{ detail.documents.length }}</span></button>
-        <button :aria-pressed="activePanel === 'pending'" :class="{ active: activePanel === 'pending' }" @click="activePanel = 'pending'">Pendências <span>{{ fiscalPendingItems.length }}</span></button>
+        <button :aria-pressed="activePanel === 'pending'" :class="{ active: activePanel === 'pending' }" @click="activePanel = 'pending'">Revisão <span>{{ fiscalPendingItems.length }}</span></button>
         <button :aria-pressed="activePanel === 'files'" :class="{ active: activePanel === 'files' }" @click="activePanel = 'files'">Arquivos e eventos</button>
       </nav>
 
       <section v-show="activePanel === 'overview'" class="panel-stack" aria-label="Resumo do lote">
         <article class="card analysis-progress">
           <div class="progress-copy"><span class="section-kicker">Andamento da análise</span><h3>{{ fiscalPendingItems.length ? 'Continue a conferência dos itens' : calculatedCount ? 'Confira os resultados salvos' : 'Consulte a situação dos documentos' }}</h3>
-            <p>{{ calculatedCount }} itens calculados, {{ fiscalPendingItems.length }} com dados pendentes e {{ unsupportedCount }} fora do escopo. A conferência usa os últimos resultados salvos.</p>
-            <div class="progress-track" role="progressbar" aria-label="Itens com cálculo salvo" :aria-valuenow="calculatedCount" :aria-valuemax="Math.max(itemCount, 1)" aria-valuemin="0"><span :style="{ width: `${calculatedPercent}%` }"></span></div>
+            <p>{{ calculatedCount }} itens calculados, {{ fiscalPendingItems.length }} itens com dados pendentes ou divergências para conferir. {{ excludedCfopCount }} itens com CFOP fora do prefixo 6 ficam fora do cálculo. Os cálculos automáticos usam os parâmetros declarados no XML.</p>
+            <div class="progress-track" role="progressbar" aria-label="Itens com cálculo salvo" :aria-valuenow="calculatedCount" :aria-valuemax="Math.max(eligibleItemCount, 1)" aria-valuemin="0"><span :style="{ width: `${calculatedPercent}%` }"></span></div>
           </div>
-          <button v-if="fiscalPendingItems.length" class="button secondary" @click="activePanel = 'pending'">Resolver dados fiscais <span aria-hidden="true">→</span></button>
-          <button v-else class="button secondary" @click="showDocuments()">Ver notas e itens <span aria-hidden="true">→</span></button>
+          <button v-if="fiscalPendingItems.length" class="button secondary" @click="activePanel = 'pending'">Conferir e calcular</button>
+          <button v-else class="button secondary" @click="showDocuments()">Ver notas e itens</button>
         </article>
         <div v-if="detail.consolidation" class="consolidation-area"><BatchConsolidationSummary :summary="detail.consolidation" /></div>
         <section class="card reassessment-panel" aria-labelledby="reassessment-title">
@@ -279,35 +337,54 @@ watch(() => route.params.id, () => {
 
       <section v-show="activePanel === 'documents'" class="panel-stack" aria-label="Notas e itens">
         <div class="section-heading"><div><h3>Documentos fiscais</h3><p>Localize uma nota e expanda seus itens para conferir valores, respostas e memória.</p></div><span class="badge badge-neutral">{{ visibleDocuments.length }} de {{ detail.documents.length }} notas</span></div>
-        <div class="card document-toolbar"><label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input v-model="search" aria-label="Buscar notas e produtos" placeholder="Buscar por nota, produto, chave ou empresa"></label><label class="filter-field"><span>Situação dos itens</span><select v-model="documentFilter" aria-label="Filtrar documentos por situação"><option value="all">Todos os documentos</option><option value="pending">Com dados fiscais pendentes</option><option value="divergent">Com divergência</option><option value="calculated">Com itens calculados</option></select></label></div>
+        <div class="card document-toolbar"><label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input v-model="search" aria-label="Buscar notas e produtos" placeholder="Buscar por nota, produto, chave ou empresa"></label><label class="filter-field"><span>Situação dos itens</span><select v-model="documentFilter" aria-label="Filtrar documentos por situação"><option value="all">Todos os documentos</option><option value="cfop6">CFOP começa com 6</option><option value="pending">Sem cálculo / para revisar</option><option value="divergent">Com divergência</option><option value="calculated">Com itens calculados</option></select></label></div>
         <details v-for="document in visibleDocuments" :key="document.id" :id="`nota-${document.id}`" class="card document-card" :open="openDocuments.has(document.id)" @toggle="($event.target as HTMLDetailsElement).open ? openDocuments.add(document.id) : openDocuments.delete(document.id)">
-          <summary class="document-heading"><span class="document-icon" aria-hidden="true">▤</span><div class="document-title"><strong>NF-e {{ document.number }} <span>Série {{ document.series }}</span></strong><small>{{ document.companyName || 'Empresa não identificada' }} · {{ document.items.length }} itens · {{ documentCalculated(document) }} calculados</small></div><span class="badge" :class="document.eligibleForProcessing ? 'badge-blue' : 'badge-amber'">{{ document.eligibleForProcessing ? 'Importada para análise' : 'Pendente' }}</span><span class="document-chevron" aria-hidden="true">⌄</span></summary>
-          <div class="document-body"><dl class="document-data"><div><dt>Empresa analisada</dt><dd>{{ document.companyName || '—' }}</dd></div><div><dt>Emitente</dt><dd>{{ document.issuerName || document.issuerTaxId || '—' }}</dd></div><div><dt>Destinatário</dt><dd>{{ document.recipientName || document.recipientTaxId || '—' }}</dd></div><div><dt>Emissão e ambiente</dt><dd>{{ dateTime(document.issuedAt) }} · {{ environment(document.environmentCode) }} · Modelo {{ document.model }}</dd></div><div class="access-key"><dt>Chave de acesso</dt><dd class="monospace">{{ document.accessKey }}</dd></div></dl>
+          <summary class="document-heading"><span class="document-icon" aria-hidden="true">▤</span><div class="document-title"><strong>NF-e {{ document.number }} <span>Série {{ document.series }}</span></strong><small>{{ document.issuerName || document.issuerTaxId || document.companyName || 'Emitente não informado' }}</small></div><span class="document-counts"><span>{{ document.items.length }} produtos</span><span>{{ documentCalculated(document) }} calculados</span></span><span class="badge" :class="!document.eligibleForProcessing || documentReviewCount(document) ? 'badge-amber' : documentState(document) === 'Conferida' ? 'badge-green' : 'badge-blue'">{{ documentState(document) }}</span><span class="document-chevron" aria-hidden="true">⌄</span></summary>
+          <div class="document-body"><div class="document-context"><span>{{ document.companyName || 'Empresa não identificada' }}</span><span>{{ dateTime(document.issuedAt) }} · {{ environment(document.environmentCode) }}</span></div>
             <p v-if="document.pendingReason" class="inline-notice">{{ document.pendingReason }}</p>
             <p v-if="document.conflictResolution" class="inline-notice">{{ document.conflictResolution.reason }} <RouterLink class="text-button" :to="{ path: '/conflitos-notas', query: { key: document.accessKey } }">Comparar versões e decisões</RouterLink></p>
             <p v-if="document.documentaryReason" class="inline-notice">{{ document.documentaryReason }} <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { key: document.accessKey } }">Revisar eventos</RouterLink></p>
             <p v-else-if="document.documentaryStatus === 'CCE_APPROVED'" class="inline-notice">CC-e revisada: uso do XML original autorizado. <RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { key: document.accessKey } }">Ver decisões</RouterLink></p>
+            <div class="document-products">
             <article v-for="item in document.items" :key="item.itemNumber" :id="`item-${document.id}-${item.itemNumber}`" class="fiscal-item" :class="{ 'item-focused': focusedItem === `item-${document.id}-${item.itemNumber}` }">
-              <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="itemCalculationStatus(item.calculation) === 'CALCULATED' ? 'badge-green' : itemCalculationStatus(item.calculation) === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
-              <div class="item-values"><div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div><div><span>{{ isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div><div><span>{{ isIcmsSt(item) ? 'ICMS-ST calculado' : 'ICMS calculado' }}</span><strong>{{ money(item.calculation.result?.amount) }}</strong></div><template v-if="item.calculation.additionalComponents?.some(c => c.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined"><div><span>FCP-ST declarado</span><strong>{{ money(item.declaredFcpStAmount) }}</strong></div><div><span>FCP-ST calculado</span><strong>{{ money(item.calculation.additionalComponents?.find(c => c.component === 'FCP_ST')?.result?.amount) }}</strong></div></template><div><span>ICMS diferido</span><strong>{{ money(item.calculation.deferredAmount) }}</strong></div></div>
-              <details class="item-analysis" :open="focusedItem === `item-${document.id}-${item.itemNumber}`"><summary>Conferir dados e análise do item <span class="analysis-toggle" aria-hidden="true"></span></summary><div class="item-analysis-grid"><div class="item-analysis-block"><h5>Cálculo da operação</h5><p class="muted">Complete as respostas ou confira a memória do resultado.</p><ItemFiscalQuestions :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="loadDetail" /><CalculationMemoryDetails :calculation="item.calculation" /></div><div class="item-analysis-block"><h5>Cadastro e enquadramento</h5><p class="muted">Classificação e seleção de regras deste produto.</p><ItemClassificationDetails :item="item" /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action"><label>Perfil fiscal do produto<select v-model="selectedProfiles[itemKey(document, item)]"><option value="">Escolher perfil</option><option v-for="profile in profilesByCompany[document.companyId]" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label><button class="button secondary" type="button" :disabled="saving || !selectedProfiles[itemKey(document, item)]" @click="linkItem(document, item)">Vincular</button></div></div></div></details>
+              <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="hasSavedCalculation(item) ? 'badge-green' : !isEligibleItem(item) ? 'badge-neutral' : itemCalculationStatus(item.calculation) === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
+              <div class="item-values">
+                <div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div>
+                <div><span>{{ isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div>
+                <div class="value-calculated"><span>{{ isIcmsSt(item) ? 'ICMS-ST calculado' : 'ICMS calculado' }}</span><strong>{{ money(isEligibleItem(item) ? item.calculation.result?.amount : undefined) }}</strong></div>
+                <div class="value-difference" :class="{ 'amount-divergent': amountComparison(document, item)?.status === 'DIFFERENT' }" :title="`Calculado menos declarado de ${isIcmsSt(item) ? 'ICMS-ST' : 'ICMS'}`"><span>Diferença</span><strong>{{ money(amountComparison(document, item)?.difference) }}</strong></div>
+              </div>
+              <div v-if="item.calculation.deferredAmount !== undefined || item.calculation.additionalComponents?.some(component => component.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined" class="item-additional-values">
+                <span v-if="isEligibleItem(item) && item.calculation.deferredAmount !== undefined">ICMS diferido <b>{{ money(item.calculation.deferredAmount) }}</b></span>
+                <template v-if="item.calculation.additionalComponents?.some(component => component.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined"><span>FCP-ST declarado <b>{{ money(item.declaredFcpStAmount) }}</b></span><span>FCP-ST calculado <b>{{ money(isEligibleItem(item) ? item.calculation.additionalComponents?.find(component => component.component === 'FCP_ST')?.result?.amount : undefined) }}</b></span></template>
+              </div>
+              <details class="item-analysis" :open="focusedItem === `item-${document.id}-${item.itemNumber}`"><summary>Dados e memória de cálculo <span class="analysis-toggle" aria-hidden="true"></span></summary><div class="item-analysis-grid"><div class="item-analysis-block"><h5>Cálculo da operação</h5><p v-if="!isEligibleItem(item)" class="muted">Este item fica fora do cálculo porque o CFOP não começa com 6.</p><p v-else class="muted">Complete as respostas ou confira a memória do resultado.</p><ItemFiscalQuestions v-if="isEligibleItem(item)" :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="handleFiscalSaved" /><CalculationMemoryDetails :calculation="item.calculation" /></div><div class="item-analysis-block"><h5>Cadastro e enquadramento</h5><p class="muted">Classificação e seleção de regras deste produto.</p><ItemClassificationDetails :item="item" /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action"><label>Perfil fiscal do produto<select v-model="selectedProfiles[itemKey(document, item)]"><option value="">Escolher perfil</option><option v-for="profile in profilesByCompany[document.companyId]" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label><button class="button secondary" type="button" :disabled="saving || !selectedProfiles[itemKey(document, item)]" @click="linkItem(document, item)">Vincular</button></div></div></div></details>
             </article>
+            </div>
+            <details class="document-identification"><summary>Identificação da nota e chave de acesso<span aria-hidden="true">⌄</span></summary><dl class="document-data"><div><dt>Empresa analisada</dt><dd>{{ document.companyName || '—' }}</dd></div><div><dt>Emitente</dt><dd>{{ document.issuerName || document.issuerTaxId || '—' }}</dd></div><div><dt>Destinatário</dt><dd>{{ document.recipientName || document.recipientTaxId || '—' }}</dd></div><div><dt>Emissão e ambiente</dt><dd>{{ dateTime(document.issuedAt) }} · {{ environment(document.environmentCode) }} · Modelo {{ document.model }}</dd></div><div class="access-key"><dt>Chave de acesso</dt><dd class="monospace">{{ document.accessKey }}</dd></div></dl></details>
           </div>
         </details>
         <div v-if="!visibleDocuments.length" class="card empty-panel"><h4>{{ detail.documents.length ? 'Nenhuma nota corresponde à busca' : 'Nenhum documento normalizado' }}</h4><p>{{ detail.documents.length ? 'Experimente outro termo ou escolha todos os documentos.' : 'Confira os arquivos e diagnósticos para entender a importação.' }}</p><button v-if="detail.documents.length" class="button secondary" @click="showDocuments()">Limpar filtros</button><button v-else class="button secondary" @click="activePanel = 'files'">Ver arquivos e eventos</button></div>
       </section>
 
       <section v-show="activePanel === 'pending'" class="panel-stack" aria-label="Pendências do lote">
-        <div class="section-heading"><div><h3>Dados fiscais para completar</h3><p>Responda por item. As informações salvas ficam vinculadas à execução do cálculo.</p></div><span class="badge badge-amber">{{ fiscalPendingItems.length }} itens pendentes</span></div>
-        <article v-if="currentFiscalItem" class="card pending-workspace"><div class="pending-context"><div><span class="section-kicker">Item {{ Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1 }} de {{ fiscalPendingItems.length }}</span><h4>{{ currentFiscalItem.item.description || currentFiscalItem.item.supplierProductCode || 'Produto sem descrição' }}</h4><p>NF-e {{ currentFiscalItem.document.number }} · Item {{ currentFiscalItem.item.itemNumber }} · {{ currentFiscalItem.document.companyName || 'Empresa não informada' }}</p></div><button class="text-button" @click="showItem(currentFiscalItem.document, currentFiscalItem.item)">Abrir na nota ↗</button></div><ItemFiscalQuestions :key="itemKey(currentFiscalItem.document, currentFiscalItem.item)" :batch-id="detail.batch.id" :document-id="currentFiscalItem.document.id" :item-number="currentFiscalItem.item.itemNumber" expanded @saved="loadDetail" /><div v-if="fiscalPendingItems.length > 1" class="pending-actions"><span>Salve as respostas antes de avançar.</span><div><button class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) - 1 + fiscalPendingItems.length) % fiscalPendingItems.length">← Anterior</button><button class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1) % fiscalPendingItems.length">Próximo item →</button></div></div></article>
-        <article v-else class="card complete-state"><span aria-hidden="true">✓</span><div><h4>Nenhuma pergunta fiscal pendente</h4><p>{{ unsupportedCount ? `${unsupportedCount} itens estão fora do escopo. Consulte seus motivos na análise da nota.` : 'Consulte os resultados e a memória de cada item nas notas.' }}</p></div><button class="button secondary" @click="showDocuments()">Ver notas e itens</button></article>
-        <details class="card registration-pendencies"><summary><span>Pendências cadastrais <span class="badge badge-neutral">{{ pendingItems.length }}</span></span><span class="muted">Perfis e vínculos de produtos</span></summary><div class="registration-body"><p class="muted">Os vínculos cadastrais são conferidos separadamente das respostas fiscais do cálculo. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p><p v-if="!pendingItems.length" class="empty-state">Nenhum item com classificação cadastral pendente.</p><div v-else class="item-pendency-grid"><article v-for="{ document, item } in pendingItems" :key="itemKey(document, item)" class="item-pendency-card"><div class="item-pendency-context"><strong>NF-e {{ document.number }} · Item {{ item.itemNumber }}</strong><span>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</span></div><ItemClassificationDetails :item="item" expanded /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><button class="text-button" @click="showItem(document, item)">Conferir item na nota →</button></article></div></div></details>
+        <div class="section-heading"><div><h3>Revisar exceções do cálculo</h3><p>Os dados disponíveis no XML são calculados automaticamente. Confira as divergências e complete somente os dados ou o enquadramento que ainda faltam.</p></div><span class="badge badge-amber">{{ fiscalPendingItems.length }} itens para revisar</span></div>
+        <article v-if="currentFiscalItem" class="card pending-workspace">
+          <header class="pending-context">
+            <div><span class="section-kicker">Revisão {{ Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1 }} de {{ fiscalPendingItems.length }}</span><h4>NF-e {{ currentFiscalItem.document.number }} · Item {{ currentFiscalItem.item.itemNumber }}</h4><p class="review-product-name">{{ currentFiscalItem.item.description || currentFiscalItem.item.supplierProductCode || 'Produto sem descrição' }}</p><p>{{ currentFiscalItem.document.companyName || 'Empresa não informada' }}</p></div>
+            <div class="review-navigation"><label>Escolher item<select v-model.number="fiscalIndex" aria-label="Escolher item para revisar"><option v-for="(entry, index) in fiscalPendingItems" :key="itemKey(entry.document, entry.item)" :value="index">NF {{ entry.document.number }} · Item {{ entry.item.itemNumber }} · {{ entry.item.supplierProductCode || entry.item.description }}</option></select></label><button type="button" class="text-button" @click="showItem(currentFiscalItem.document, currentFiscalItem.item)">Ver nota completa</button></div>
+          </header>
+          <ItemFiscalQuestions :key="itemKey(currentFiscalItem.document, currentFiscalItem.item)" :batch-id="detail.batch.id" :document-id="currentFiscalItem.document.id" :item-number="currentFiscalItem.item.itemNumber" expanded @saved="handleFiscalSaved" />
+          <footer v-if="fiscalPendingItems.length > 1" class="pending-actions"><span>As respostas são enviadas ao confirmar o cálculo.</span><div><button type="button" class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) - 1 + fiscalPendingItems.length) % fiscalPendingItems.length">Anterior</button><button type="button" class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1) % fiscalPendingItems.length">Próximo item</button></div></footer>
+        </article>
+        <article v-else class="card complete-state"><span aria-hidden="true">✓</span><div><h4>Nenhum item pendente com CFOP iniciado em 6</h4><p v-if="excludedCfopCount">{{ excludedCfopCount }} item(ns) com CFOP fora do prefixo 6 ficaram fora do cálculo. Consulte os dados nas notas.</p><p v-else>Consulte os resultados e a memória dos itens nas notas.</p></div><button class="button secondary" @click="showDocuments()">Ver notas e itens</button></article>
+        <details class="card registration-pendencies"><summary><span>Pendências cadastrais <span class="badge badge-neutral">{{ pendingItems.length }}</span></span><span class="muted">Perfis e vínculos de produtos</span></summary><div class="registration-body"><p class="muted">Os vínculos cadastrais são conferidos separadamente das respostas fiscais do cálculo. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p><p v-if="!pendingItems.length" class="empty-state">Nenhum item com classificação cadastral pendente.</p><div v-else class="item-pendency-grid"><article v-for="{ document, item } in pendingItems" :key="itemKey(document, item)" class="item-pendency-card"><div class="item-pendency-context"><strong>NF-e {{ document.number }} · Item {{ item.itemNumber }}</strong><span>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</span></div><ItemClassificationDetails :item="item" expanded /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><button class="text-button" @click="showItem(document, item)">Conferir item na nota</button></article></div></div></details>
       </section>
 
       <section v-show="activePanel === 'files'" class="panel-stack" aria-label="Arquivos e eventos">
         <div class="section-heading"><div><h3>Arquivos e integridade</h3><p>Confira o que foi recebido, as repetições e os diagnósticos da importação.</p></div><span class="badge badge-neutral">{{ detail.occurrences.length }} ocorrências</span></div>
         <div class="card table-wrap audit-table"><table><thead><tr><th>Arquivo</th><th>Tipo</th><th>Ingestão</th><th>Repetição</th><th>Conflito</th></tr></thead><tbody><tr v-for="occurrence in detail.occurrences" :key="occurrence.id"><td :title="occurrence.contentHash">{{ occurrence.relativePath }}</td><td>{{ occurrence.kind }}</td><td>{{ ingestionLabel(occurrence.ingestionStatus) }}</td><td>{{ ingestionLabel(occurrence.repetition) }}</td><td>{{ ingestionLabel(occurrence.contentConflict) }}</td></tr></tbody></table><p v-if="!detail.occurrences.length" class="empty-state">Nenhuma ocorrência registrada.</p></div>
-        <section class="card audit-section"><div class="audit-section-heading"><div><h3>Protocolos e eventos</h3><p>Inclui eventos relacionados de outros lotes e decisões documentais.</p><RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { batchId: detail.batch.id } }">Abrir revisão documental →</RouterLink></div><span class="badge badge-neutral">{{ detail.artifacts.length }}</span></div><div v-if="detail.artifacts.length" class="table-wrap audit-table"><table><thead><tr><th>Tipo</th><th>Chave de acesso</th><th>Evento</th><th>Protocolo</th><th>Status SEFAZ</th><th>Associação</th></tr></thead><tbody><tr v-for="artifact in detail.artifacts" :key="artifact.id"><td>{{ artifact.kind === 'PROTOCOL' ? 'Protocolo' : 'Evento' }}<small>{{ artifact.envelope }} v{{ artifact.version }}</small><small v-if="artifact.sourceBatchId !== detail.batch.id">Origem: {{ artifact.sourceBatchName }}</small></td><td class="monospace">{{ artifact.accessKey }}</td><td>{{ artifact.eventType || '—' }}{{ artifact.sequence ? ' nº ' + artifact.sequence : '' }}</td><td>{{ artifact.protocolNumber || '—' }}</td><td>{{ artifact.statusCode || '—' }}<small>{{ artifact.statusReason || '' }}</small></td><td>{{ artifact.association === 'ASSOCIATED' ? 'Associado' : artifact.association === 'ORPHAN' ? 'Órfão' : 'Nota ambígua' }}<small v-if="artifact.responseMatches === false">Retorno divergente</small></td></tr></tbody></table></div><p v-else class="empty-state">Nenhum protocolo ou evento registrado.</p></section>
+        <section class="card audit-section"><div class="audit-section-heading"><div><h3>Protocolos e eventos</h3><p>Inclui eventos relacionados de outros lotes e decisões documentais.</p><RouterLink class="text-button" :to="{ path: '/revisao-documental', query: { batchId: detail.batch.id } }">Abrir revisão documental</RouterLink></div><span class="badge badge-neutral">{{ detail.artifacts.length }}</span></div><div v-if="detail.artifacts.length" class="table-wrap audit-table"><table><thead><tr><th>Tipo</th><th>Chave de acesso</th><th>Evento</th><th>Protocolo</th><th>Status SEFAZ</th><th>Associação</th></tr></thead><tbody><tr v-for="artifact in detail.artifacts" :key="artifact.id"><td>{{ artifact.kind === 'PROTOCOL' ? 'Protocolo' : 'Evento' }}<small>{{ artifact.envelope }} v{{ artifact.version }}</small><small v-if="artifact.sourceBatchId !== detail.batch.id">Origem: {{ artifact.sourceBatchName }}</small></td><td class="monospace">{{ artifact.accessKey }}</td><td>{{ artifact.eventType || '—' }}{{ artifact.sequence ? ' nº ' + artifact.sequence : '' }}</td><td>{{ artifact.protocolNumber || '—' }}</td><td>{{ artifact.statusCode || '—' }}<small>{{ artifact.statusReason || '' }}</small></td><td>{{ artifact.association === 'ASSOCIATED' ? 'Associado' : artifact.association === 'ORPHAN' ? 'Órfão' : 'Nota ambígua' }}<small v-if="artifact.responseMatches === false">Retorno divergente</small></td></tr></tbody></table></div><p v-else class="empty-state">Nenhum protocolo ou evento registrado.</p></section>
         <section class="card audit-section"><div class="audit-section-heading"><div><h3>Diagnósticos de ingestão</h3><p>Mensagens preservadas durante a leitura dos arquivos.</p></div><span class="badge badge-neutral">{{ detail.diagnostics.length }}</span></div><ul v-if="detail.diagnostics.length" class="diagnostic-list"><li v-for="diagnostic in detail.diagnostics" :key="diagnostic.id"><span class="diagnostic-marker" aria-hidden="true">i</span><div><strong>{{ diagnostic.code }}</strong><small>{{ diagnostic.source }}</small><p>{{ diagnostic.message }}</p></div></li></ul><p v-else class="empty-state">Nenhum diagnóstico de ingestão registrado.</p></section>
       </section>
     </template>
@@ -380,45 +457,69 @@ watch(() => route.params.id, () => {
 .search-field svg { flex: none; }
 .filter-field { display: flex; align-items: center; gap: 10px; color: #8997ab; font-size: 11px; }
 .filter-field select { width: 235px; min-height: 38px; padding: 8px 10px; font-size: 12px; background: #fafbfd; }
-.document-card { overflow: hidden; }
-.document-heading { display: flex; align-items: center; gap: 14px; padding: 22px 24px; list-style: none; cursor: pointer; }
-.document-heading::-webkit-details-marker, .item-analysis > summary::-webkit-details-marker { display: none; }
-.document-icon { display: grid; place-items: center; flex: none; width: 40px; height: 44px; border-radius: 9px; background: #f0f4fd; color: #6a84c8; font-size: 23px; }
+.document-card { overflow: hidden; border-color: #dfe6ef; border-radius: 13px; box-shadow: 0 3px 14px #233a5f04; }
+.document-heading { display: flex; align-items: center; gap: 13px; padding: 17px 20px; list-style: none; cursor: pointer; }
+.document-heading::-webkit-details-marker, .item-analysis > summary::-webkit-details-marker, .document-identification > summary::-webkit-details-marker { display: none; }
+.document-icon { display: grid; place-items: center; flex: none; width: 35px; height: 40px; border-radius: 9px; background: #eef2fc; color: #7b94c4; font-size: 20px; }
 .document-title { flex: 1; min-width: 0; }
-.document-title strong { display: block; color: #2a3c58; font-size: 15px; }
-.document-title strong span { margin-left: 10px; color: #8c9bb0; font-size: 11px; font-weight: 500; }
-.document-title small { display: block; margin-top: 7px; color: #8291a6; font-size: 11px; overflow-wrap: anywhere; }
-.document-chevron { color: #95a4b8; font-size: 20px; transition: transform .15s; }
+.document-title strong { display: block; color: #3f5a7d; font-size: 14px; font-weight: 650; }
+.document-title strong span { margin-left: 10px; color: #93a2b7; font-size: 11px; font-weight: 400; }
+.document-title small { display: block; margin-top: 5px; color: #798da8; font-size: 11px; overflow-wrap: anywhere; }
+.document-counts { display: flex; gap: 15px; margin-right: 5px; color: #798da8; font-size: 11px; white-space: nowrap; }
+.document-heading > .badge { font-weight: 500; }
+.document-chevron { display: inline-block; color: #98a9c0; font-size: 15px; transition: transform .15s; }
 .document-card[open] > summary .document-chevron { transform: rotate(180deg); }
-.document-body { padding: 0 24px 24px; border-top: 1px solid #edf1f7; }
-.document-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 24px 0; }
+.document-body { padding: 16px 20px 20px; border-top: 1px solid #e8edf4; background: #fbfcfe; }
+.document-context { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; color: #7b8da7; font-size: 10px; line-height: 1.5; }
+.document-body > .inline-notice { margin-bottom: 12px; }
+.document-identification { margin-top: 15px; border-top: 1px solid #e6ecf4; }
+.document-identification > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0 0; list-style: none; cursor: pointer; color: #768da9; font-size: 11px; }
+.document-identification > summary > span { color: #9eacc0; transition: transform .15s; }
+.document-identification[open] > summary > span { transform: rotate(180deg); }
+.document-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 20px 0 0; }
 .document-data dd { margin: 6px 0 0; color: #576b88; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.access-key { grid-column: 1 / -1; padding: 12px 14px; border-radius: 8px; background: #f8fafd; }
-.fiscal-item { margin-top: 16px; border: 1px solid #e5ebf4; border-radius: 10px; scroll-margin-top: 24px; overflow: hidden; }
+.access-key { grid-column: 1 / -1; padding: 12px 14px; border-radius: 8px; background: #f3f6fb; }
+.document-products { display: grid; gap: 12px; }
+.fiscal-item { border: 1px solid #e2e8f1; border-radius: 10px; scroll-margin-top: 24px; overflow: hidden; background: #fff; min-width: 0; }
 .fiscal-item.item-focused { border-color: #97a9ef; box-shadow: 0 0 0 3px #6580ea15; }
-.item-heading { display: flex; align-items: center; gap: 12px; padding: 18px 18px 14px; }
-.item-number { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 7px; background: #f2f5fa; color: #8b9bb1; font-size: 11px; font-weight: 700; }
+.item-heading { display: flex; align-items: center; gap: 10px; padding: 15px 17px 13px; }
+.item-number { display: grid; place-items: center; flex: none; width: 25px; height: 25px; border-radius: 7px; background: #f2f5fa; color: #8a9ebd; font-size: 11px; }
 .item-heading > div { flex: 1; min-width: 0; }
-.item-heading h4 { margin: 0; color: #354966; font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-.item-heading p { margin: 6px 0 0; color: #6c7e97; font-size: 10px; }
-.item-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 18px 16px; }
-.item-values > div { padding: 12px 14px; border-radius: 7px; background: #f8fafd; min-width: 0; }
-.item-values span { display: block; color: #687a92; font-size: 10px; }
-.item-values strong { display: block; margin-top: 7px; color: #496180; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.item-analysis > summary { display: flex; justify-content: space-between; padding: 12px 18px; border-top: 1px solid #ecf1f8; color: #667ea3; font-size: 11px; font-weight: 600; list-style: none; }
-.item-analysis > summary span { color: #94a6bf; }
-.analysis-toggle::before { content: '+'; }
-.item-analysis[open] > summary .analysis-toggle::before { content: '−'; }
+.item-heading h4 { margin: 0; color: #496382; font-size: 13px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.item-heading p { margin: 4px 0 0; color: #8192aa; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.item-heading > .badge { font-size: 9px; font-weight: 500; padding: 5px 7px; }
+.item-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 17px 14px; padding: 13px 0 0; border-top: 1px solid #edf1f7; }
+.item-values > div { min-width: 0; padding: 0 14px; border-right: 1px solid #e8edf4; }
+.item-values > div:first-child { padding-left: 0; }
+.item-values > div:last-child { padding-right: 0; border-right: 0; }
+.item-values span { display: block; color: #7e91ab; font-size: 10px; }
+.item-values strong { display: block; margin-top: 7px; color: #5c7598; font-size: 16px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.item-values .value-calculated strong { color: #586fb7; }
+.item-values .amount-divergent strong { color: #a9782b; }
+.item-additional-values { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 17px 14px; padding-top: 11px; border-top: 1px solid #edf1f7; color: #8295ae; font-size: 10px; line-height: 1.5; }
+.item-additional-values b { margin-left: 6px; color: #637d9f; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.item-analysis > summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 17px; border-top: 1px solid #edf1f6; color: #748aa8; background: #fcfdff; font-size: 10px; font-weight: 400; list-style: none; cursor: pointer; }
+.item-analysis > summary:hover { background: #f6f9fe; color: #607bb7; }
+.item-analysis > summary span { color: #9aabc2; }
+.analysis-toggle { display: inline-block; transition: transform .15s; }
+.analysis-toggle::before { content: '⌄'; font-size: 13px; }
+.item-analysis[open] > summary .analysis-toggle { transform: rotate(180deg); }
+.document-heading:focus-visible, .item-analysis > summary:focus-visible, .document-identification > summary:focus-visible { outline: 2px solid #5973db; outline-offset: -3px; }
 .item-analysis-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 20px; border-top: 1px solid #ecf1f8; }
 .item-analysis-block { min-width: 0; }
 .item-analysis-block h5 { margin: 0 0 7px; font-size: 12px; color: #49617f; }
 .catalog-inline-action { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 .catalog-inline-action label { display: grid; gap: 7px; flex: 1 1 160px; min-width: 0; font-size: 11px; color: #8393a9; }
 .catalog-inline-action select { min-width: 0; font-size: 12px; }
-.pending-workspace { padding: 26px 28px; }
-.pending-context { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.pending-workspace { padding: 26px 28px; background: #fff; }
+.pending-context { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 8px; padding-bottom: 22px; border-bottom: 1px solid #e4eaf3; }
 .pending-context h4 { margin: 0 0 8px; font-size: 16px; color: #354966; }
-.pending-context p { margin: 0; color: #8a99ae; font-size: 12px; }
+.pending-context p { margin: 6px 0 0; color: #52647f; font-size: 13px; }
+.pending-context .review-product-name { color: #2d4363; font-size: 15px; font-weight: 600; }
+.review-navigation { display: grid; gap: 12px; width: 310px; flex: none; justify-items: start; }
+.review-navigation label { display: grid; gap: 6px; width: 100%; color: #52647f; font-size: 12px; }
+.review-navigation select { font-size: 12px; min-width: 0; }
+@media (max-width: 800px) { .pending-context { flex-direction: column; } .review-navigation { width: 100%; } }
 .text-button { padding: 0; border: 0; background: transparent; color: #5572bd; font: inherit; font-size: 12px; cursor: pointer; }
 .pending-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 22px; border-top: 1px solid #edf1f7; padding-top: 18px; }
 .pending-actions > span { color: #94a1b3; font-size: 11px; }
@@ -487,15 +588,17 @@ watch(() => route.params.id, () => {
   .section-heading { flex-wrap: wrap; }
   .document-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
   .filter-field select { width: 100%; }
-  .document-heading { padding: 18px; gap: 10px; flex-wrap: wrap; }
-  .document-title { min-width: 160px; } .document-heading > .badge { margin-left: 50px; }
-  .document-body { padding: 0 16px 16px; } .document-data { grid-template-columns: 1fr; }
-  .item-heading { flex-wrap: wrap; } .item-heading > div { flex-basis: calc(100% - 42px); }
-  .item-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .document-heading { padding: 14px; gap: 9px; flex-wrap: wrap; }
+  .document-title { min-width: 140px; } .document-title strong { font-size: 12px; } .document-title small { font-size: 10px; } .document-heading > .badge { margin-left: 44px; } .document-counts { display: none; }
+  .document-body { padding: 14px; } .document-data { grid-template-columns: 1fr; } .document-context { font-size: 9px; }
+  .item-heading { flex-wrap: wrap; padding: 13px; gap: 8px; } .item-heading > div { flex-basis: calc(100% - 42px); } .item-heading > .badge { margin-left: 33px; } .item-heading > .badge + .badge { margin-left: 0; }
+  .item-values { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 0; margin: 0 13px 12px; } .item-values > div:nth-child(2) { padding-right: 0; border-right: 0; } .item-values > div:nth-child(3) { padding-left: 0; } .item-values strong { font-size: 15px; } .item-analysis > summary { padding: 10px 13px; } .item-additional-values { margin-inline: 13px; }
   .item-pendency-grid { grid-template-columns: 1fr; }
   .pending-workspace, .reassessment-panel, .analysis-progress { padding: 22px; }
   .reassessment-controls { flex-direction: column; align-items: stretch; }
   .registration-pendencies > summary { flex-wrap: wrap; }
   .consolidation-area :deep(.section-stack > div.card) { flex-direction: column; align-items: stretch; gap: 12px; }
 }
+@media (max-width: 1150px) { .document-counts { gap: 10px; font-size: 10px; } }
+@media (prefers-reduced-motion: reduce) { .document-chevron, .analysis-toggle, .document-identification > summary > span { transition: none; } }
 </style>

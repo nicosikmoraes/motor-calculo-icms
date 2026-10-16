@@ -66,7 +66,9 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
   const mvaValue = mvaMode === 'APPLIED_MANUAL' ? input.appliedMvaPercent : input.originalMvaPercent
   if (input.productAmount === undefined || mvaValue === undefined
     || input.internalRate === undefined || input.ownOperationRate === undefined) {
-    return pending('Informe o valor do produto, a MVA aplicada, a alíquota interna e a alíquota da operação própria.')
+    const missing = [input.productAmount === undefined ? 'valor do produto' : '', mvaValue === undefined ? 'MVA aplicada' : '',
+      input.internalRate === undefined ? 'alíquota interna de ICMS' : '', input.ownOperationRate === undefined ? 'alíquota da operação própria' : ''].filter(Boolean)
+    return pending(`Preencha ${missing.join(', ')} para concluir o cálculo de ICMS-ST.`)
   }
 
   try {
@@ -130,7 +132,7 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     const internalIcms = divideDecimals(internalNumerator, internalDenominator, 20)
     const ownIcms = declaredOwnIcms ?? divideDecimals(multiplyDecimals(amounts.product, ownRate), '100')
     const stNumerator = subtractDecimals(internalNumerator, multiplyDecimals(ownIcms, internalDenominator))
-    if (compareDecimals(stNumerator, '0') < 0) return pending('O ICMS próprio supera o ICMS interno projetado. Revise as alíquotas e a regra aplicável.')
+    if (compareDecimals(stNumerator, '0') < 0) return pending(`O ICMS interno projetado (R$ ${roundMoney(internalIcms).replace('.', ',')}) é menor que o ICMS próprio a deduzir (R$ ${roundMoney(ownIcms).replace('.', ',')}). Confira a alíquota interna informada (${internalRate.replace('.', ',')}%) e a MVA aplicada (${appliedMva.replace('.', ',')}%).`)
     const stAmount = roundMoney(divideDecimals(stNumerator, internalDenominator, 2))
 
     return {

@@ -1,0 +1,41 @@
+.app-shell { display: grid; grid-template-columns: 224px minmax(0,1fr); min-height: 100vh; }
+.sidebar { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 32px; padding: 28px 16px 20px; color: #e9eef7; background: #111c2e; }
+.brand, .primary-navigation, .sidebar-footer { flex-shrink: 0; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 7px 23px; border-bottom: 1px solid #29364c; }
+.brand-mark { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: #5675f0; color: white; }
+.brand-mark .app-icon { width: 24px; height: 24px; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 750; line-height: 1.2; letter-spacing: -.04em; }
+.brand p { margin: 5px 0 0; color: #9aa9c2; font-size: 11px; }
+.nav-label { margin: 0 11px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #9aa9c2; }
+.sidebar nav { display: grid; gap: 5px; }
+.sidebar nav a { display: flex; gap: 10px; align-items: center; padding: 12px 11px; color: #b5c1d4; border: 1px solid transparent; border-radius: 10px; font-size: 13px; font-weight: 550; text-decoration: none; }
+.sidebar nav a:hover { color: white; background: #202d43; }
+.sidebar nav a.router-link-exact-active { color: white; border-color: #3c5274; background: #263956; }
+.sidebar nav a.sidebar-import { margin-top: 12px; border-color: #344977; color: #d2ddff; }
+.sidebar-footer { margin-top: auto; padding-top: 12px; }
+.sidebar-tools { margin-bottom: 20px; border-top: 1px solid #29364c; padding-top: 11px; }
+.sidebar-tools summary { display: flex; align-items: center; gap: 10px; padding: 12px 11px; color: #b5c1d4; font-size: 13px; border-radius: 9px; cursor: pointer; }
+.sidebar-tools summary:hover { color: white; background: #202d43; }
+.sidebar-tools nav { margin-top: 7px; }
+.sidebar-tools nav a { padding: 9px 12px; font-size: 12px; }
+.local-indicator { display: inline-flex; align-items: center; gap: 8px; color: #a8b9d0; font-size: 11px; margin-left: 11px; }
+.local-indicator::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #43bf91; }
+.version { margin: 10px 11px 0; color: #7c90ad; font-size: 11px; }
+.content { min-width: 0; width: 100%; max-width: 1450px; padding: 32px clamp(26px,3vw,52px) 48px; }
+.loading-state { display: grid; min-height: 100vh; place-items: center; color: #6a788d; }
+.fatal-state { max-width: 680px; margin: 15vh auto; padding: 36px; }
+.fatal-state h1 { margin: 10px 0 16px; font-size: 36px; letter-spacing: -.04em; }
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: minmax(0,1fr); }
+  .sidebar { position: static; height: auto; overflow: visible; gap: 14px; padding: 16px; }
+  .brand { padding: 0 5px 14px; }
+  .nav-label { display: none; }
+  .sidebar nav { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sidebar nav a { padding: 10px; }
+  .sidebar nav a.sidebar-import { margin-top: 0; }
+  .sidebar-footer { margin: 0; padding: 0; }
+  .sidebar-tools { border: 0; padding: 0; margin: 0; }
+  .sidebar-tools summary { padding: 8px 10px; width: fit-content; }
+  .local-indicator, .version { display: none; }
+  .content { padding: 28px 22px 45px; }
+}

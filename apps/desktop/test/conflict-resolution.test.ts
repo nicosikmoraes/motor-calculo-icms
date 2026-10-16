@@ -33,12 +33,12 @@ function notes(hashes: string[], changes: Partial<NormalizedNfe> = {}, company =
     ...((pending || hashes.length > 1) ? { pendingReason: pending ?? 'OCORRENCIA_INELEGIVEL' } : {}), createdAt: now,
     normalized: { kind: 'NFE', layoutVersion: '4.00', model: '55', accessKey, number: '123', series: '1', issuedAt: '2026-09-30T10:00:00-03:00', environmentCode: environment,
       operationDirection: '1', purposeCode: '1', finalConsumerIndicator: '0', issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
-      recipient: { state: 'PR', taxId: '11444777000161', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: { documentAmount: String(1000 + index * 100) }, source,
-      items: [{ itemNumber: '1', supplierProductCode: '001', cfop: '5102', description: 'Produto teste', productAmount: String(1000 + index * 100), declaredIcms: { cst: '00', amount: '195.00' }, source }], ...changes } }))
+      recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: { documentAmount: String(1000 + index * 100) }, source,
+      items: [{ itemNumber: '1', supplierProductCode: '001', cfop: '6102', description: 'Produto teste', productAmount: String(1000 + index * 100), declaredIcms: { cst: '00', amount: '195.00' }, source }], ...changes } }))
   new SqliteBatchRepository(database).createWithOccurrences({ id: batchId, organizationId: organization, status: 'RECEBIDO', originalName: 'Lote de teste', environmentCode: environment as '1' | '2', receivedAt: now, createdAt: now, updatedAt: now }, occurrences, [], documents)
   for (const document of documents) new SqliteCalculationRepository(database).save({ requestId: randomUUID(), batchId, documentId: document.id, engineVersion: 'PR_COMMON_2', items: [{ itemNumber: '1', memory: {
     schemaVersion: 1, status: 'CALCULATED', rule: { id: 'test', version: 1, legalBasis: 'Caso sintético' }, result: { base: '1000.00', rate: '19.5', amount: '195.00' },
-    inputs: [], steps: [{ name: 'ICMS', operation: 'Caso sintético', inputs: {}, result: '195.00' }] } }] })
+    inputs: [{ name: 'automaticXmlCalculation', value: 'XML_ARITHMETIC_1', source: 'DERIVED/XML', treatment: 'INCLUDED' }], steps: [{ name: 'ICMS', operation: 'Caso sintético', inputs: {}, result: '195.00' }] } }] })
   return documents
 }
 function event(document: NormalizedFiscalDocumentRecord, overrides: Partial<NormalizedDocumentArtifact> = {}, associated = true) {

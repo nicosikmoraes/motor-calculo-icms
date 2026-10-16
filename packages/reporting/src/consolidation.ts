@@ -9,7 +9,7 @@ export interface ConsolidationDocument {
   perspective: ConsolidationGroup['perspective']; environment: ConsolidationGroup['environment']
   authorization: ConsolidationGroup['authorization']; exclusionReason?: string | undefined
   runId?: string | undefined; engineVersion?: string | undefined
-  items: readonly { itemNumber: string; declaredIcms?: string | undefined; declaredIcmsSt?: string | undefined; declaredFcpSt?: string | undefined; declaredFcpStBase?: string | undefined; declaredFcpStRate?: string | undefined; memory?: CalculationMemory | undefined }[]
+  items: readonly { itemNumber: string; cfop?: string | undefined; exclusionReason?: string | undefined; declaredIcms?: string | undefined; declaredIcmsSt?: string | undefined; declaredFcpSt?: string | undefined; declaredFcpStBase?: string | undefined; declaredFcpStRate?: string | undefined; memory?: CalculationMemory | undefined }[]
 }
 const counts = (): ConsolidationCounts => ({ documents: 0, items: 0, calculated: 0, pending: 0, unsupported: 0,
   excluded: 0, declaredMissing: 0, declaredInvalid: 0, deferredMissing: 0, divergentItems: 0,
@@ -80,7 +80,7 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
         const entry: ConsolidationEvidence = { component, documentId: doc.documentId, ...(doc.batchId ? { batchId: doc.batchId } : {}), accessKey: doc.accessKey, documentNumber: doc.documentNumber,
           itemNumber: item.itemNumber, ...(doc.companyId ? { companyId: doc.companyId } : {}), ...(period ? { period } : {}), environment: doc.environment,
           perspective: doc.perspective, authorization: doc.authorization, status: 'PENDING', reasons: [], ...(doc.runId ? { runId: doc.runId } : {}), ...(doc.engineVersion ? { engineVersion: doc.engineVersion } : {}) }
-        if (exclusion) { entry.status = 'EXCLUDED'; entry.reasons = [exclusion]; group.counts.excluded++; evidence.push(entry); componentEvidence.push(entry); continue }
+        if (exclusion || item.exclusionReason) { entry.status = 'EXCLUDED'; entry.reasons = [exclusion ?? item.exclusionReason!]; group.counts.excluded++; evidence.push(entry); componentEvidence.push(entry); continue }
         const originalDeclared = component === 'FCP_ST' ? item.declaredFcpSt : component === 'ICMS_ST' ? item.declaredIcmsSt : item.declaredIcms
         const declared = money(originalDeclared)
         if (declared !== undefined) { entry.declaredIcms = declared; sum('declaredIcms', declared) }

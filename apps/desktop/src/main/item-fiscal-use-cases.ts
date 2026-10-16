@@ -1,5 +1,5 @@
 import type { ItemCalculationSummary, ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion, SaveItemFiscalAnswersInput } from '@motor/contracts'
-import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
+import { isCalculationEligibleCfop, calculationCfopExclusionReason, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
 import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationRepository, type SqliteDatabase,
   type NormalizedFiscalDocumentRecord, type DocumentArtifactRecord, SqliteFiscalAnswerDefinitionRepository,
   type FiscalAnswerDefinitionKey, SqliteCompanyRepository } from '@motor/database'
@@ -7,9 +7,10 @@ import { randomUUID } from 'node:crypto'
 import { effectiveProcessingDocument } from './conflict-evidence'
 import { documentaryState, readDocumentaryIndex } from './documentary-evidence'
 import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared, calculateParanaCommonIcms,
-  compareDecimals, decimalText, pendingCalculation, type CalculationMemory } from '@motor/tax-engine'
+  compareDecimals, decimalText, pendingCalculation, specificStSector, type CalculationMemory } from '@motor/tax-engine'
 
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
+import { AUTOMATIC_XML_VERSION, AUTOMATIC_CATALOG_VERSION, automaticCalculationDescription, calculateAutomaticItem, calculateAutomaticXmlItem, isAutomaticCalculation, isAutomaticXmlCalculation } from './automatic-xml-calculation'
 
 const answersInputName = 'fiscalAnswers'
 const version = 'PR_FISCAL_5'
@@ -143,7 +144,29 @@ function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeIt
   return { ...context, ...(runId ? { runId } : {}),
     calculation: saved && !context.blockedReason
       && !(context.stSpecificMva && !saved.inputs.some(input => input.name === 'stSpecificMvaDecision'))
-      && !((saved.component ?? saved.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved).fcpStApplicableConfirmed === undefined) ? { ...saved, ...(runId ? { runId } : {}) } : memory }
+      && !((saved.component ?? saved.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved).fcpStApplicableConfirmed === undefined) ? { ...saved,
+        ...(saved.status !== 'CALCULATED' && memory.status === saved.status && memory.reason ? { reason: memory.reason } : {}),
+        ...(runId ? { runId } : {}) } : memory }
+}
+
+function reviewXmlData(nfe: NormalizedNfe, item: NormalizedNfeItem): NonNullable<ItemFiscalContext['xmlData']> {
+  const money = (value?: string) => {
+    if (value === undefined) return 'Não informado'
+    const [integer, fraction = ''] = value.split('.')
+    return `R$ ${integer!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${fraction.padEnd(2, '0')}`
+  }
+  return [
+    { label: 'NCM', value: item.ncm ?? 'Não informado' },
+    { label: 'CFOP', value: item.cfop ?? 'Não informado' },
+    { label: 'CST / CSOSN', value: item.declaredIcms?.cst ?? item.declaredIcms?.csosn ?? 'Não informado' },
+    { label: 'CEST', value: item.cest ?? 'Não informado' },
+    { label: 'Origem e destino', value: `${nfe.issuer.state ?? 'Não informado'} / ${nfe.recipient?.state ?? 'Não informado'}` },
+    { label: 'Regime do emitente', value: nfe.issuer.taxRegimeCode === '3' ? 'Regime normal (CRT 3)' : nfe.issuer.taxRegimeCode ?? 'Não informado' },
+    { label: 'Valor do produto', value: money(item.productAmount) },
+    { label: 'ICMS declarado', value: money(item.declaredIcms?.amount) },
+    { label: 'Alíquota declarada', value: item.declaredIcms?.rate ? `${item.declaredIcms.rate.replace('.', ',')}%` : 'Não informada' },
+    { label: 'Consumidor final', value: nfe.finalConsumerIndicator === '1' ? 'Sim, conforme XML' : nfe.finalConsumerIndicator === '0' ? 'Não, conforme XML' : 'Não informado' },
+  ]
 }
 
 /** A perspectiva da empresa e os dados fiscais selecionam o componente a conferir. */
@@ -151,14 +174,23 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   answers: ItemFiscalAnswers = {}, saved?: CalculationMemory, runId?: string, externalBlock?: string,
   companyCnpj?: string): ItemFiscalContext {
   const originalItem = item
-  let block = externalBlock
+  const xmlData = reviewXmlData(nfe, item)
+  let block = externalBlock ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
+  let purchaseReviewCompany: ItemFiscalContext['purchaseReviewCompany']
   let allocationSteps: CalculationMemory['steps'] = []
   try {
     const allocated = allocatedDocument(nfe).get(item.itemNumber)
     if (allocated) { item = { ...allocated.item, ...item }; allocationSteps = allocated.steps }
     const scope = purchaseStScope(nfe, item, answers, companyCnpj)
-    if (scope) return finishContext(buildPurchaseStContext(nfe, item, answers, scope, block), originalItem,
+    if (scope) return finishContext({ ...buildPurchaseStContext(nfe, item, answers, scope, block), xmlData }, originalItem,
       answers, allocationSteps, saved, runId)
+    // A mesma nota pode pertencer ao fornecedor ou ao comprador. A escolha da
+    // empresa define a perspectiva; nunca a substituímos para liberar um cálculo.
+    const purchase = companyCnpj && !block ? purchaseStScope(nfe, item, answers) : undefined
+    if (purchase?.buyer.taxId && companyCnpj === purchase.supplier.taxId) {
+      block = `Este lote está associado ao fornecedor (CNPJ ${companyCnpj}). A conferência de ICMS-ST disponível atende a compra da empresa destinatária no Paraná (CNPJ ${purchase.buyer.taxId}). Para conferir essa compra, importe as notas para a empresa compradora. A operação do fornecedor exige outro enquadramento.`
+      purchaseReviewCompany = { cnpj: purchase.buyer.taxId, ...(purchase.buyer.name ? { name: purchase.buyer.name } : {}) }
+    }
   } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o cálculo.' }
 
   const indicator = nfe.recipient?.stateRegistrationIndicator
@@ -220,7 +252,11 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
         ...(item.discountAmount !== undefined ? { discountAmount: item.discountAmount } : {}),
         ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}), declared: declaredValues,
       })
-  return finishContext({ answers, questions, ...(block ? { blockedReason: block } : {}), xmlFacts: [
+  const commonScenario = !block && Boolean(nfe.issuedAt && nfe.issuedAt.slice(0, 10) >= '2024-03-18') && !item.fuelAnpCode
+    && !specificStSector(item.ncm, item.cest, item.fuelAnpCode) && !item.ncm?.startsWith('27')
+  return finishContext({ answers, questions, xmlData, ...(purchaseReviewCompany ? { purchaseReviewCompany } : {}),
+    ...(commonScenario ? { commonScenario: { ...(nfe.finalConsumerIndicator ? { finalConsumerIndicator: nfe.finalConsumerIndicator } : {}) } } : {}),
+    ...(block ? { blockedReason: block } : {}), xmlFacts: [
     `Emitente: ${nfe.issuer.state ?? 'UF ausente'} · CRT ${nfe.issuer.taxRegimeCode ?? 'ausente'}`,
     `Destinatário: ${nfe.recipient?.state ?? 'UF ausente'} · ${xmlTaxpayer === undefined ? 'condição de contribuinte não informada' : xmlTaxpayer ? 'contribuinte ICMS (XML)' : 'não contribuinte (XML)'}`,
     `CFOP ${item.cfop ?? 'ausente'} · CST ${tax?.cst ?? 'ausente'} · NCM ${item.ncm ?? 'ausente'}`,
@@ -249,6 +285,7 @@ function target(database: SqliteDatabase, batchId: string, documentId: string, i
   const documentary = documentaryState(evidence, document)
   const externalBlock = documentFiscalBlock(effectiveProcessingDocument(evidence, document), batches.listDocumentArtifacts(batchId))
     ?? (documentary.canceled ? documentary.reason : undefined)
+    ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
   return { document, item, externalBlock, batch, companyCnpj: analyzedCompanyCnpj(database, document) }
 }
 
@@ -303,14 +340,53 @@ function reuseState(database: SqliteDatabase, document: NormalizedFiscalDocument
   return { key, definition, matches }
 }
 
+/** Compartilha apenas contexto comum idêntico dentro da mesma nota, preservando itens já calculados. */
+function matchingNoteItems(nfe: NormalizedNfe, item: NormalizedNfeItem,
+  previous: readonly { itemNumber: string; memory: CalculationMemory }[] = [], externalBlock?: string, companyCnpj?: string) {
+  const fingerprint = reuseFingerprint(nfe, item)
+  return nfe.items.filter(candidate => {
+    if (!isCalculationEligibleCfop(candidate.cfop)) return false
+    if (candidate.itemNumber !== item.itemNumber && previous.find(entry => entry.itemNumber === candidate.itemNumber)?.memory.status === 'CALCULATED') return false
+    if (reuseFingerprint(nfe, candidate) !== fingerprint) return false
+    return Boolean(buildItemFiscalContext(nfe, candidate, {}, undefined, undefined, externalBlock, companyCnpj).commonScenario)
+  })
+}
+
 export function getItemFiscalContext(database: SqliteDatabase, batchId: string, documentId: string, itemNumber: string): ItemFiscalContext {
   const { document, item, externalBlock, batch, companyCnpj } = target(database, batchId, documentId, itemNumber)
   const run = new SqliteCalculationRepository(database).latestByDocument(documentId)
   const saved = run?.items.find(entry => entry.itemNumber === itemNumber)?.memory
   const state = reuseState(database, document, item, batch.receivedAt)
   const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock, companyCnpj)
+  const tax = item.declaredIcms
+  const suggestions: Partial<Record<keyof ItemFiscalAnswers, string>> = {
+    ...(tax?.stRate !== undefined ? { stInternalRate: tax.stRate } : {}),
+    ...(tax?.rate !== undefined ? { stOwnOperationRate: tax.rate } : {}),
+    ...(tax?.stMarginPercent !== undefined ? { stMvaPercent: tax.stMarginPercent } : {}),
+    ...(tax?.cst === '10' && tax.stBaseMode === '4' ? { stApplicableConfirmed: 'true' } : {}),
+    ...([tax?.fcpStAmount, tax?.fcpStRate].some(value => value !== undefined && compareDecimals(value, '0') > 0)
+      ? { fcpStApplicableConfirmed: 'true', stInternalRateIncludesFcp: 'false' } : {}),
+    ...(tax?.stRate !== undefined ? { stSpecificEffectiveRate: addDecimals(tax.stRate, tax.fcpStRate ?? '0') } : {}),
+  }
+  context.questions = context.questions.map(question => ({ ...question,
+    ...(question.suggestedValue === undefined && suggestions[question.field] !== undefined ? { suggestedValue: suggestions[question.field]! } : {}) }))
+  if (!externalBlock) {
+    try { context.xmlCalculationAvailable = calculateAutomaticItem(document.normalized, allocatedDocument(document.normalized).get(item.itemNumber)!.item, companyCnpj)?.status === 'CALCULATED' }
+    catch { context.xmlCalculationAvailable = false }
+  }
+  if (saved && run && isAutomaticCalculation(saved) && !externalBlock) {
+    const { blockedReason, ...available } = context
+    return { ...available, automaticCalculationNotice: automaticCalculationDescription(saved),
+      ...(blockedReason ? { manualReviewBlockedReason: blockedReason } : {}),
+      reuseAvailable: false, calculation: { ...saved, runId: run.id, engineVersion: run.engineVersion } }
+  }
   const reused = saved?.inputs.find(entry => entry.name === 'reuseDefinitionId')?.value
+  const matching = context.commonScenario ? matchingNoteItems(document.normalized, item, run?.items, externalBlock, companyCnpj) : []
+  const appliedItems = saved?.inputs.find(entry => entry.name === 'answerAppliedItemNumbers')?.value
   return { ...context, reuseAvailable: context.calculation.component !== 'ICMS_ST' && context.calculation.result?.component !== 'ICMS_ST' && Boolean(state.key), ...(state.definition ? { definitionId: state.definition.id } : {}),
+    ...(matching.length > 1 ? { matchingNoteItems: matching.map(entry => ({ itemNumber: entry.itemNumber,
+      ...(entry.description ? { description: entry.description } : {}), ...(entry.supplierProductCode ? { productCode: entry.supplierProductCode } : {}) })) } : {}),
+    ...(appliedItems ? { appliedItemNumbers: JSON.parse(appliedItems) as string[] } : {}),
     ...(saved && run ? { calculation: { ...context.calculation, engineVersion: run.engineVersion } } : {}),
     ...(reused ? { reuseNotice: 'Respostas reaproveitadas de uma definição anterior para esta empresa e produto do fornecedor.' }
       : state.definition && !state.matches ? { reuseNotice: 'A operação difere da definição anterior ou tem data anterior. Confira e responda novamente.' } : {}),
@@ -318,39 +394,61 @@ export function getItemFiscalContext(database: SqliteDatabase, batchId: string, 
 }
 
 export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemFiscalAnswersInput): ItemFiscalContext {
+  if (input.calculationMode === 'XML' || input.calculationMode === 'AUTOMATIC') return saveItemXmlCalculation(database, input)
   const answers = validateItemFiscalAnswers(input.answers)
   const scope = input.reuseScope ?? 'CURRENT_ITEM'
-  if (!['CURRENT_ITEM', 'FUTURE_NOTES'].includes(scope)) throw new Error('Escolha um alcance válido para as respostas.')
+  if (!['CURRENT_ITEM', 'MATCHING_NOTE_ITEMS', 'FUTURE_NOTES'].includes(scope)) throw new Error('Escolha um alcance válido para as respostas.')
   const { document, item, externalBlock, batch, companyCnpj } = target(database, input.batchId, input.documentId, input.itemNumber)
   const repository = new SqliteCalculationRepository(database)
   const existing = repository.findByRequest(input.requestId, input.documentId)
   if (existing) {
     const saved = existing.items.find(entry => entry.itemNumber === input.itemNumber)?.memory
-    if (!saved || existing.previousRunId !== input.expectedRunId || JSON.stringify(readItemFiscalAnswers(saved)) !== JSON.stringify(answers)
+    if (!saved || isAutomaticCalculation(saved) || existing.previousRunId !== input.expectedRunId || JSON.stringify(readItemFiscalAnswers(saved)) !== JSON.stringify(answers)
       || saved.inputs.find(entry => entry.name === 'answerRequestId')?.value !== input.requestId
       || (saved.inputs.find(entry => entry.name === 'answerReuseScope')?.value ?? 'CURRENT_ITEM') !== scope
+      || (scope === 'MATCHING_NOTE_ITEMS' && saved.inputs.find(entry => entry.name === 'answerGroupSourceItemNumber')?.value !== input.itemNumber)
       || (saved.inputs.find(entry => entry.name === 'definitionAtSave')?.value ?? '') !== (input.expectedDefinitionId ?? '')) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
     return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
   }
   const latest = repository.latestByDocument(input.documentId)
   if (latest?.id !== input.expectedRunId) throw new Error('As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.')
+  if (!isCalculationEligibleCfop(item.cfop)) {
+    throw new Error(calculationCfopExclusionReason)
+  }
   const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, externalBlock, companyCnpj)
   if (context.blockedReason) throw new Error(context.blockedReason)
   const key = reuseKey(database, document, item)
   if (scope === 'FUTURE_NOTES' && (!key || context.calculation.status !== 'CALCULATED' || context.calculation.component === 'ICMS_ST')) {
     throw new Error('Para reutilizar nas próximas notas, identifique a empresa e o produto do fornecedor e conclua este cálculo. Você pode salvar respostas parciais somente neste item.')
   }
-  const memory: CalculationMemory = { ...memorySnapshot(context.calculation), inputs: [
-    ...context.calculation.inputs,
-    { name: 'answerRequestId', value: input.requestId, source: 'USER/current_item', treatment: 'UNDECIDED' },
-    { name: 'answerReuseScope', value: scope, source: 'USER/current_item', treatment: 'UNDECIDED' },
-    { name: 'definitionAtSave', value: input.expectedDefinitionId ?? '', source: 'USER/current_item', treatment: 'UNDECIDED' },
-  ] }
+  const affected = scope === 'MATCHING_NOTE_ITEMS'
+    ? matchingNoteItems(document.normalized, item, latest?.items, externalBlock, companyCnpj) : [item]
+  if (scope === 'MATCHING_NOTE_ITEMS' && (!context.commonScenario || context.calculation.status !== 'CALCULATED' || affected.length < 2)) {
+    throw new Error('Para aplicar aos itens compatíveis desta nota, conclua as respostas e confira se há pelo menos dois itens com o mesmo contexto fiscal ainda sem cálculo. Você pode salvar só neste item.')
+  }
+  const updated = new Map<string, CalculationMemory>()
+  for (const entry of affected) {
+    const calculation = entry.itemNumber === input.itemNumber ? context.calculation
+      : buildItemFiscalContext(document.normalized, entry, answers, undefined, undefined, externalBlock, companyCnpj).calculation
+    if (scope === 'MATCHING_NOTE_ITEMS' && calculation.status !== 'CALCULATED') {
+      throw new Error('Um dos itens não pode ser calculado com estas respostas. Revise cada item antes de aplicar em conjunto.')
+    }
+    updated.set(entry.itemNumber, { ...memorySnapshot(calculation), inputs: [
+      ...calculation.inputs,
+      { name: 'answerRequestId', value: input.requestId, source: 'USER/current_item', treatment: 'UNDECIDED' },
+      { name: 'answerReuseScope', value: scope, source: 'USER/current_item', treatment: 'UNDECIDED' },
+      { name: 'definitionAtSave', value: input.expectedDefinitionId ?? '', source: 'USER/current_item', treatment: 'UNDECIDED' },
+      ...(scope === 'MATCHING_NOTE_ITEMS' ? [
+        { name: 'answerGroupSourceItemNumber', value: input.itemNumber, source: 'USER/current_item', treatment: 'UNDECIDED' as const },
+        { name: 'answerAppliedItemNumbers', value: JSON.stringify(affected.map(entry => entry.itemNumber)), source: 'USER/current_item', treatment: 'UNDECIDED' as const },
+      ] : []),
+    ] })
+  }
   repository.save({
     requestId: input.requestId, batchId: input.batchId, documentId: input.documentId,
     ...(latest ? { previousRunId: latest.id } : {}), engineVersion: version,
     items: document.normalized.items.map(entry => ({ itemNumber: entry.itemNumber,
-      memory: entry.itemNumber === input.itemNumber ? memory : latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory
+      memory: updated.get(entry.itemNumber) ?? latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory
         ?? memorySnapshot(buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock, companyCnpj).calculation),
     })),
   }, scope === 'FUTURE_NOTES' ? run => {
@@ -360,6 +458,37 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
       answersJson: JSON.stringify(answers), sourceRunId: run.id, sourceReceivedAt: batch.receivedAt,
       sourceOperationDate: document.normalized.issuedAt!.slice(0, 10), createdAt: run.createdAt })
   } : undefined)
+  return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
+}
+
+function saveItemXmlCalculation(database: SqliteDatabase, input: SaveItemFiscalAnswersInput): ItemFiscalContext {
+  if (Object.keys(validateItemFiscalAnswers(input.answers)).length || input.reuseScope && input.reuseScope !== 'CURRENT_ITEM') throw new Error('O cálculo pelo XML usa somente os dados desta nota.')
+  const { document, item, externalBlock, companyCnpj } = target(database, input.batchId, input.documentId, input.itemNumber)
+  if (externalBlock) throw new Error(externalBlock)
+  const repository = new SqliteCalculationRepository(database)
+  const existing = repository.findByRequest(input.requestId, input.documentId)
+  if (existing) {
+    const saved = existing.items.find(entry => entry.itemNumber === input.itemNumber)?.memory
+    if (!saved || !isAutomaticCalculation(saved) || existing.previousRunId !== input.expectedRunId
+      || (saved.inputs.find(entry => entry.name === 'answerCalculationMode')?.value ?? 'XML') !== input.calculationMode
+      || saved.inputs.find(entry => entry.name === 'answerRequestId')?.value !== input.requestId) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
+    return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
+  }
+  const latest = repository.latestByDocument(input.documentId)
+  if (latest?.id !== input.expectedRunId) throw new Error('As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.')
+  const allocated = allocatedDocument(document.normalized).get(item.itemNumber)!
+  const calculation = input.calculationMode === 'AUTOMATIC' ? calculateAutomaticItem(document.normalized, allocated.item, companyCnpj)
+    : calculateAutomaticXmlItem(document.normalized, allocated.item)
+  if (!calculation) throw new Error('Os dados do XML não permitem calcular automaticamente este item.')
+  repository.save({ requestId: input.requestId, batchId: input.batchId, documentId: input.documentId,
+    ...(latest ? { previousRunId: latest.id } : {}), engineVersion: isAutomaticXmlCalculation(calculation) ? AUTOMATIC_XML_VERSION : AUTOMATIC_CATALOG_VERSION,
+    items: document.normalized.items.map(entry => ({ itemNumber: entry.itemNumber,
+      memory: entry.itemNumber === item.itemNumber ? { ...calculation, steps: [...allocated.steps, ...calculation.steps], inputs: [...calculation.inputs,
+        { name: 'answerRequestId', value: input.requestId, source: 'USER/REQUEST_AUTOMATIC_CALCULATION', treatment: 'UNDECIDED' },
+        { name: 'answerCalculationMode', value: input.calculationMode!, source: 'USER/REQUEST_AUTOMATIC_CALCULATION', treatment: 'UNDECIDED' }] }
+        : latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory
+          ?? memorySnapshot(buildItemFiscalContext(document.normalized, entry, {}, undefined, undefined, externalBlock, companyCnpj).calculation),
+    })) })
   return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
 }
 
@@ -387,9 +516,9 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
         return { itemNumber: item.itemNumber, memory: previous }
       }
       const state = reuseState(database, document, item, batch.receivedAt)
-      const answers = state.matches && state.definition ? validateItemFiscalAnswers(JSON.parse(state.definition.answersJson)) : {}
+      const answers = isCalculationEligibleCfop(item.cfop) && state.matches && state.definition ? validateItemFiscalAnswers(JSON.parse(state.definition.answersJson)) : {}
       const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, block, companyCnpj)
-      if (!state.matches || !state.definition || context.calculation.status !== 'CALCULATED') return {
+      if (!isCalculationEligibleCfop(item.cfop) || !state.matches || !state.definition || context.calculation.status !== 'CALCULATED') return {
         itemNumber: item.itemNumber, memory: previous ?? memorySnapshot(buildItemFiscalContext(document.normalized, item, {}, undefined, undefined, block, companyCnpj).calculation),
       }
       changed++
@@ -407,5 +536,46 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
       applied += changed
     }
   }
-  return applied
+  return applied + applyAutomaticXmlCalculations(database, batchId)
+}
+
+/** Calcula o que está documentado no XML e preserva qualquer revisão manual anterior. */
+export function applyAutomaticXmlCalculations(database: SqliteDatabase, batchId: string): number {
+  const batches = new SqliteBatchRepository(database)
+  const batch = batches.findById(batchId)
+  if (!batch || batch.organizationId !== new SqliteOrganizationRepository(database).findSingle()?.id) throw new Error('Lote não encontrado.')
+  const repository = new SqliteCalculationRepository(database)
+  const evidence = readDocumentaryIndex(database)
+  let calculated = 0
+  for (const document of batches.listNormalizedDocuments(batchId)) {
+    const companyCnpj = analyzedCompanyCnpj(database, document)
+    if (!companyCnpj || ![document.normalized.issuer.taxId, document.normalized.recipient?.taxId].includes(companyCnpj)) continue
+    const block = documentFiscalBlock(effectiveProcessingDocument(evidence, document), batches.listDocumentArtifacts(batchId))
+      ?? (documentaryState(evidence, document).canceled ? 'Documento cancelado.' : undefined)
+    if (block) continue
+    const latest = repository.latestByDocument(document.id)
+    let changed = false
+    let allocations: ReturnType<typeof allocatedDocument>
+    try { allocations = allocatedDocument(document.normalized) } catch { continue }
+    const items = document.normalized.items.map(item => {
+      const previous = latest?.items.find(entry => entry.itemNumber === item.itemNumber)?.memory
+      if (previous && (!isAutomaticCalculation(previous) && (previous.status === 'CALCULATED'
+        || previous.inputs.some(input => ['answerRequestId', 'reuseDefinitionId'].includes(input.name)))
+        || previous.inputs.some(input => input.name === 'answerCalculationMode'))) return { itemNumber: item.itemNumber, memory: previous }
+      const allocated = allocations.get(item.itemNumber)!
+      const memory = calculateAutomaticItem(document.normalized, allocated.item, companyCnpj)
+      if (previous && isAutomaticCalculation(previous) && memory && isAutomaticXmlCalculation(previous) === isAutomaticXmlCalculation(memory)) return { itemNumber: item.itemNumber, memory: previous }
+      if (memory) {
+        changed = true
+        if (memory.status === 'CALCULATED' && !memory.additionalComponents?.some(component => component.status !== 'CALCULATED')) calculated++
+        return { itemNumber: item.itemNumber, memory: { ...memory,
+          steps: [...allocated.steps, ...memory.steps], inputs: memory.inputs.map(input =>
+            allocated.steps.some(step => step.inputs.field === input.name) ? { ...input, source: 'ALLOCATION/document_total' } : input) } }
+      }
+      return { itemNumber: item.itemNumber, memory: previous ?? memorySnapshot(buildItemFiscalContext(document.normalized, item, {}, undefined, undefined, block, companyCnpj).calculation) }
+    })
+    if (changed) repository.save({ requestId: `auto:${document.id}:${latest?.id ?? 'initial'}:${AUTOMATIC_XML_VERSION}`,
+      batchId, documentId: document.id, ...(latest ? { previousRunId: latest.id } : {}), engineVersion: AUTOMATIC_CATALOG_VERSION, items })
+  }
+  return calculated
 }

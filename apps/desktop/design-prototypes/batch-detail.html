@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detalhe do lote · Propostas de design</title>
+  <link rel="stylesheet" href="batch-detail.css">
+  <link rel="stylesheet" href="batch-detail-cards.css">
+  <script src="batch-detail.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" aria-label="Identidade do aplicativo"><div class="brand"><span>C</span><div><b>ContabiliNico</b><small>Área de trabalho</small></div></div><p class="nav-caption">Principal</p><div class="nav"><span>Visão geral</span><span class="selected">Histórico de lotes</span><span>Empresas</span><span>Conferência mensal</span><span>Revisão documental</span></div><p class="local">●　Dados locais</p></aside>
+  <main id="detail-preview" data-variant="stack">
+    <div class="preview-label"><span>Prévia de design · dados fictícios</span><span>Detalhe do lote</span></div>
+    <nav class="design-options" aria-label="Estilo dos cards">
+      <button type="button" aria-pressed="true" data-variant="stack">1 · Cards em sequência</button>
+      <button type="button" aria-pressed="false" data-variant="grid">2 · Cards em grade</button>
+    </nav>
+    <div class="breadcrumb"><a href="batch-history.html">Histórico de lotes</a><span>/</span><span>Detalhe do lote</span></div>
+    <header class="page-heading"><div><div class="eyebrow">LOTE IMPORTADO <span>● Produção</span></div><h1>Entradas · outubro de 2026</h1><p>Mercado Pinheiro Ltda. <span>· Importado em 15 out., às 14:32</span></p></div><button class="button primary" id="excel-preview" type="button"><span aria-hidden="true">↓</span> Exportar Excel</button></header>
+    <div class="batch-metrics" aria-label="Situação dos itens">
+      <button class="metric" type="button" data-filter="all"><span class="metric-caption">Documentos fiscais<span class="metric-symbol" aria-hidden="true">▤</span></span><strong>2</strong><small>5 itens neste lote</small></button>
+      <button class="metric" type="button" data-filter="calculated"><span class="metric-caption">Itens calculados<span class="metric-symbol green" aria-hidden="true">✓</span></span><strong>4<span class="metric-denominator"> / 5</span></strong><small>80% dos itens com cálculo salvo</small></button>
+      <button class="metric" type="button" data-filter="review"><span class="metric-caption">Itens para revisar<span class="metric-symbol amber" aria-hidden="true">!</span></span><strong>2</strong><small>1 pendente · 1 com divergência</small></button>
+      <button class="metric" type="button" data-filter="divergent"><span class="metric-caption">Itens com divergência<span class="metric-symbol rose" aria-hidden="true">≠</span></span><strong>1</strong><small>Base ou ICMS acima da tolerância</small></button>
+    </div>
+    <nav class="section-tabs" aria-label="Áreas do lote"><button type="button" data-area="overview">Resumo</button><button type="button" class="active" data-area="notes" aria-current="page">Notas e itens <span>2</span></button><button type="button" data-area="review">Revisão <span>2</span></button><button type="button" id="files-preview">Arquivos e eventos</button></nav>
+    <section id="notes-area" aria-label="Notas e produtos">
+      <div class="section-heading"><div><h2>Documentos fiscais</h2><p>Abra a nota para conferir os valores e a análise de cada produto.</p></div><span class="quiet" id="note-count">2 notas</span></div>
+      <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input type="search" class="product-search" placeholder="Buscar nota, produto ou código" aria-label="Buscar notas e produtos"></label><select class="product-filter" aria-label="Situação dos produtos"><option value="all">Todos os produtos</option><option value="review">Para revisar</option><option value="pending">Sem cálculo</option><option value="divergent">Com divergência</option><option value="calculated">Com cálculo salvo</option></select></div>
+      <div id="note-cards" class="document-stack"></div>
+    </section>
+    <section id="overview-area" hidden aria-label="Resumo da análise"><article class="summary-card"><div><p class="eyebrow">ANDAMENTO DA ANÁLISE</p><h2>Continue a conferência dos itens</h2><p>4 itens calculados e 2 itens para conferir.</p><div class="analysis-progress" role="progressbar" aria-valuenow="80" aria-valuemin="0" aria-valuemax="100" aria-label="80% dos itens calculados"><span></span></div></div><button class="button" type="button" data-filter="review">Conferir itens</button></article><article class="summary-card"><div><h2>Histórico das regras</h2><p>Referências e execuções vinculadas aos produtos.</p></div><button class="button" id="audit-preview" type="button">Consultar histórico</button></article></section>
+    <dialog id="excel-dialog" class="dialog wide-dialog"><div class="dialog-header"><div><p class="eyebrow">PRÉVIA DO EXCEL</p><h2>Cada linha é um produto da nota.</h2></div><button type="button" class="close-dialog" aria-label="Fechar prévia do Excel">×</button></div><p class="dialog-description">Nota, item, produto e impostos na mesma linha. ICMS-ST e FCP-ST terão colunas próprias quando existirem.</p><div class="table-scroll"><table><thead><tr><th>Nota</th><th>Item</th><th>Produto</th><th>ICMS declarado</th><th>ICMS calculado</th><th>Situação</th></tr></thead><tbody id="excel-rows"></tbody></table></div><p class="demo-footnote">Dados fictícios para apresentar a disposição das colunas.</p></dialog>
+    <dialog id="files-dialog" class="dialog"><div class="dialog-header"><div><p class="eyebrow">INVENTÁRIO DO LOTE</p><h2>Arquivos e eventos</h2></div><button type="button" class="close-dialog" aria-label="Fechar inventário">×</button></div><div class="file-row"><span class="file-type">ZIP</span><div><b>entradas_outubro_2026.zip</b><small>Pacote de origem</small></div><span class="badge success">Preservado</span></div><div class="file-row"><span class="file-type">XML</span><div><b>NF-e_004261.xml</b><small>3 produtos · nota normalizada</small></div><span class="badge success">Importado</span></div><div class="file-row"><span class="file-type">XML</span><div><b>NF-e_004262.xml</b><small>2 produtos · nota normalizada</small></div><span class="badge success">Importado</span></div><p class="demo-footnote">Prévia de 3 dos 7 arquivos de demonstração.</p></dialog>
+    <dialog id="audit-dialog" class="dialog"><div class="dialog-header"><div><p class="eyebrow">RASTREABILIDADE</p><h2>Histórico e regras</h2></div><button type="button" class="close-dialog" aria-label="Fechar histórico">×</button></div><ol class="audit-list"><li><b>15 out. · 14:32</b><span>Importação concluída</span><small>2 notas e 5 produtos reconhecidos</small></li><li><b>15 out. · 14:33</b><span>Resultados registrados</span><small>4 produtos calculados · 1 produto com informação pendente</small></li></ol><details class="audit-extra"><summary>Referências e execuções</summary><p>Regra, versão, parâmetros e memória ficam associados a cada produto.</p></details></dialog>
+  </main>
+</div>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import { isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
 import { specificStSector } from '@motor/tax-engine'
 import { buildBatchConsolidation, type ConsolidationDocument } from '@motor/reporting'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
@@ -5,6 +6,7 @@ import { documentFiscalBlock, readItemFiscalAnswers } from './item-fiscal-use-ca
 import { purchaseStScope } from './purchase-st-context'
 import { conflictEvidence, effectiveProcessingDocument, selectionProblem } from './conflict-evidence'
 import { documentaryState, readDocumentaryIndex, type DocumentaryIndex } from './documentary-evidence'
+import { isAutomaticCalculation, isAutomaticXmlCalculation } from './automatic-xml-calculation'
 
 /** Lê evidências persistidas da organização ativa; não executa cálculo fiscal. */
 export function getBatchConsolidation(connection: SqliteDatabase, batchId: string, index?: DocumentaryIndex) {
@@ -56,27 +58,31 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
       runId: run?.id, engineVersion: run?.engineVersion,
       items: nfe.items.map(item => {
         const memory = run?.items.find(saved => saved.itemNumber === item.itemNumber)?.memory
-        if (memory?.status === 'CALCULATED' && (memory.component ?? memory.result?.component) === 'ICMS_ST') {
+        if (!isCalculationEligibleCfop(item.cfop)) return { cfop: item.cfop, itemNumber: item.itemNumber,
+          declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
+          declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate, memory,
+          exclusionReason: calculationCfopExclusionReason }
+        if (memory?.status === 'CALCULATED' && !isAutomaticXmlCalculation(memory) && (memory.component ?? memory.result?.component) === 'ICMS_ST') {
           const answers = readItemFiscalAnswers(memory)
           const scope = purchaseStScope(nfe, item, answers, company?.cnpj)
           const regime = scope?.supplier.taxRegimeCode ?? (answers.stSupplierNormalConfirmed ? '3' : undefined)
           if (!scope || regime !== '3' || nfe.finalConsumerIndicator === '1' || scope.buyer.stateRegistrationIndicator === '9'
             || (item.declaredIcms?.cst !== undefined && !['00', '10'].includes(item.declaredIcms.cst))) {
-            return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
+            return { cfop: item.cfop, itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
             declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
               memory: { ...memory, status: 'UNSUPPORTED' as const,
                 reason: 'A memória de ICMS-ST exige nova conferência da perspectiva da empresa, do regime ou do enquadramento. O resultado anterior está preservado para auditoria.' } }
           }
           if (specificStSector(item.ncm, item.cest, item.fuelAnpCode) && !memory.inputs.some(input => input.name === 'stSpecificMvaDecision')) return {
-            itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount,
+            cfop: item.cfop, itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount,
             declaredFcpSt: item.declaredIcms?.fcpStAmount, declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
             memory: { ...memory, status: 'PENDING_RULE' as const, reason: 'A MVA de combustível ou veículo exige nova conferência das condições específicas. O resultado anterior está preservado para auditoria.' } }
-          if (answers.fcpStApplicableConfirmed === undefined) return { itemNumber: item.itemNumber,
+          if (answers.fcpStApplicableConfirmed === undefined && !isAutomaticCalculation(memory)) return { cfop: item.cfop, itemNumber: item.itemNumber,
             declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
             declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,
             memory: { ...memory, status: 'PENDING_DATA' as const, reason: 'Confirme a incidência de FCP-ST e revise a alíquota interna antes de totalizar. O resultado anterior está preservado para auditoria.' } }
         }
-        return { itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
+        return { cfop: item.cfop, itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount,
           declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
             declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate, memory }
       }),
