@@ -12,6 +12,7 @@ import { activeDatabase, approvedSourcePaths, isCancelled, runBatchOperation,
 const allowedExtensions = new Set(['.xml', '.zip'])
 
 import { ImportIssueCode, ImportIssueMessage, formatImportIssueMessage } from './import-issues'
+import { purchaseStScope } from './purchase-st-context'
 
 /** Seleciona arquivos autorizados e inspeciona suas notas antes da confirmação do lote. */
 export function registerBatchInspectionHandlers(): void {
@@ -77,11 +78,13 @@ export function registerBatchInspectionHandlers(): void {
             return
           }
           const normalized = parsed.note
+          const purchase = normalized.items.map(item => purchaseStScope(normalized, item, {})).find(Boolean)
           inspectedXmlCount += 1
           documents.push({
             source,
             accessKey: normalized.accessKey,
             number: normalized.number,
+            ...(purchase?.buyer.taxIdType === 'CNPJ' && purchase.buyer.taxId ? { suggestedCompanyCnpj: normalizeCnpj(purchase.buyer.taxId) } : {}),
             ...(normalized.issuer.taxIdType === 'CNPJ' && normalized.issuer.taxId ? { issuerCnpj: normalizeCnpj(normalized.issuer.taxId) } : {}),
             ...(normalized.recipient?.taxIdType === 'CNPJ' && normalized.recipient.taxId ? { recipientCnpj: normalizeCnpj(normalized.recipient.taxId) } : {}),
           })

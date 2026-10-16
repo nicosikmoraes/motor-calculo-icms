@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
-import { itemCalculationComponents, taxComponentLabel, type ConsolidationEvidence } from '@motor/contracts'
+import { taxComponentLabel, type ConsolidationEvidence } from '@motor/contracts'
+import { buildExcelItemRows } from './excel-item-rows'
 import { roundMoney } from '@motor/tax-engine'
 import type { ReportData } from './report-data'
 
@@ -29,15 +30,15 @@ export function excelMoney(value?: string): Value {
 }
 function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, columns: Column[], rows: Value[][]): void {
   if (rows.length > 1_048_571) throw new Error(`A aba ${name} excede o limite de linhas do Excel.`)
-  const sheet = book.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 5, xSplit: 1 }],
+  const sheet = book.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 5, xSplit: name === 'Itens' ? 5 : 1 }],
     pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: false, printTitlesRow: '1:5' } })
   sheet.columns = columns.map(column => ({ width: column.width ?? 24 }))
   for (const [row, value] of [
     [1, `ContabiliNico · ${name}`],
-    [2, `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
-    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 4`],
+    [2, name === 'Itens' ? 'Uma linha por produto de cada nota. ICMS, ICMS-ST e FCP-ST em colunas separadas. Valores calculados usam os resultados salvos; pendências e exclusões permanecem identificadas.' : `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
+    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · CNPJ: ${[...new Set(report.documents.map(document => document.companyCnpj).filter(Boolean))].join(', ') || 'Não identificado'} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 6`],
   ] as const) {
-    sheet.mergeCells(row, 1, row, Math.min(4, columns.length))
+    sheet.mergeCells(row, 1, row, Math.min(name === 'Itens' ? 5 : 4, columns.length))
     sheet.getCell(row, 1).value = value
     sheet.getCell(row, 1).alignment = { wrapText: true, vertical: 'middle' }
   }
@@ -81,56 +82,34 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   const documents = new Map(report.documents.map(document => [document.id, document]))
   const items = new Map(report.items.map(item => [JSON.stringify([item.documentId, item.itemNumber]), item]))
   const companyNames = new Map(summary.groups.map(group => [group.companyId, group.companyName]))
+  const companyCnpjs = new Map(report.documents.map(document => [document.companyId, document.companyCnpj]))
   const identity = (entry: ConsolidationEvidence): Value[] => [companyNames.get(entry.companyId) ?? 'Empresa não identificada', entry.period,
     label(entry.perspective), environment(entry.environment), label(entry.authorization), entry.documentNumber,
-    documents.get(entry.documentId)?.series, entry.accessKey, entry.itemNumber, ...(report.monthly ? [entry.batchId, report.monthly.batches.find(b => b.id === entry.batchId)?.name] : [])]
+    documents.get(entry.documentId)?.series, entry.accessKey, entry.itemNumber, ...(report.monthly ? [entry.batchId, report.monthly.batches.find(b => b.id === entry.batchId)?.name] : []), companyCnpjs.get(entry.companyId)]
   const identityColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20),
-    text('Autorização', 38), text('Nota', 16), text('Série', 12), text('Chave de acesso', 50), text('Item', 10), ...(report.monthly ? [text('Lote de origem', 40), text('Nome do lote', 36)] : [])]
+    text('Autorização', 38), text('Nota', 16), text('Série', 12), text('Chave de acesso', 50), text('Item', 10), ...(report.monthly ? [text('Lote de origem', 40), text('Nome do lote', 36)] : []), text('CNPJ da empresa', 22)]
+  const itemTable = buildExcelItemRows(report)
+  addSheet(book, report, 'Itens', itemTable.columns, itemTable.rows)
   addSheet(book, report, 'Resumo', [text('Empresa', 32), text('Mês de emissão', 18), text('Operação', 20), text('Ambiente', 20), text('Autorização', 38),
     monetary('Base calculada'), monetary('Imposto calculado'), monetary('Imposto declarado elegível'), monetary('Imposto diferido conhecido'),
     monetary('Imposto calculado dos pares'), monetary('Imposto declarado dos pares'), monetary('Diferença líquida dos pares'), monetary('Soma das diferenças absolutas'),
     ...['Notas', 'Itens', 'Calculados', 'Pendentes', 'Fora do escopo', 'Excluídos', 'Itens comparáveis', 'Itens com divergência de valor, base ou alíquota',
-      'Diferenças dentro da tolerância', 'Declaração ausente', 'Declaração inválida', 'Diferimento sem informação'].map(title => text(title)), text('Créditos de compras', 30), text('Componente conferido')],
+      'Diferenças dentro da tolerância', 'Declaração ausente', 'Declaração inválida', 'Diferimento sem informação'].map(title => text(title)), text('Créditos de compras', 30), text('Componente conferido'), text('CNPJ da empresa', 22)],
     summary.groups.map(g => [g.companyName ?? 'Empresa não identificada', g.period, label(g.perspective), environment(g.environment), label(g.authorization),
       g.totals.calculatedBase, g.totals.calculatedIcms, g.totals.declaredIcms, g.totals.deferredIcms,
       g.totals.comparedCalculatedIcms, g.totals.comparedDeclaredIcms, g.totals.difference, g.totals.absoluteDifferences,
       g.counts.documents, g.counts.items, g.counts.calculated, g.counts.pending, g.counts.unsupported, g.counts.excluded,
       g.counts.comparableItems, g.counts.divergentItems, g.counts.withinToleranceItems, g.counts.declaredMissing, g.counts.declaredInvalid,
-      g.counts.deferredMissing, 'Não apurados', taxComponentLabel(g.component)]))
-  addSheet(book, report, 'Itens', [...identityColumns, text('Código do produto'), text('Produto', 50), text('NCM', 14), text('CFOP', 14),
-    text('Emissão original no XML', 30), text('Situação fiscal'), text('Componente calculado'), monetary('Base calculada'), monetary('Imposto calculado'),
-    monetary('Imposto declarado original'), monetary('ICMS diferido conhecido'), monetary('Diferença calculado - declarado'),
-    text('Comparação'), text('Motivo', 60), text('Execução do cálculo', 40), text('Versão do motor'), text('Regra fiscal', 40), text('Versão da regra'),
-    monetary('Base salva para auditoria'), monetary('Imposto salvo para auditoria'),
-    text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Base declarada do componente'), text('Alíquota declarada do componente (%)'), text('Alíquota calculada do componente (%)'), text('Referência FCP-ST', 50), text('Regra específica da MVA', 60)],
-    summary.evidence.map(entry => {
-      const item = items.get(JSON.stringify([entry.documentId, entry.itemNumber]))
-      if (!item || !documents.has(entry.documentId)) throw new Error('Evidência referencia item ou documento ausente.')
-      const calculation = itemCalculationComponents(item.calculation).find(memory => (memory.component ?? memory.result?.component ?? 'ICMS') === (entry.component ?? 'ICMS'))
-      const specificInput = item.calculation.inputs.find(input => input.name === 'stSpecificMvaDecision')?.value
-      const specific = specificInput ? JSON.parse(specificInput) as { originalMvaPercent?: string; appliedMvaPercent?: string } : undefined
-      return [...identity(entry), item.supplierProductCode, item.description, item.ncm, item.cfop, documents.get(entry.documentId)?.issuedAt,
-        label(entry.status), taxComponentLabel(entry.component),
-        entry.status === 'CALCULATED' ? calculation?.result?.base : undefined, entry.calculatedIcms,
-        entry.component === 'FCP_ST' ? item.declaredFcpStAmount : entry.component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredIcmsAmount,
-        entry.deferredIcms, entry.comparison?.difference, entry.comparison ? label(entry.comparison.status) : 'Sem comparação',
-        entry.reasons.join('\n'), entry.runId, entry.engineVersion, calculation?.rule?.id, calculation?.rule?.version,
-        calculation?.result?.base, calculation?.result?.amount,
-        item.calculation.inputs.find(input => input.name === 'originalMvaPercent')?.value ?? specific?.originalMvaPercent,
-        item.calculation.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent ?? specific?.appliedMvaPercent,
-        item.calculation.inputs.find(input => input.name === 'mvaCatalogRow')?.value,
-        entry.component === 'FCP_ST' ? item.declaredFcpStBaseAmount : calculation?.declared?.base,
-        entry.component === 'FCP_ST' ? item.declaredFcpStRate : calculation?.declared?.rate, calculation?.result?.rate, calculation?.inputs.find(input => input.name === 'fcpStRule')?.value, specificInput]
-    }))
+      g.counts.deferredMissing, 'Não apurados', taxComponentLabel(g.component), companyCnpjs.get(g.companyId)]))
   addSheet(book, report, 'Divergências', [...identityColumns, text('Componente calculado'), monetary('Imposto calculado'), monetary('Imposto declarado'),
     monetary('Diferença calculado - declarado'), monetary('Tolerância por item'), text('Comparação'), text('Execução do cálculo', 40), text('Versão do motor'), text('Campo conferido'), text('Calculado exato'), text('Declarado exato'), text('Diferença exata'), text('Unidade')],
     summary.evidence.flatMap(e => {
-      const comparisons = [...(e.comparison ? [e.comparison] : []), ...(e.comparisons?.filter(c => ['BASE', 'RATE'].includes(c.component)) ?? [])]
+      const comparisons = [...(e.comparison ? [e.comparison] : []), ...(e.comparisons?.filter(c => ['BASE', 'RATE', 'MVA'].includes(c.component)) ?? [])]
       return comparisons.filter(c => c.status === 'DIFFERENT' || c.status === 'WITHIN_TOLERANCE' || c.status === 'INVALID_DECLARED').map(c => [...identity(e),
-        taxComponentLabel(e.component), c.component === 'BASE' || c.component === 'RATE' ? undefined : e.calculatedIcms,
-        c.component === 'BASE' || c.component === 'RATE' ? undefined : e.declaredIcms,
-        c.component === 'RATE' ? undefined : c.difference, c.component === 'RATE' ? undefined : c.tolerance,
-        label(c.status), e.runId, e.engineVersion, c.component, c.calculated, c.declared, c.difference, c.component === 'RATE' ? '%' : 'R$'])
+        taxComponentLabel(e.component), ['BASE', 'RATE', 'MVA'].includes(c.component) ? undefined : e.calculatedIcms,
+        ['BASE', 'RATE', 'MVA'].includes(c.component) ? undefined : e.declaredIcms,
+        c.component === 'RATE' || c.component === 'MVA' ? undefined : c.difference, c.component === 'RATE' || c.component === 'MVA' ? undefined : c.tolerance,
+        label(c.status), e.runId, e.engineVersion, c.component, c.calculated, c.declared, c.difference, c.component === 'RATE' || c.component === 'MVA' ? '%' : 'R$'])
     }))
   const pendingColumns = [text('Empresa', 32), text('Mês de emissão', 18), text('Nota', 16), text('Chave de acesso', 50), text('Item', 10),
     text('Categoria', 26), text('Código / situação', 32), text('Motivo', 70), text('Documento / origem', 45)]
@@ -155,6 +134,9 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   for (const o of report.occurrences.filter(o => !o.eligibleForTotals)) pendingRows.push([undefined, undefined, undefined, o.accessKey, undefined,
     'Ocorrência excluída', `${o.repetition} / ${o.contentConflict}`, o.ingestionStatus, o.relativePath, ...(report.monthly ? [o.batchId] : [])])
   if (report.monthly) pendingColumns.push(text('Lote de origem', 40))
+  pendingColumns.push(text('CNPJ da empresa', 22))
+  pendingRows.forEach(row => row.push(companyCnpjs.get(report.documents.find(document => document.id === row[8])?.companyId)
+    ?? (typeof row[3] === 'string' ? report.documents.find(document => document.accessKey === row[3])?.companyCnpj : undefined)))
   addSheet(book, report, 'Pendências e exclusões', pendingColumns, pendingRows)
   if (report.monthly) addSheet(book, report, 'Lotes', [text('Lote de origem', 40), text('Nome do lote', 40), text('Situação', 24)], report.monthly.batches.map(b => [b.id, b.name, b.status]))
   const events = [...new Map(report.artifacts.filter(a => a.kind === 'EVENT').map(a => [JSON.stringify([a.id, a.documentId]), a])).values()]

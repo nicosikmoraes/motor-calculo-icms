@@ -75,12 +75,12 @@ onMounted(loadPack)
         <div v-if="!visibleProposals.length" class="card empty-panel"><h4>{{ pack.rules.length ? 'Nenhuma proposta corresponde aos filtros' : 'Nenhuma proposta neste pacote' }}</h4><p v-if="pack.rules.length">Experimente outro termo ou escolha todos os destinos.</p><button v-if="pack.rules.length" class="button secondary" @click="clearFilters">Limpar filtros</button></div>
         <div class="proposal-grid">
           <article v-for="rule in visibleProposals" :key="`${rule.id}:${rule.version}`" class="card proposal-card">
-            <header class="proposal-heading"><div><span class="proposal-route">{{ rule.conditions.originState || '—' }} <span aria-hidden="true">→</span> {{ rule.conditions.destinationState || '—' }}</span><h4>{{ rule.name.replace(/\s*·\s*proposta$/, '') }}</h4></div><span class="badge badge-amber">Cálculo em revisão</span></header>
+            <header class="proposal-heading"><div><span class="proposal-route">{{ rule.conditions.originState || '—' }} <span>para</span> {{ rule.conditions.destinationState || '—' }}</span><h4>{{ rule.name.replace(/\s*·\s*proposta$/, '') }}</h4></div><span class="badge badge-amber">Cálculo em revisão</span></header>
             <div class="proposal-rate"><div><span>Alíquota proposta revisada</span><strong>{{ rule.proposedRate.replace('.', ',') }}<small>%</small></strong></div><span class="reviewed-at">Revisada em<br>{{ date(rule.reviewedOn) }}</span></div>
             <dl class="proposal-codes"><div><dt>CFOP</dt><dd>{{ rule.conditions.cfop || '—' }}</dd></div><div><dt>CST do ICMS</dt><dd>{{ rule.conditions.cst || '—' }}</dd></div><div><dt>CRT do emitente</dt><dd>{{ rule.conditions.issuerRegime || '—' }}</dd></div></dl>
-            <details class="proposal-conditions"><summary>Condições do recorte <span>{{ Object.keys(rule.conditions).length }} campos <span aria-hidden="true">⌄</span></span></summary><dl><div v-for="(value, key) in rule.conditions" :key="key"><dt>{{ conditionLabels[String(key)] || key }}</dt><dd>{{ conditionValue(String(key), value) }}</dd></div></dl></details>
+            <details class="proposal-conditions"><summary>Condições do recorte <span>{{ Object.keys(rule.conditions).length }} campos </span></summary><dl><div v-for="(value, key) in rule.conditions" :key="key"><dt>{{ conditionLabels[String(key)] || key }}</dt><dd>{{ conditionValue(String(key), value) }}</dd></div></dl></details>
             <div class="rule-source"><h5>Fundamento proposto</h5><p>{{ rule.legalBasis }}</p><small>{{ rule.sourceUrl }}</small></div>
-            <details class="proposal-review"><summary>Pontos para revisão <span aria-hidden="true">⌄</span></summary><p>{{ rule.reviewNote }}</p></details>
+            <details class="proposal-review"><summary>Pontos para revisão </summary><p>{{ rule.reviewNote }}</p></details>
             <footer class="proposal-footer"><span class="monospace">{{ rule.id }} · v{{ rule.version }}</span><p>Cobertura técnica a partir de {{ date(rule.validFrom) }}{{ rule.validUntil ? ` até ${date(rule.validUntil)}` : '' }}. Essa data não representa o início de vigência da lei.</p></footer>
           </article>
         </div>

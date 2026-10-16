@@ -52,6 +52,7 @@ export const IPC_CHANNELS = {
   CANCEL_BATCH_OPERATION: 'batch:cancel-operation',
   BATCH_PROGRESS: 'batch:progress',
   LIST_BATCHES: 'batch:list',
+  GET_DASHBOARD: 'dashboard:get',
   GET_BATCH_DETAIL: 'batch:get-detail',
   REASSESS_BATCH_RULES: 'batch:reassess-rules',
   GET_ITEM_FISCAL_CONTEXT: 'batch:get-item-fiscal-context',
@@ -248,6 +249,7 @@ export interface BatchPreparation {
 }
 
 export interface BatchPreparedDocument {
+  suggestedCompanyCnpj?: string
   source: string
   accessKey: string
   number: string
@@ -297,11 +299,29 @@ export interface CreatedBatchSummary {
 }
 
 export interface BatchListItem extends CreatedBatchSummary {
+  companyCnpj?: string
   companyId?: string
   companyName?: string
   originalName?: string
   receivedAt: string
   environmentCode?: '1' | '2'
+}
+
+/** Contagens de documentos; pendências e divergências são contadas por item. */
+export interface DashboardCounts {
+  receivedNotes: number
+  calculatedNotes: number
+  pendingNotes: number
+  excludedNotes: number
+  blockedNotes: number
+  reviewNotes: number
+  pendingItems: number
+  divergentItems: number
+}
+export interface DashboardCompanyCounts extends DashboardCounts { companyId?: string }
+export interface DashboardBatchSummary extends BatchListItem {
+  counts: DashboardCounts
+  companies: readonly DashboardCompanyCounts[]
 }
 
 export interface BatchOccurrenceSummary {
@@ -508,7 +528,7 @@ export interface ItemComponentCalculationSummary {
   reviewStatus?: Exclude<`${CalculationStatusCode}`, 'CALCULATED'>
   deferredAmount?: string
   comparisons?: readonly {
-    component: 'BASE' | 'RATE' | 'ICMS' | 'ICMS_ST' | 'FCP_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
+    component: 'BASE' | 'RATE' | 'MVA' | 'ICMS' | 'ICMS_ST' | 'FCP_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
     status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
   }[]
   status: `${CalculationStatusCode}`
@@ -580,6 +600,14 @@ export interface SpecificStMvaSummary {
   legalBasis: string; sourceUrl: string
 }
 export interface ItemFiscalContext {
+  xmlCalculationAvailable?: boolean
+  automaticCalculationNotice?: string
+  manualReviewBlockedReason?: string
+  purchaseReviewCompany?: { cnpj: string; name?: string }
+  xmlData?: readonly { label: string; value: string }[]
+  commonScenario?: { finalConsumerIndicator?: string }
+  matchingNoteItems?: readonly { itemNumber: string; description?: string; productCode?: string }[]
+  appliedItemNumbers?: readonly string[]
   stSpecificMva?: SpecificStMvaSummary
   stMvaReference?: {
     status: string; reason?: string; catalogId?: string; catalogVersion?: number
@@ -598,7 +626,8 @@ export interface ItemFiscalContext {
 }
 
 export interface SaveItemFiscalAnswersInput {
-  reuseScope?: 'CURRENT_ITEM' | 'FUTURE_NOTES'
+  calculationMode?: 'FISCAL_RULE' | 'XML' | 'AUTOMATIC'
+  reuseScope?: 'CURRENT_ITEM' | 'MATCHING_NOTE_ITEMS' | 'FUTURE_NOTES'
   expectedDefinitionId?: string
   batchId: string
   documentId: string
@@ -678,6 +707,7 @@ export interface DocumentArtifactSummary {
 }
 
 export interface FiscalDocumentSummary {
+  companyCnpj?: string
   conflictResolution?: DocumentConflictEvidence
   documentaryStatus?: string
   documentaryReason?: string
@@ -866,6 +896,7 @@ export interface DesktopApi {
   cancelBatchOperation(operationId: string): Promise<boolean>
   onBatchProgress(listener: (progress: BatchOperationProgress) => void): () => void
   listBatches(): Promise<readonly BatchListItem[]>
+  getDashboard(): Promise<readonly DashboardBatchSummary[]>
   exportBatchExcel(batchId: string): Promise<{ path: string } | null>
   getBatchDetail(batchId: string, runId?: string): Promise<BatchDetail>
   reassessBatchRules(batchId: string): Promise<RuleAssessmentRunSummary>

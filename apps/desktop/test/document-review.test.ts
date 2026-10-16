@@ -79,7 +79,7 @@ describe('revisão documental entre lotes', () => {
     expect(book.getWorksheet('Eventos e revisões')?.getCell('O6').value).toContain('ASSOCIATE')
     const items = book.getWorksheet('Itens')!
     let auditColumn = 0
-    items.getRow(5).eachCell((cell, column) => { if (cell.value === 'Imposto salvo para auditoria (R$)') auditColumn = column })
+    items.getRow(5).eachCell((cell, column) => { if (cell.value === 'Imposto salvo para auditoria ICMS (R$)') auditColumn = column })
     expect(auditColumn).toBeGreaterThan(0)
     expect(items.getRow(6).getCell(auditColumn).value).toBe(120)
     expect(() => createExcelWorkbook(buildReportData(queryBatchDetail(database, e.batchId), { generatedAt: now, appVersion: 'test' }))).not.toThrow()

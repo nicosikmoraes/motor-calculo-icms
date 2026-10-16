@@ -9,7 +9,9 @@ export function suggestCompanyForDocument(
     company.active && (company.cnpj === document.issuerCnpj || company.cnpj === document.recipientCnpj),
   )
   if (options.some((company) => company.id === previousId)) return previousId
-  const issuer = options.find((company) => company.cnpj === document.issuerCnpj)
-  if (issuer) return issuer.id
-  return document.issuerCnpj ? '' : (options[0]?.id ?? '')
+  if (document.suggestedCompanyCnpj) return options.find(company => company.cnpj === document.suggestedCompanyCnpj)?.id ?? ''
+  // Com as duas partes cadastradas, o XML não determina qual empresa o usuário
+  // está conferindo. Escolher o emitente aqui pode trocar uma compra por venda.
+  if (options.length > 1) return ''
+  return options[0]?.id ?? ''
 }

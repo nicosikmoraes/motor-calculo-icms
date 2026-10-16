@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { BatchCompanyCandidate, BatchOperationProgress, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
 import { serializableSources } from '../serializable-sources'
 import { suggestCompanyForDocument } from '../company-assignment'
 
 const sources = ref<SelectedSource[]>([])
 const router = useRouter()
+const route = useRoute()
 const selecting = ref(false)
 const inspecting = ref(false)
 const hasSources = computed(() => sources.value.length > 0)
@@ -70,7 +71,9 @@ function setPreparation(value: BatchPreparation): void {
   preparation.value = value
   const next: Record<string, string> = {}
   for (const document of value.documents) {
-    const prior = assignments.value[document.source]
+    const requestedCompany = workspace.value.companies.find(company => company.active && company.cnpj === route.query.companyCnpj
+      && (company.cnpj === document.issuerCnpj || company.cnpj === document.recipientCnpj))
+    const prior = assignments.value[document.source] || requestedCompany?.id
     next[document.source] = suggestCompanyForDocument(document, workspace.value.companies, prior)
   }
   assignments.value = next
@@ -145,7 +148,8 @@ async function createBatch(): Promise<void> {
 function needsRegistration(candidate: BatchCompanyCandidate): boolean {
   return !candidate.matchedCompanyId && !!preparation.value?.documents.some((document) =>
     !assignments.value[document.source] &&
-    (document.issuerCnpj === candidate.cnpj || (!document.issuerCnpj && document.recipientCnpj === candidate.cnpj)),
+    (document.suggestedCompanyCnpj ? document.suggestedCompanyCnpj === candidate.cnpj
+      : document.issuerCnpj === candidate.cnpj || document.recipientCnpj === candidate.cnpj),
   )
 }
 
@@ -171,6 +175,11 @@ async function registerCandidate(): Promise<void> {
     })
     await loadWorkspace()
     if (preparation.value) {
+      for (const document of preparation.value.documents) {
+        if (!assignments.value[document.source] && (document.issuerCnpj === company.cnpj || document.recipientCnpj === company.cnpj)) {
+          assignments.value[document.source] = company.id
+        }
+      }
       setPreparation({
         ...preparation.value,
         candidates: preparation.value.candidates.map((item) =>
@@ -298,6 +307,7 @@ onUnmounted(() => unsubscribeProgress?.())
           <p class="eyebrow">Associação por nota</p>
           <h3>Revise as empresas</h3>
           <p>O CNPJ da empresa analisada precisa estar cadastrado em cada XML. Clientes e fornecedores não precisam ser cadastrados se não forem a empresa analisada.</p>
+          <p>Para conferir uma compra emitida pelo fornecedor, escolha a empresa destinatária. Para conferir a operação do emitente, escolha a empresa emitente.</p>
         </div>
         <span class="review-count" :class="{ incomplete: remainingCount }">{{ preparation.documents.length - remainingCount }}/{{ preparation.documents.length }} prontas</span>
       </div>
@@ -314,7 +324,7 @@ onUnmounted(() => unsubscribeProgress?.())
             <select v-model="assignments[document.source]">
               <option value="">Cadastrar ou escolher empresa</option>
               <option v-for="company in availableCompanies(document)" :key="company.id" :value="company.id">
-                {{ company.legalName }} — {{ company.cnpj }}
+                {{ company.legalName }} — {{ company.cnpj }} · {{ company.cnpj === document.issuerCnpj && company.cnpj === document.recipientCnpj ? 'Emitente e destinatário' : company.cnpj === document.issuerCnpj ? 'Emitente' : 'Destinatário' }}
               </option>
             </select>
           </label>
@@ -365,6 +375,7 @@ onUnmounted(() => unsubscribeProgress?.())
       <p class="eyebrow">Cadastrar empresa analisada</p>
       <h3>{{ registrationCandidate.cnpj }}</h3>
       <form class="form-grid" @submit.prevent="registerCandidate">
+        <p v-if="error" class="form-error field-wide" role="alert">{{ error }}</p>
         <label class="field-wide">
           <span>CNPJ identificado</span>
           <input :value="registrationCandidate.cnpj" disabled />

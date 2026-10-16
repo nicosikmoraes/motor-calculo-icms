@@ -21,6 +21,7 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  getDashboard: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DASHBOARD),
   listDocumentConflicts: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_DOCUMENT_CONFLICTS),
   saveConflictResolution: input => ipcRenderer.invoke(IPC_CHANNELS.SAVE_CONFLICT_RESOLUTION, {
     accessKey: input.accessKey, environmentCode: input.environmentCode, documentId: input.documentId,
@@ -133,6 +134,7 @@ const api: DesktopApi = {
   saveItemFiscalAnswers: (input) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_ITEM_FISCAL_ANSWERS, {
     batchId: input.batchId, documentId: input.documentId, itemNumber: input.itemNumber,
     requestId: input.requestId, expectedRunId: input.expectedRunId, answers: { ...input.answers },
+    calculationMode: input.calculationMode,
     reuseScope: input.reuseScope, expectedDefinitionId: input.expectedDefinitionId,
   }),
   applyReusableFiscalAnswers: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.APPLY_REUSABLE_FISCAL_ANSWERS, batchId),

@@ -5,7 +5,8 @@ import { getBatchConsolidation } from '../src/main/batch-consolidation'
 import { randomUUID } from 'node:crypto'
 import type { NormalizedNfe } from '@motor/domain'
 import type { ItemFiscalAnswers } from '@motor/contracts'
-import { applyReusableFiscalAnswers, buildItemFiscalContext, documentFiscalBlock, getItemFiscalContext, saveItemFiscalAnswers, validateItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
+import { applyAutomaticXmlCalculations, applyReusableFiscalAnswers, buildItemFiscalContext, documentFiscalBlock, getItemFiscalContext, saveItemFiscalAnswers, validateItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
+import { calculateAutomaticXmlItem } from '../src/main/automatic-xml-calculation'
 
 const timestamp = '2026-10-04T12:00:00.000Z'
 const org = '00000000-0000-4000-8000-000000000001'
@@ -21,11 +22,128 @@ const nfe: NormalizedNfe = {
   recipient: { state: 'PR', stateRegistrationIndicator: '1', taxId: '11222333000181', taxIdType: 'CNPJ' },
   items: [
     { itemNumber: '1', supplierProductCode: 'P1', cfop: '5102', productAmount: '1000', declaredIcms: { cst: '51', amount: '120' }, source },
-    { itemNumber: '2', cfop: '5101', productAmount: '100', declaredIcms: { cst: '00' }, source },
+    { itemNumber: '2', cfop: '5101', productAmount: '100', declaredIcms: { cst: '00', amount: '12' }, source },
   ], declaredTotals: {}, source,
 }
 const complete: ItemFiscalAnswers = { destination: 'RESALE', constructionCompany: false, petroleumOrFuel: false, ordinaryTaxTreatmentConfirmed: true }
 let db: SqliteDatabase
+
+describe('cálculo automático com parâmetros documentados no XML', () => {
+  const declaredItem = { productAmount: '1000.00', ncm: '33030010', cest: '2000700', cfop: '6102', declaredIcms: {
+    cst: '10', rate: '12', amount: '120.00', stBaseMode: '4', stMarginPercent: '47.77', stBaseAmount: '1477.70', stRate: '19.5', stAmount: '168.15',
+    fcpStBaseAmount: '1477.70', fcpStRate: '2', fcpStAmount: '29.55',
+  } }
+  it('grava ST e FCP automaticamente, mostra a origem XML e não duplica a execução ao reabrir', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, declaredItem)
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    const context = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    expect(context.blockedReason).toBeUndefined()
+    expect(context.automaticCalculationNotice).toContain('MVA do catálogo')
+    expect(context.calculation.inputs.find(input => input.name === 'originalMvaPercent')?.source).toContain('CATALOG/')
+    expect(context.calculation.inputs.find(input => input.name === 'internalRate')?.source).toBe('XML/pICMSST')
+    expect(context.calculation.result).toMatchObject({ base: '1477.70', amount: '168.15' })
+    expect(context.calculation.additionalComponents?.[0]?.result?.amount).toBe('29.55')
+    expect(context.calculation.inputs.some(input => input.source.startsWith('USER/'))).toBe(false)
+    expect(context.answers).toEqual({})
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').runId).toBe(context.runId)
+    expect(getBatchConsolidation(db, next.batchId).counts.calculated).toBe(1)
+  })
+  it('usa automaticamente a MVA do catálogo e identifica a margem inconsistente declarada no XML', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, { ...declaredItem,
+      declaredIcms: { ...declaredItem.declaredIcms, stMarginPercent: '0.0000' } })
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    const memory = getItemFiscalContext(db, next.batchId, next.documentId, '1').calculation
+    expect(memory.result?.amount).toBe('168.15')
+    expect(memory.comparisons?.find(comparison => comparison.component === 'ICMS_ST')?.status).toBe('MATCH')
+    expect(memory.comparisons?.find(comparison => comparison.component === 'MVA')).toMatchObject({ calculated: '47.77', declared: '0.0000', status: 'DIFFERENT' })
+    expect(getBatchConsolidation(db, next.batchId).counts.divergentItems).toBe(1)
+  })
+  it('obtém a MVA ausente da tabela e só pede alíquota quando ela não consta no XML', () => {
+    const { stMarginPercent: _mva, ...withoutMva } = declaredItem.declaredIcms
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' } }, { ...declaredItem, declaredIcms: withoutMva })
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    const context = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    expect(context.calculation.status).toBe('CALCULATED')
+    expect(context.calculation.result?.amount).toBe('168.15')
+    expect(context.questions.find(question => question.field === 'stInternalRate')?.suggestedValue).toBe('19.5')
+    const { stRate: _rate, ...withoutRate } = declaredItem.declaredIcms
+    const missingRate = laterNote({ issuer: { ...nfe.issuer, state: 'SP' } }, { ...declaredItem, declaredIcms: withoutRate })
+    expect(applyAutomaticXmlCalculations(db, missingRate.batchId)).toBe(0)
+    expect(getItemFiscalContext(db, missingRate.batchId, missingRate.documentId, '1').calculation.reason).toContain('pICMSST')
+  })
+  it('aceita outra MVA manual e calcula a divergência sem obrigar o valor da tabela', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, declaredItem)
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'different-manual-mva', answers: {
+      stApplicableConfirmed: true, stInternalRate: '19.5', stOwnOperationRate: '12', stMvaMode: 'MANUAL_APPLIED', stMvaPercent: '30',
+      fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: false,
+    } })
+    expect(result.calculation.status).toBe('CALCULATED')
+    expect(result.calculation.result?.amount).toBe('133.50')
+    expect(result.calculation.comparisons?.find(comparison => comparison.component === 'ICMS_ST')?.status).toBe('DIFFERENT')
+  })
+  it('calcula automaticamente por dados identificados depois de uma tentativa manual incompleta', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, declaredItem)
+    const pending = saveItemFiscalAnswers(db, { ...next, requestId: 'pending-before-auto', answers: { stApplicableConfirmed: true } })
+    const request = { ...next, requestId: 'automatic-with-catalog', expectedRunId: pending.runId!, calculationMode: 'AUTOMATIC' as const, answers: {} }
+    const result = saveItemFiscalAnswers(db, request)
+    expect(result.calculation.result?.amount).toBe('168.15')
+    expect(result.calculation.inputs.some(input => input.name === 'automaticCatalogCalculation')).toBe(true)
+    expect(saveItemFiscalAnswers(db, request).runId).toBe(result.runId)
+  })
+  it('atualiza o cálculo automático antigo com a tabela e preserva o cálculo anterior no histórico', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, { ...declaredItem,
+      declaredIcms: { ...declaredItem.declaredIcms, stMarginPercent: '0' } })
+    const document = new SqliteBatchRepository(db).listNormalizedDocuments(next.batchId)[0]!
+    const old = new SqliteCalculationRepository(db).save({ batchId: next.batchId, documentId: next.documentId,
+      requestId: 'old-xml-automatic', engineVersion: 'XML_ARITHMETIC_1', items: [{ itemNumber: '1', memory: calculateAutomaticXmlItem(document.normalized, document.normalized.items[0]!)! }] })
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').calculation.result?.amount).toBe('168.15')
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.previousRunId).toBe(old.id)
+    expect(new SqliteCalculationRepository(db).findByRequest('old-xml-automatic', next.documentId)?.items[0]?.memory.result?.amount).toBe('75.00')
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+  })
+  it('permite salvar a revisão fiscal depois do cálculo automático e preserva ambas as memórias', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, declaredItem)
+    applyAutomaticXmlCalculations(db, next.batchId)
+    const automatic = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    const reviewed = saveItemFiscalAnswers(db, { ...next, requestId: 'review-after-auto', expectedRunId: automatic.runId!, answers: {
+      stApplicableConfirmed: true, stInternalRate: '19.5', stMvaMode: 'CATALOG_ORIGINAL',
+      fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: false,
+    } })
+    expect(reviewed.calculation.status).toBe('CALCULATED')
+    expect(reviewed.runId).not.toBe(automatic.runId)
+    expect(reviewed.automaticCalculationNotice).toBeUndefined()
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.previousRunId).toBe(automatic.runId)
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').runId).toBe(reviewed.runId)
+  })
+  it('retoma a tentativa com 1% incluindo FECOP pelo XML sem apagar a resposta incompatível', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' }, environmentCode: '2' }, declaredItem)
+    const manual = saveItemFiscalAnswers(db, { ...next, requestId: 'invalid-total-rate', answers: {
+      stApplicableConfirmed: true, stInternalRate: '1', stMvaMode: 'CATALOG_ORIGINAL',
+      fcpStApplicableConfirmed: true, stInternalRateIncludesFcp: true,
+    } })
+    expect(manual.calculation.status).toBe('PENDING_DATA')
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+    const input = { ...next, requestId: 'explicit-xml-retry', calculationMode: 'XML' as const, expectedRunId: manual.runId!, answers: {} }
+    const automatic = saveItemFiscalAnswers(db, input)
+    expect(automatic.calculation.result?.amount).toBe('168.15')
+    expect(saveItemFiscalAnswers(db, input).runId).toBe(automatic.runId)
+    expect(new SqliteCalculationRepository(db).findByRequest('invalid-total-rate', next.documentId)?.items[0]?.memory.status).toBe('PENDING_DATA')
+    expect(() => saveItemFiscalAnswers(db, { ...input, calculationMode: 'FISCAL_RULE' })).toThrow(/respostas diferentes/)
+  })
+  it('preserva respostas manuais e impede executar documento inelegível', () => {
+    const next = laterNote({ finalConsumerIndicator: '0' }, { declaredIcms: { cst: '00', baseMode: '3', rate: '19.5', amount: '195.00' } })
+    const manual = saveItemFiscalAnswers(db, { ...next, requestId: 'manual-before-auto', answers: { destination: 'RESALE' } })
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').runId).toBe(manual.runId)
+    const blocked = laterNote({}, declaredItem)
+    db.run('UPDATE documentos_fiscais SET elegivel_processamento=0 WHERE id=?', blocked.documentId)
+    expect(applyAutomaticXmlCalculations(db, blocked.batchId)).toBe(0)
+    expect(new SqliteCalculationRepository(db).latestByDocument(blocked.documentId)).toBeUndefined()
+  })
+})
 
 describe('conferência de ICMS-ST de compras', () => {
   it('preserva memória anterior fora da perspectiva correta sem somar o valor calculado aos totais', () => {
@@ -85,7 +203,7 @@ describe('conferência de ICMS-ST de compras', () => {
       issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
       recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ' },
       declaredTotals: { discountAmount: '5' },
-    }, { productAmount: '504.36', ncm: '39249000', declaredIcms: { cst: '10', rate: '4', stBaseMode: '4' } })
+    }, { productAmount: '504.36', ncm: '39249000', declaredIcms: { cst: '10', rate: '4', amount: '20.17', stBaseMode: '4' } })
     const context = saveItemFiscalAnswers(db, { ...next, requestId: 'self-issued', answers: {
       stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', fcpStApplicableConfirmed: false, stSupplierNormalConfirmed: true,
     } })
@@ -99,6 +217,25 @@ describe('conferência de ICMS-ST de compras', () => {
     const item = { ...nfe.items[0]!, declaredIcms: { cst: '10', rate: '4', stAmount: '106.30' } }
     expect(buildItemFiscalContext(nfe, item, {}, undefined, undefined, undefined, nfe.issuer.taxId).calculation.status).toBe('UNSUPPORTED')
     expect(validateItemFiscalAnswers({ stMvaMode: 'MANUAL_APPLIED', stMvaPercent: '28.6000' })).toMatchObject({ stMvaPercent: '28.6' })
+  })
+
+  it('explica a perspectiva do fornecedor e oferece a compra sem liberar cálculo nem ocultar bloqueio documental', () => {
+    const purchase = { ...nfe, issuer: { ...nfe.issuer, state: 'SP' } }
+    const item = { ...nfe.items[0]!, cfop: '6102', declaredIcms: { cst: '10', rate: '4', amount: '40', stAmount: '106.30' } }
+    const seller = buildItemFiscalContext(purchase, item, {}, undefined, undefined, undefined, purchase.issuer.taxId)
+    expect(seller.blockedReason).toContain('associado ao fornecedor')
+    expect(seller.purchaseReviewCompany).toMatchObject({ cnpj: purchase.recipient!.taxId })
+    expect(seller.calculation.status).toBe('UNSUPPORTED')
+    expect(seller.calculation.result).toBeUndefined()
+
+    const buyer = buildItemFiscalContext(purchase, item, {}, undefined, undefined, undefined, purchase.recipient!.taxId)
+    expect(buyer.blockedReason).toBeUndefined()
+    expect(buyer.purchaseReviewCompany).toBeUndefined()
+    expect(buyer.questions.some(question => question.field === 'stApplicableConfirmed')).toBe(true)
+
+    const canceled = buildItemFiscalContext(purchase, item, {}, undefined, undefined, 'Documento cancelado.', purchase.issuer.taxId)
+    expect(canceled.blockedReason).toBe('Documento cancelado.')
+    expect(canceled.purchaseReviewCompany).toBeUndefined()
   })
 
   it('usa as respostas fiscais informadas, compara o ICMS-ST declarado e distingue o componente', () => {
@@ -219,7 +356,7 @@ beforeEach(() => {
 function laterNote(changes: Partial<NormalizedNfe> = {}, itemChanges: Partial<NormalizedNfe['items'][number]> = {}, assignedCompany = companyId) {
   const id = randomUUID(), batch = randomUUID(), file = randomUUID()
   const normalized: NormalizedNfe = { ...nfe, issuedAt: '2026-10-05T12:00:00.000Z', ...changes,
-    items: [{ ...nfe.items[0]!, productAmount: '2000', ...itemChanges }] }
+    items: changes.items ?? [{ ...nfe.items[0]!, productAmount: '2000', ...itemChanges }] }
   new SqliteBatchRepository(db).createWithOccurrences({ id: batch, organizationId: org, status: 'RECEBIDO', receivedAt: '2026-10-05T12:00:00.000Z', createdAt: timestamp, updatedAt: timestamp }, [
     { id: file, batchId: batch, originalName: 'nova.xml', relativePath: 'nova.xml', detectedKind: 'XML', origin: 'SELECTED_FILE',
       contentHash: 'c'.repeat(64), sizeBytes: 100, order: 1, accessKey: normalized.accessKey, ingestionStatus: 'PROCESSADA',
@@ -227,6 +364,85 @@ function laterNote(changes: Partial<NormalizedNfe> = {}, itemChanges: Partial<No
   ], [], [{ id, batchId: batch, companyId: assignedCompany, occurrenceId: file, contentHash: 'c'.repeat(64), eligibleForProcessing: true, createdAt: timestamp, normalized }])
   return { batchId: batch, documentId: id, itemNumber: '1' }
 }
+
+describe('confirmação de itens compatíveis na mesma nota', () => {
+  const commonItem = { ...nfe.items[0]!, ncm: '39269090', description: 'Peça plástica',
+    declaredIcms: { cst: '00', rate: '19.5', amount: '0.00' } }
+  const ownUse: ItemFiscalAnswers = { ...complete, destination: 'OWN_USE' }
+  function groupedNote(extra: NormalizedNfe['items'] = []) {
+    return laterNote({ finalConsumerIndicator: '1', declaredTotals: { freightAmount: '50' }, items: [
+      { ...commonItem, productAmount: '300' },
+      { ...commonItem, itemNumber: '2', supplierProductCode: 'P2', productAmount: '200' }, ...extra,
+    ] })
+  }
+
+  it('oferece revisão resumida sem confirmar condições fiscais nem escolher a destinação automaticamente', () => {
+    const next = groupedNote()
+    const context = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    expect(context.commonScenario).toEqual({ finalConsumerIndicator: '1' })
+    expect(context.answers).toEqual({})
+    expect(context.calculation.status).toBe('PENDING_DATA')
+    expect(context.questions.find(question => question.field === 'destination')?.suggestedValue).toBeUndefined()
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)).toBeUndefined()
+  })
+
+  it('mantém declaração zerada na revisão e exclui item sem ICMS declarado da confirmação em grupo', () => {
+    const next = groupedNote([{ ...commonItem, itemNumber: '3', declaredIcms: { cst: '00', rate: '19.5' } }])
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').matchingNoteItems?.map(item => item.itemNumber)).toEqual(['1', '2'])
+    expect(() => saveItemFiscalAnswers(db, { ...next, itemNumber: '3', requestId: 'no-declaration', answers: ownUse })).toThrow(/não tem valor de ICMS declarado/)
+    const result = saveItemFiscalAnswers(db, { ...next, requestId: 'declared-group', reuseScope: 'MATCHING_NOTE_ITEMS', answers: ownUse })
+    expect(result.appliedItemNumbers).toEqual(['1', '2'])
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '3').calculation.result).toBeUndefined()
+  })
+
+  it('calcula os dois itens e seu rateio em uma gravação, preservando o item com outro NCM', () => {
+    const next = groupedNote([{ ...commonItem, itemNumber: '3', ncm: '39269010', productAmount: '100', freightAmount: '0' }])
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').matchingNoteItems?.map(item => item.itemNumber)).toEqual(['1', '2'])
+    const input = { ...next, requestId: 'confirm-group', reuseScope: 'MATCHING_NOTE_ITEMS' as const, answers: ownUse }
+    const result = saveItemFiscalAnswers(db, input)
+    expect(result.appliedItemNumbers).toEqual(['1', '2'])
+    expect(result.calculation.result).toMatchObject({ base: '330', amount: '64.35' })
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '2').calculation.result).toMatchObject({ base: '220', amount: '42.90' })
+    const third = getItemFiscalContext(db, next.batchId, next.documentId, '3')
+    expect(third.answers).toEqual({})
+    expect(third.calculation.status).toBe('PENDING_DATA')
+    expect(saveItemFiscalAnswers(db, input).runId).toBe(result.runId)
+    expect(() => saveItemFiscalAnswers(db, { ...input, itemNumber: '2' })).toThrow(/respostas diferentes/)
+  })
+
+  it('mantém o resultado e as respostas do item já calculado ao confirmar outros itens', () => {
+    const next = groupedNote([{ ...commonItem, itemNumber: '3', supplierProductCode: 'P3', productAmount: '100', freightAmount: '0' }])
+    const second = saveItemFiscalAnswers(db, { ...next, itemNumber: '2', requestId: 'second-first', answers: { ...ownUse, constructionCompany: true } })
+    const repository = new SqliteCalculationRepository(db)
+    const prior = repository.latestByDocument(next.documentId)!.items.find(item => item.itemNumber === '2')!.memory
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').matchingNoteItems?.map(item => item.itemNumber)).toEqual(['1', '3'])
+    saveItemFiscalAnswers(db, { ...next, requestId: 'others', expectedRunId: second.runId!, reuseScope: 'MATCHING_NOTE_ITEMS', answers: ownUse })
+    expect(repository.latestByDocument(next.documentId)!.items.find(item => item.itemNumber === '2')!.memory).toEqual(prior)
+  })
+
+  it('não grava uma confirmação parcial em conjunto e mantém a proteção contra uma tela desatualizada', () => {
+    const next = groupedNote()
+    expect(() => saveItemFiscalAnswers(db, { ...next, requestId: 'partial-group', reuseScope: 'MATCHING_NOTE_ITEMS', answers: { destination: 'OWN_USE' } })).toThrow(/conclua as respostas/)
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)).toBeUndefined()
+    const first = saveItemFiscalAnswers(db, { ...next, requestId: 'partial-item', answers: { destination: 'OWN_USE' } })
+    expect(() => saveItemFiscalAnswers(db, { ...next, requestId: 'stale-group', reuseScope: 'MATCHING_NOTE_ITEMS', answers: ownUse })).toThrow(/outra tela/)
+    expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.id).toBe(first.runId)
+  })
+
+  it('permite corrigir respostas que deixaram os itens fora do escopo sem apagar a memória anterior', () => {
+    const next = groupedNote()
+    const wrong = saveItemFiscalAnswers(db, { ...next, requestId: 'wrong', answers: { ...ownUse, petroleumOrFuel: true } })
+    expect(wrong.calculation.status).toBe('UNSUPPORTED')
+    const fixed = saveItemFiscalAnswers(db, { ...next, requestId: 'correct-group', expectedRunId: wrong.runId!, reuseScope: 'MATCHING_NOTE_ITEMS', answers: ownUse })
+    expect(fixed.calculation.status).toBe('CALCULATED')
+    expect(new SqliteCalculationRepository(db).findByRequest('wrong', next.documentId)?.items[0]?.memory.status).toBe('UNSUPPORTED')
+  })
+
+  it('não oferece confirmação comum para combustível nem para itens com ST', () => {
+    expect(buildItemFiscalContext(nfe, { ...commonItem, ncm: '27101999', fuelAnpCode: '123456789' }).commonScenario).toBeUndefined()
+    expect(buildItemFiscalContext(nfe, { ...commonItem, declaredIcms: { cst: '10', stAmount: '10' } }).commonScenario).toBeUndefined()
+  })
+})
 
 describe('reaproveitamento nas próximas notas', () => {
   it('persiste rateio, classificação do desconto e diferença de um centavo na memória', () => {

@@ -24,12 +24,25 @@ const issuer = {
 }
 
 describe('sugestão de empresa por nota', () => {
-  it('não atribui automaticamente a empresa destinatária quando o emitente ainda não está cadastrado', () => {
-    expect(suggestCompanyForDocument(document, [recipient])).toBe('')
+  it('reconhece pelo CNPJ a destinatária quando é a única empresa compatível cadastrada', () => {
+    expect(suggestCompanyForDocument(document, [recipient])).toBe(recipient.id)
   })
 
-  it('associa o emitente cadastrado e preserva escolha explícita pelo destinatário', () => {
-    expect(suggestCompanyForDocument(document, [recipient, issuer])).toBe(issuer.id)
+  it('pede a perspectiva quando as duas empresas estão cadastradas e preserva a escolha explícita', () => {
+    expect(suggestCompanyForDocument(document, [recipient, issuer])).toBe('')
     expect(suggestCompanyForDocument(document, [recipient, issuer], recipient.id)).toBe(recipient.id)
+    expect(suggestCompanyForDocument(document, [recipient, issuer], issuer.id)).toBe(issuer.id)
+  })
+
+  it('sugere o emitente quando ele é a única empresa compatível cadastrada', () => {
+    expect(suggestCompanyForDocument(document, [issuer])).toBe(issuer.id)
+  })
+
+  it('usa o CNPJ sugerido para a compra e deixa cadastrar a compradora quando só o fornecedor existe', () => {
+    const purchase = { ...document, suggestedCompanyCnpj: recipient.cnpj }
+    expect(suggestCompanyForDocument(purchase, [recipient, issuer])).toBe(recipient.id)
+    expect(suggestCompanyForDocument(purchase, [issuer])).toBe('')
+    expect(suggestCompanyForDocument(purchase, [recipient, issuer], issuer.id)).toBe(issuer.id)
+    expect(suggestCompanyForDocument(purchase, [{ ...recipient, active: false }, issuer])).toBe('')
   })
 })

@@ -34,7 +34,7 @@ const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da toler�
       <template v-if="component.comparisons?.length">
         <p><strong>Conferência com o XML:</strong> diferença = calculado − declarado.</p>
         <ul><li v-for="comparison in component.comparisons" :key="comparison.component">
-          {{ comparison.component === 'BASE' ? 'Base' : comparison.component === 'RATE' ? 'Alíquota (%)' : taxComponentLabel(comparison.component) }}: {{ comparisonLabels[comparison.status] }}
+          {{ comparison.component === 'BASE' ? 'Base' : comparison.component === 'RATE' ? 'Alíquota (%)' : comparison.component === 'MVA' ? 'MVA (%)' : taxComponentLabel(comparison.component) }}: {{ comparisonLabels[comparison.status] }}
           · calculado {{ comparison.calculated }} · declarado {{ comparison.declared ?? '—' }}
           · diferença {{ comparison.difference ?? '—' }} · tolerância {{ comparison.tolerance }}
         </li></ul>

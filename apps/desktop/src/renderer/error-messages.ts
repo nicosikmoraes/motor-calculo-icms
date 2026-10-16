@@ -1,3 +1,9 @@
+/** Remove o invólucro técnico do Electron, preservando o motivo da falha. */
+export function desktopErrorMessage(cause: unknown, fallback: string): string {
+  if (!(cause instanceof Error)) return fallback
+  return cause.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '').trim() || fallback
+}
+
 /** Textos de contingência usados quando uma falha chega sem mensagem legível. */
 export enum RendererErrorMessage {
   WORKSPACE_OPEN = 'Falha ao abrir o espaço local.',

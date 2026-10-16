@@ -65,10 +65,10 @@ describe('consulta mensal persistida', () => {
     addNote({ company: otherCompany, key: '4'.repeat(44) })
     const report = queryMonthlyReport(database, input(), 'test')
     const book = createExcelWorkbook(report)
-    expect(book.worksheets.map(s => s.name)).toEqual(['Resumo', 'Itens', 'Divergências', 'Pendências e exclusões', 'Lotes'])
+    expect(book.worksheets.map(s => s.name)).toEqual(['Itens', 'Resumo', 'Divergências', 'Pendências e exclusões', 'Lotes'])
     expect(report.documents).toHaveLength(2)
     expect(book.getWorksheet('Resumo')?.getCell('G6').value).toBe(120)
-    expect(book.getWorksheet('Itens')?.getColumn(10).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
+    expect(book.getWorksheet('Itens')?.getColumn((book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Lote de origem')).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
     expect(book.getWorksheet('Pendências e exclusões')?.getColumn(10).values).toContain(duplicate.batchId)
     expect(book.getWorksheet('Lotes')?.getColumn(1).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))
     const before = report.consolidation?.groups[0]?.totals.calculatedIcms

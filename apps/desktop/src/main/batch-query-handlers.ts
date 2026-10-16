@@ -9,9 +9,13 @@ import { buildItemFiscalContext, documentFiscalBlock, readItemFiscalAnswers } fr
 import { activeDatabase, requiredInputText } from './main-services'
 import { conflictEvidence, effectiveProcessingDocument } from './conflict-evidence'
 import { artifactSummary, documentaryState, readDocumentaryIndex, relatedEvents, type DocumentaryIndex } from './documentary-evidence'
+import { isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
+import { isAutomaticCalculation } from './automatic-xml-calculation'
+import { queryDashboard } from './dashboard-query'
 
 /** Lista os lotes da organização e monta detalhes para a interface. */
 export function registerBatchQueryHandlers(): void {
+  ipcMain.handle(IPC_CHANNELS.GET_DASHBOARD, () => queryDashboard(activeDatabase()))
   ipcMain.handle(IPC_CHANNELS.LIST_BATCHES, (): readonly BatchListItem[] => {
     const connection = activeDatabase()
     const organization = new SqliteOrganizationRepository(connection).findSingle()
@@ -90,6 +94,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
       status: batch.status,
       ...(batch.companyId ? { companyId: batch.companyId } : {}),
       ...(companyName ? { companyName } : {}),
+      ...(companyIds.size === 1 && companies.get([...companyIds][0]!) ? { companyCnpj: companies.get([...companyIds][0]!)!.cnpj } : {}),
       ...(batch.originalName ? { originalName: batch.originalName } : {}),
       receivedAt: batch.receivedAt,
       ...(batch.environmentCode ? { environmentCode: batch.environmentCode } : {}),
@@ -130,6 +135,7 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
         return { documentaryStatus: state.status, ...(state.reason ? { documentaryReason: state.reason } : {}) } })(),
       ...(companyId ? { companyId } : {}),
       ...(companyId && companies.get(companyId) ? { companyName: companies.get(companyId)!.legalName } : {}),
+      ...(companyId && companies.get(companyId) ? { companyCnpj: companies.get(companyId)!.cnpj } : {}),
       accessKey: normalized.accessKey,
       model: normalized.model,
       number: normalized.number,
@@ -155,7 +161,8 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
               fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
-              ...(saved.memory.status === 'CALCULATED' && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && (readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined || (calculation.inputs.some(input => input.name === 'stSpecificMvaDecision') && !saved.memory.inputs.some(input => input.name === 'stSpecificMvaDecision')))
+              ...(!isCalculationEligibleCfop(item.cfop) ? { reviewStatus: 'UNSUPPORTED' as const, reviewReason: `${calculationCfopExclusionReason} O resultado anterior está preservado para auditoria.` } : {}),
+              ...(isCalculationEligibleCfop(item.cfop) && saved.memory.status === 'CALCULATED' && !isAutomaticCalculation(saved.memory) && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && (readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined || (calculation.inputs.some(input => input.name === 'stSpecificMvaDecision') && !saved.memory.inputs.some(input => input.name === 'stSpecificMvaDecision')))
                 ? { reviewReason: `${calculation.reason ?? 'Confirme a incidência de FCP-ST e revise a alíquota interna.'} O cálculo anterior está preservado para auditoria.`,
                     reviewStatus: calculation.status === 'CALCULATED' ? 'PENDING_DATA' as const : calculation.status } : {}) } : calculation
           })(),

@@ -102,3 +102,9 @@ th, td { border-bottom-color: #e8edf4; }
 @media (max-width: 650px) {
   .form-grid { grid-template-columns: 1fr; }
 }
+
+/* Controles sem setas; os rótulos e estados mantêm a identificação da ação. */
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::marker { content: ''; }
+select { appearance: none; background-image: none; }
