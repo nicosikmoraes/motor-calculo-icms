@@ -367,7 +367,7 @@ function laterNote(changes: Partial<NormalizedNfe> = {}, itemChanges: Partial<No
 const xmlItem = { ...nfe.items[0]!, cfop: '6102', productAmount: '1000',
   declaredIcms: { cst: '00', baseMode: '3', rate: '12', amount: '120.00' } }
 function xmlNote(changes: Partial<NormalizedNfe> = {}, itemChanges: Partial<NormalizedNfe['items'][number]> = {}) {
-  return laterNote(changes, { ...xmlItem, ...itemChanges })
+  return laterNote({ environmentCode: '1', ...changes }, { ...xmlItem, ...itemChanges })
 }
 const stAnswers: ItemFiscalAnswers = { stApplicableConfirmed: true, stMvaMode: 'MANUAL_APPLIED', stMvaPercent: '30',
   stInternalRate: '19.5', stOwnOperationRate: '12', fcpStApplicableConfirmed: false }
@@ -383,7 +383,9 @@ function historicalDefinition() {
   const run = new SqliteCalculationRepository(db).save({ batchId, documentId: docId, requestId: 'legacy', engineVersion: 'PR_FISCAL_5', items: [
     { itemNumber: '1', memory: { schemaVersion: 1, status: 'CALCULATED', inputs: [
       { name: 'fiscalAnswers', value: JSON.stringify(complete), source: 'USER/current_item', treatment: 'UNDECIDED' },
-    ], steps: [], result: { component: 'ICMS', base: '1000', rate: '12', amount: '120.00' } } },
+    ], rule: { id: 'PR_COMMON_LEGACY', version: 1, legalBasis: 'Memória sintética anterior ao filtro CFOP 6.' },
+      steps: [{ name: 'ICMS histórico', operation: '1000 × 12 / 100', inputs: {}, result: '120.00' }],
+      result: { component: 'ICMS', base: '1000', rate: '12', amount: '120.00' } } },
   ] })
   const key = { companyId, supplierCnpj: nfe.issuer.taxId!, productCode: 'P1' }
   const definition = { ...key, id: randomUUID(), contextJson: '[]', answersJson: JSON.stringify(complete),
@@ -428,7 +430,7 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
     expect(getItemFiscalContext(db, next.batchId, next.documentId, '2').calculation.result).toBeUndefined()
     const summary = getBatchConsolidation(db, next.batchId)
     expect(summary.counts).toMatchObject({ items: 2, calculated: 1, excluded: 1, pending: 0 })
-    expect(summary.groups[0]?.totals.calculatedIcms).toBe('39.60')
+    expect(summary.groups.find(group => group.component === 'ICMS')?.totals.calculatedIcms).toBe('39.60')
     expect(summary.evidence.find(entry => entry.itemNumber === '2')?.reasons.join()).toContain('CFOP iniciado em 6')
   })
   it('preserva um cálculo anterior de CFOP 5 sem incluí-lo nos novos totais', () => {
