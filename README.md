@@ -60,6 +60,7 @@ as Issues apontam para ele.
 - [Ciclo de vida do documento fiscal](docs/ciclo-de-vida-documento-fiscal.md)
 - [Decisões pendentes](docs/decisoes-pendentes.md)
 - [Conferência de ICMS-ST de entradas, catálogo de MVA e cobertura](docs/icms-st-entradas.md)
+- [Antecipação de entrada e Excel mensal no modelo de apuração](docs/apuracao-entradas.md)
 
 ### Arquitetura e desenvolvimento
 

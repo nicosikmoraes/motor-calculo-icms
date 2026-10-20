@@ -29,7 +29,7 @@ export interface CalculationStep {
   rounding?: { scale: number; mode: string }
 }
 
-export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST'
+export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST' | 'ICMS_ENTRY'
 export interface CalculationComponentMemory {
   component?: TaxComponent
   deferredAmount?: string

@@ -22,3 +22,4 @@ export * from './consolidation'
 export * from './excel-report'
 
 export * from './monthly-consolidation'
+export * from './entry-assessment'

@@ -89,6 +89,21 @@ export interface NfeXmlStructure {
   info: XmlObject
 }
 
+/** Exportação de distribuidores: aceita somente um procNFe diretamente em NFeLog 1.00. */
+export function processedNfeEnvelope(document: XmlObject): XmlObject | undefined {
+  if (document.NFeLog === undefined) return asObject(document.nfeProc)
+  const log = asObject(document.NFeLog)
+  const processed = asObject(log?.procNFe)
+  if (!log || asString(log['@_versao']) !== '1.00' || !processed || document.nfeProc !== undefined || document.NFe !== undefined) {
+    throw new NfeParseError(NfeParseErrorCode.UNSUPPORTED_XML_ROOT, 'Envelope NFeLog inválido: esperado um único procNFe na versão 1.00.')
+  }
+  // procNFe do exportador não declara versão; infNFe continua validado como 4.00.
+  const version = asString(processed['@_versao'])
+  if (version !== undefined && version !== '4.00') throw new NfeParseError(NfeParseErrorCode.UNSUPPORTED_LAYOUT_VERSION, 'Leiaute de procNFe não suportado.')
+  if (!asObject(processed.NFe) || Array.isArray(processed.protNFe)) throw new NfeParseError(NfeParseErrorCode.MISSING_NFE_INFO, 'NFeLog deve conter uma única NF-e e no máximo um protocolo.')
+  return { ...processed, '@_versao': '4.00' }
+}
+
 /** Validação estrutural comum a notas, protocolos e eventos. */
 export function readFiscalXmlDocument(xml: string): XmlObject {
   assertSafeXml(xml)
@@ -105,7 +120,7 @@ export function readFiscalXmlDocument(xml: string): XmlObject {
 /** @internal Árvore intermediária restrita à fronteira do parser. */
 export function readNfeXmlStructure(xml: string): NfeXmlStructure {
   const document = readFiscalXmlDocument(xml)
-  const processed = asObject(document?.nfeProc)
+  const processed = processedNfeEnvelope(document)
   const nfe = processed ? asObject(processed.NFe) : asObject(document?.NFe)
 
   if (!nfe) {

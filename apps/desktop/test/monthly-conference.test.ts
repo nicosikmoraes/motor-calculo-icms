@@ -57,7 +57,7 @@ describe('consulta mensal persistida', () => {
     expect(() => queryMonthlyConference(database, { companyId: randomUUID(), period: '2026-09' })).toThrow('organização')
     for (const raw of [null, [], {}, { companyId, period: '2026-13' }, { companyId, period: '0000-01' }, { companyId, period: '2026-09-01' }]) expect(() => validateMonthlyInput(raw)).toThrow()
   })
-  it('exporta somente a empresa e mês selecionados com cinco abas e lotes exatos por item', async () => {
+  it('exporta somente a empresa e mês selecionados com seis abas e lotes exatos por item', async () => {
     const original = addNote({ receivedAt: '2026-10-01T12:00:00.000Z' })
     const duplicate = addNote({ eligible: false }); addNote({ key: '3'.repeat(44), month: '2026-08' })
     const otherCompany = randomUUID()
@@ -65,7 +65,7 @@ describe('consulta mensal persistida', () => {
     addNote({ company: otherCompany, key: '4'.repeat(44) })
     const report = queryMonthlyReport(database, input(), 'test')
     const book = createExcelWorkbook(report)
-    expect(book.worksheets.map(s => s.name)).toEqual(['Itens', 'Resumo', 'Divergências', 'Pendências e exclusões', 'Lotes'])
+    expect(book.worksheets.map(s => s.name)).toEqual(['Entradas', 'Itens', 'Resumo', 'Divergências', 'Pendências e exclusões', 'Lotes'])
     expect(report.documents).toHaveLength(2)
     expect(book.getWorksheet('Resumo')?.getCell('G6').value).toBe(120)
     expect(book.getWorksheet('Itens')?.getColumn((book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Lote de origem')).values).toEqual(expect.arrayContaining([original.batchId, duplicate.batchId]))

@@ -1,7 +1,7 @@
 import { ArtifactEnvelopeCode, DocumentArtifactKindCode, type NormalizedDocumentArtifact, type NormalizedNfe } from '@motor/domain'
 import { normalizeNfeStructure } from './normalize-nfe'
 import { asObject, asString, NfeParseError, NfeParseErrorCode,
-  readFiscalXmlDocument, type XmlObject } from './nfe-parser'
+  readFiscalXmlDocument, processedNfeEnvelope, type XmlObject } from './nfe-parser'
 
 export { DocumentArtifactKindCode, ArtifactEnvelopeCode } from '@motor/domain'
 export enum DocumentArtifactErrorMessage {
@@ -78,7 +78,7 @@ function event(node: XmlObject, response: XmlObject | undefined, envelope: Artif
 /** Reconhece artefatos estruturais; não confere assinatura nem aplica efeitos fiscais. */
 export function parseDocumentArtifactXml(xml: string): ParsedDocumentArtifact {
   const root = readFiscalXmlDocument(xml)
-  const processed = asObject(root.nfeProc)
+  const processed = processedNfeEnvelope(root)
   const standalone = asObject(root.NFe)
   if (processed || standalone) {
     const nfe = processed ? asObject(processed.NFe) : standalone

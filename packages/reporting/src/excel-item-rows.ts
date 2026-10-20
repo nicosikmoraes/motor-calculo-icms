@@ -5,7 +5,7 @@ type CellValue = string | number | undefined
 export interface ItemColumn { title: string; width: number; money?: boolean }
 const text = (title: string, width = 24): ItemColumn => ({ title, width })
 const money = (title: string): ItemColumn => ({ title: `${title} (R$)`, width: 24, money: true })
-const componentNames = { ICMS: 'ICMS', ICMS_ST: 'ICMS-ST', FCP_ST: 'FCP-ST' } as const
+const componentNames = { ICMS: 'ICMS', ICMS_ST: 'ICMS-ST', FCP_ST: 'FCP-ST', ICMS_ENTRY: 'Diferencial de entrada' } as const
 const statusNames = { CALCULATED: 'Calculado', PENDING: 'Pendente', UNSUPPORTED: 'Fora do escopo', EXCLUDED: 'Excluído' } as const
 const comparisonNames: Record<string, string> = { MATCH: 'Igual', WITHIN_TOLERANCE: 'Dentro da tolerância', DIFFERENT: 'Divergente', NOT_DECLARED: 'Não declarado', INVALID_DECLARED: 'Declarado inválido' }
 const itemKey = (documentId: string, itemNumber: string) => JSON.stringify([documentId, itemNumber])
@@ -35,14 +35,14 @@ export function buildExcelItemRows(report: ReportData): { columns: ItemColumn[];
     ...(report.monthly ? [text('Lote de origem', 40), text('Nome do lote', 36)] : []),
     money('ICMS diferido conhecido'), text('Componentes conferidos', 30), text('Motivo', 70),
   ]
-  const componentOrder: TaxComponent[] = ['ICMS', 'ICMS_ST', 'FCP_ST']
+  const componentOrder: TaxComponent[] = ['ICMS', 'ICMS_ST', 'FCP_ST', 'ICMS_ENTRY']
   for (const component of componentOrder) {
     const name = componentNames[component]
     columns.push(text(`Situação ${name}`), text(`Comparação ${name}`), money(`Base declarada ${name}`), money(`Base calculada ${name}`),
       text(`Alíquota declarada ${name} (%)`), text(`Alíquota calculada ${name} (%)`), money(`Base salva para auditoria ${name}`), money(`Imposto salvo para auditoria ${name}`),
       text(`Execução ${name}`, 40), text(`Versão do motor ${name}`), text(`Regra fiscal ${name}`, 40), text(`Versão da regra ${name}`))
   }
-  columns.push(text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Referência FCP-ST', 50), text('Regra específica da MVA', 60))
+  columns.push(text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Referência FCP-ST', 50), text('Regra específica da MVA', 60), text('Antecipação exata antes do arredondamento (R$)', 32))
 
   const rows = report.items.map(item => {
     const document = documents.get(item.documentId)
@@ -50,7 +50,7 @@ export function buildExcelItemRows(report: ReportData): { columns: ItemColumn[];
     const entries = evidenceByItem.get(itemKey(item.documentId, item.itemNumber)) ?? new Map<TaxComponent, ConsolidationEvidence>()
     const allEntries = [...entries.values()]
     const memories = new Map(itemCalculationComponents(item.calculation).map(memory => [memory.component ?? memory.result?.component ?? (item.declaredIcmsStAmount !== undefined ? 'ICMS_ST' : 'ICMS'), memory] as const))
-    const declared = (component: TaxComponent) => component === 'ICMS' ? item.declaredIcmsAmount : component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredFcpStAmount
+    const declared = (component: TaxComponent) => component === 'ICMS_ENTRY' ? undefined : component === 'ICMS' ? item.declaredIcmsAmount : component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredFcpStAmount
     const calculated = (component: TaxComponent) => entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.calculatedIcms : undefined
     const difference = (component: TaxComponent) => entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.comparison?.difference : undefined
     const anchor = allEntries[0]
@@ -90,7 +90,7 @@ export function buildExcelItemRows(report: ReportData): { columns: ItemColumn[];
     }
     row.push(input(st, 'originalMvaPercent') ?? specific?.originalMvaPercent,
       st?.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent ?? specific?.appliedMvaPercent,
-      input(st, 'mvaCatalogRow'), input(memories.get('FCP_ST'), 'fcpStRule'), specificInput)
+      input(st, 'mvaCatalogRow'), input(memories.get('FCP_ST'), 'fcpStRule'), specificInput, entries.get('ICMS_ENTRY')?.exactCalculatedIcms)
     return row
   })
   return { columns, rows }

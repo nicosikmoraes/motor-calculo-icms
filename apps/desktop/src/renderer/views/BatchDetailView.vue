@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isCalculationEligibleCfop } from '@motor/domain'
-import { itemCalculationStatus, itemCalculationComponents } from '@motor/contracts'
+import { itemCalculationStatus, itemCalculationComponents, taxComponentLabel } from '@motor/contracts'
 import { desktopErrorMessage, RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -190,6 +190,9 @@ function hasSavedCalculation(item: FiscalItemSummary): boolean {
 function isIcmsSt(item: FiscalItemSummary): boolean {
   return (item.calculation.component ?? item.calculation.result?.component) === 'ICMS_ST'
 }
+function itemComponent(item: FiscalItemSummary) {
+  return item.calculation.component ?? item.calculation.result?.component ?? 'ICMS'
+}
 function isDivergent(item: FiscalItemSummary): boolean {
   return isEligibleItem(item) && Boolean(itemCalculationComponents(item.calculation).some(component => component.comparisons?.some(c => c.status === 'DIFFERENT')))
 }
@@ -201,7 +204,7 @@ const amountComparisons = computed(() => new Map(detail.value?.consolidation?.ev
   .filter(entry => entry.status === 'CALCULATED' && entry.comparison)
   .map(entry => [JSON.stringify([entry.documentId, entry.itemNumber, entry.component ?? 'ICMS']), entry.comparison!] as const) ?? []))
 function amountComparison(document: FiscalDocumentSummary, item: FiscalItemSummary) {
-  return amountComparisons.value.get(JSON.stringify([document.id, item.itemNumber, isIcmsSt(item) ? 'ICMS_ST' : 'ICMS']))
+  return amountComparisons.value.get(JSON.stringify([document.id, item.itemNumber, itemComponent(item)]))
 }
 function documentReviewCount(document: FiscalDocumentSummary): number {
   return document.items.filter(item => (!hasSavedCalculation(item) || isDivergent(item)) && isEligibleItem(item)).length
@@ -350,9 +353,9 @@ watch(() => route.params.id, () => {
               <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="hasSavedCalculation(item) ? 'badge-green' : !isEligibleItem(item) ? 'badge-neutral' : itemCalculationStatus(item.calculation) === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
               <div class="item-values">
                 <div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div>
-                <div><span>{{ isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div>
-                <div class="value-calculated"><span>{{ isIcmsSt(item) ? 'ICMS-ST calculado' : 'ICMS calculado' }}</span><strong>{{ money(isEligibleItem(item) ? item.calculation.result?.amount : undefined) }}</strong></div>
-                <div class="value-difference" :class="{ 'amount-divergent': amountComparison(document, item)?.status === 'DIFFERENT' }" :title="`Calculado menos declarado de ${isIcmsSt(item) ? 'ICMS-ST' : 'ICMS'}`"><span>Diferença</span><strong>{{ money(amountComparison(document, item)?.difference) }}</strong></div>
+                <div><span>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'ICMS próprio na nota' : isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div>
+                <div class="value-calculated"><span>{{ taxComponentLabel(itemComponent(item)) }} calculado</span><strong>{{ money(isEligibleItem(item) ? item.calculation.result?.amount : undefined) }}</strong></div>
+                <div class="value-difference" :class="{ 'amount-divergent': amountComparison(document, item)?.status === 'DIFFERENT' }"><span>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'Conferência com XML' : 'Diferença' }}</span><strong>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'Não se aplica' : money(amountComparison(document, item)?.difference) }}</strong></div>
               </div>
               <div v-if="item.calculation.deferredAmount !== undefined || item.calculation.additionalComponents?.some(component => component.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined" class="item-additional-values">
                 <span v-if="isEligibleItem(item) && item.calculation.deferredAmount !== undefined">ICMS diferido <b>{{ money(item.calculation.deferredAmount) }}</b></span>

@@ -76,7 +76,7 @@ export class SqliteCalculationRepository {
         }
         for (const [index, memory] of components.entries()) {
           if (memory.schemaVersion !== 1 || !(Object.values(CalculationStatusCode) as readonly string[]).includes(memory.status)
-            || !['ICMS', 'ICMS_ST', 'FCP_ST'].includes(kinds[index]!)
+            || !['ICMS', 'ICMS_ST', 'FCP_ST', 'ICMS_ENTRY'].includes(kinds[index]!)
             || (index > 0 && (kinds[index] !== 'FCP_ST' || 'additionalComponents' in memory))
             || (index > 0 && memory.status === CalculationStatusCode.CALCULATED
               && (item.memory.status !== CalculationStatusCode.CALCULATED || memory.result?.base !== item.memory.result?.base))
