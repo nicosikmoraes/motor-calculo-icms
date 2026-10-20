@@ -9,6 +9,14 @@ const sample: ParanaPurchaseIcmsStInput = {
 }
 
 describe('ICMS-ST de compras no Paraná pela planilha informada', () => {
+  it('deduz alíquota do Senado de remetente CRT 1 com MVA original, incluindo encargos na base conferida', () => {
+    const simple = { ...sample, supplierRegime: '1', merchandiseOrigin: '0', mvaMode: 'ORIGINAL' as const, originalMvaPercent: '50',
+      ownOperationRate: '12', productAmount: '100', freightAmount: '10', simpleDeductionBase: '110', simpleDeductionConfirmed: true }
+    expect(calculateParanaPurchaseIcmsSt(simple).result?.amount).toBe('18.98')
+    for (const changes of [{ simpleDeductionConfirmed: false }, { mvaMode: 'APPLIED_MANUAL' as const }, { ownOperationRate: '1.5' },
+      { ownIcmsAmount: '1.5' }, { merchandiseOrigin: '2' }, { issuerState: 'PR' }, { discountAmount: '1' }])
+      expect(calculateParanaPurchaseIcmsSt({ ...simple, ...changes }).status).not.toBe('CALCULATED')
+  })
   it('reproduz o valor calculado no Excel e arredonda o resultado final a centavos', () => {
     const memory = calculateParanaPurchaseIcmsSt(sample)
     expect(memory.status).toBe('CALCULATED')

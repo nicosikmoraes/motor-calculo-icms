@@ -10,6 +10,15 @@ export interface ParanaStMvaCatalog {
 }
 export const PARANA_ST_MVA_CATALOG: ParanaStMvaCatalog = data
 
+/** Candidatas para revisão humana; não substituem o CEST declarado nem comprovam incidência. */
+export function paranaStMvaCandidates(operationDate?: string, ncm?: string,
+  catalog: ParanaStMvaCatalog = PARANA_ST_MVA_CATALOG): readonly ParanaStMvaRow[] {
+  if (!ncm || !/^\d{8}$/.test(ncm) || !operationDate || !/^\d{4}-\d{2}-\d{2}$/.test(operationDate)
+    || !Number.isFinite(Date.parse(operationDate)) || new Date(operationDate).toISOString().slice(0, 10) !== operationDate
+    || operationDate < catalog.validFrom || operationDate > catalog.verifiedThrough) return []
+  return catalog.rows.filter(row => row.ncmPrefixes.some(prefix => ncm.startsWith(prefix)))
+}
+
 export type ParanaStMvaSelection =
   | { status: 'FOUND'; row: ParanaStMvaRow; catalog: ParanaStMvaCatalog }
   | { status: 'MISSING_CLASSIFICATION' | 'INVALID_DATE' | 'OUTSIDE_COVERAGE' | 'NO_MATCH' | 'CLASSIFICATION_CONFLICT' | 'AMBIGUOUS'; reason: string }

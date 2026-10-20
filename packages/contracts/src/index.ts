@@ -487,6 +487,7 @@ export interface ItemRuleAssessment {
 }
 
 export interface FiscalItemSummary {
+  entryReviewReasons?: readonly string[]
   itemNumber: string
   classification: `${FiscalItemClassificationCode}`
   classificationReason: ItemClassificationReason
@@ -521,14 +522,14 @@ export enum CalculationInputTreatmentCode {
   UNDECIDED = 'UNDECIDED',
 }
 
-export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST'
+export type TaxComponent = 'ICMS' | 'ICMS_ST' | 'FCP_ST' | 'ICMS_ENTRY'
 export interface ItemComponentCalculationSummary {
   component?: TaxComponent
   reviewReason?: string
   reviewStatus?: Exclude<`${CalculationStatusCode}`, 'CALCULATED'>
   deferredAmount?: string
   comparisons?: readonly {
-    component: 'BASE' | 'RATE' | 'MVA' | 'ICMS' | 'ICMS_ST' | 'FCP_ST'; calculated: string; declared?: string; difference?: string; tolerance: string
+    component: 'BASE' | 'RATE' | 'MVA' | 'ICMS' | 'ICMS_ST' | 'FCP_ST' | 'ICMS_ENTRY'; calculated: string; declared?: string; difference?: string; tolerance: string
     status: 'MATCH' | 'WITHIN_TOLERANCE' | 'DIFFERENT' | 'NOT_DECLARED' | 'INVALID_DECLARED'
   }[]
   status: `${CalculationStatusCode}`
@@ -559,7 +560,15 @@ export function itemCalculationStatus(calculation: ItemCalculationSummary): `${C
 }
 
 export interface ItemFiscalAnswers {
+  entryMethod?: 'RATE_DIFFERENCE' | 'ICMS_ST' | 'NO_DEBIT'
+  entryNoDebitConfirmed?: boolean
+  entryNoDebitReason?: string
+  entryApplicationConfirmed?: boolean
+  entryBaseConfirmed?: boolean
+  entryBaseAmount?: string
+  entryInternalRate?: string
   destination?: 'RESALE' | 'INDUSTRIALIZATION' | 'FIXED_ASSET' | 'OWN_USE'
+  destinationBasis?: 'ASSUMED_RESALE' | 'CONFIRMED'
   recipientIsIcmsTaxpayer?: boolean
   constructionCompany?: boolean
   petroleumOrFuel?: boolean
@@ -567,10 +576,16 @@ export interface ItemFiscalAnswers {
   discountTreatment?: 'UNCONDITIONAL' | 'CONDITIONAL'
   ipiTreatment?: 'INCLUDED' | 'EXCLUDED'
   stApplicableConfirmed?: boolean
+  stBuyerLiabilityConfirmed?: boolean
+  stMvaFallbackConfirmed?: boolean
+  stSimpleDeductionConfirmed?: boolean
+  stCatalogRowId?: string
+  stClassificationConfirmed?: boolean
+  stClassificationReason?: string
   stMvaPercent?: string
   stInternalRate?: string
   stOwnOperationRate?: string
-  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4' | 'SPECIFIC_RULE'
+  stMvaMode?: 'MANUAL_APPLIED' | 'CATALOG_ORIGINAL' | 'CATALOG_IMPORT_4' | 'CATALOG_INTERSTATE' | 'SPECIFIC_RULE'
   stSpecificRuleConfirmed?: boolean
   stSpecificEffectiveRate?: string
   stFuelCategory?: 'PETROLEUM_NONINCIDENCE' | 'SHALE_OIL' | 'OTHER'
@@ -589,7 +604,7 @@ export interface ItemFiscalQuestion {
   field: keyof ItemFiscalAnswers
   label: string
   options?: readonly { value: string; label: string }[]
-  inputType?: 'decimal'
+  inputType?: 'decimal' | 'text'
   suggestedValue?: string
 }
 
@@ -600,6 +615,8 @@ export interface SpecificStMvaSummary {
   legalBasis: string; sourceUrl: string
 }
 export interface ItemFiscalContext {
+  destinationAssumption?: string
+  entryRateDifferenceAvailable?: boolean
   xmlCalculationAvailable?: boolean
   automaticCalculationNotice?: string
   manualReviewBlockedReason?: string
@@ -788,6 +805,7 @@ export interface ConsolidationEvidence {
   reasons: readonly string[]
   runId?: string; engineVersion?: string
   calculatedIcms?: string; declaredIcms?: string; deferredIcms?: string
+  exactCalculatedIcms?: string
   comparison?: NonNullable<ItemCalculationSummary['comparisons']>[number]
   comparisons?: ItemComponentCalculationSummary['comparisons']
 }
@@ -945,5 +963,5 @@ export function consolidationEvidenceDivergent(evidence: ConsolidationEvidence):
 
 /** Rótulo compartilhado dos componentes, sem somar tributos distintos. */
 export function taxComponentLabel(component?: TaxComponent): string {
-  return component === 'FCP_ST' ? 'FCP-ST' : component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS'
+  return component === 'ICMS_ENTRY' ? 'Diferencial de entrada' : component === 'FCP_ST' ? 'FCP-ST' : component === 'ICMS_ST' ? 'ICMS-ST' : 'ICMS'
 }

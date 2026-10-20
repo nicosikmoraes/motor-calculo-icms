@@ -44,7 +44,7 @@ describe('cálculo automático com parâmetros documentados no XML', () => {
     expect(context.calculation.result).toMatchObject({ base: '1477.70', amount: '168.15' })
     expect(context.calculation.additionalComponents?.[0]?.result?.amount).toBe('29.55')
     expect(context.calculation.inputs.some(input => input.source.startsWith('USER/'))).toBe(false)
-    expect(context.answers).toEqual({})
+    expect(context.answers).toEqual({destination:'RESALE',destinationBasis:'ASSUMED_RESALE'})
     expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
     expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').runId).toBe(context.runId)
     expect(getBatchConsolidation(db, next.batchId).counts.calculated).toBe(1)

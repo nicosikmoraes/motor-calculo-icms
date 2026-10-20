@@ -1,12 +1,24 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseDocumentArtifactXml } from '../src/document-artifacts'
+import { parseNfeXml } from '../src/nfe-parser'
 
 const key = '1'.repeat(44)
 const event = `<evento versao="1.00"><infEvento><tpAmb>2</tpAmb><chNFe>${key}</chNFe><dhEvento>2026-09-15T12:00:00-03:00</dhEvento><tpEvento>110111</tpEvento><nSeqEvento>1</nSeqEvento><detEvento><xJust>Teste</xJust></detEvento></infEvento></evento>`
 const response = `<retEvento versao="1.00"><infEvento><tpAmb>2</tpAmb><chNFe>${key}</chNFe><tpEvento>110111</tpEvento><nSeqEvento>1</nSeqEvento><cStat>135</cStat><xMotivo>Evento registrado</xMotivo><nProt>135260000000001</nProt></infEvento></retEvento>`
 
 describe('protocolos e eventos XML', () => {
+  it('lê NFeLog/procNFe sem converter o arquivo ou perder o protocolo', () => {
+    const xml = readFileSync(new URL('./fixtures/nfe-proc-minima.xml', import.meta.url), 'utf8')
+    const legacy = `<NFeLog versao="1.00">${xml.replace(/<\?xml[^>]*\?>/, '').replace(/<nfeProc\b[^>]*>/, '<procNFe>').replace('</nfeProc>', '</procNFe>')}</NFeLog>`
+    const expected = parseDocumentArtifactXml(xml)
+    expect(parseDocumentArtifactXml(legacy)).toEqual(expected)
+    expect(parseNfeXml(legacy)).toEqual(parseNfeXml(xml))
+    for (const invalid of [legacy.replace('versao="1.00"', 'versao="2.00"'), legacy.replace('</NFeLog>', '<procNFe/></NFeLog>')]) {
+      expect(() => parseDocumentArtifactXml(invalid)).toThrow()
+    }
+    expect(() => parseDocumentArtifactXml('<!DOCTYPE NFeLog>'+legacy)).toThrow(/DTD/)
+  })
   it('extrai o protocolo embutido em nfeProc sem alterar a nota', () => {
     const xml = readFileSync(new URL('./fixtures/nfe-proc-minima.xml', import.meta.url), 'utf8')
     const parsed = parseDocumentArtifactXml(xml)

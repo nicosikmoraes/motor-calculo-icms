@@ -18,7 +18,7 @@ const reuseScope = ref<NonNullable<SaveItemFiscalAnswersInput['reuseScope']>>('C
 const showIndividualQuestions = ref(false)
 const showManualReview = ref(false)
 const attemptedCalculation = ref(false)
-const reviewBlock = computed(() => showManualReview.value ? context.value?.manualReviewBlockedReason ?? context.value?.blockedReason : context.value?.blockedReason)
+const reviewBlock = computed(() => context.value?.entryRateDifferenceAvailable ? undefined : showManualReview.value ? context.value?.manualReviewBlockedReason ?? context.value?.blockedReason : context.value?.blockedReason)
 const showingAutomaticResult = computed(() => context.value?.automaticCalculationNotice && itemCalculationStatus(context.value.calculation) === 'CALCULATED' && !showManualReview.value)
 const automaticValues = computed(() => {
   const memory = context.value?.calculation
@@ -50,7 +50,14 @@ const destinationConflict = computed(() => {
   return (indicator === '1' && !consumer) || (indicator === '0' && consumer)
     ? 'Esta destinação não corresponde à indicação de consumidor final do XML. Confira a escolha e a nota antes de calcular.' : ''
 })
-const visibleQuestions = computed(() => context.value?.questions.filter(question => (question.field !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
+function entryFieldVisible(field: string): boolean {
+  if (field === 'destination' || field === 'destinationBasis') return true
+  return field === 'entryMethod' || (selections.value.entryMethod === 'NO_DEBIT' ? field.startsWith('entryNoDebit')
+    : selections.value.entryMethod === 'RATE_DIFFERENCE' ? field.startsWith('entry') && !field.startsWith('entryNoDebit') : !field.startsWith('entry'))
+}
+const visibleQuestions = computed(() => context.value?.questions.filter(question => entryFieldVisible(question.field)
+  && (!['stClassificationConfirmed', 'stClassificationReason'].includes(question.field) || Boolean(selections.value.stCatalogRowId && selections.value.stCatalogRowId !== 'XML'))
+  && (question.field !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
   && (!commonReview.value || !['constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed'].includes(question.field))
   && (question.field !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
   && (question.field !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true')) ?? [])
@@ -107,11 +114,13 @@ async function save(draft = false): Promise<void> {
   try {
     // Copiar valores escalares antes da ponte Electron: proxies Vue não são clonáveis.
     const answers = Object.fromEntries(Object.entries(selections.value).filter(([key, value]) => value !== ''
+      && entryFieldVisible(key)
+      && (!['stClassificationConfirmed', 'stClassificationReason'].includes(key) || Boolean(selections.value.stCatalogRowId && selections.value.stCatalogRowId !== 'XML'))
       && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
       && (key !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
       && (key !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true'))
-      .map(([key, value]) => [key, value === 'true' ? true : value === 'false' ? false
-        : key.startsWith('st') && ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate'].includes(key)
+      .map(([key, value]) => [key, ['entryNoDebitReason', 'stClassificationReason'].includes(key) ? value!.trim() : value === 'true' ? true : value === 'false' ? false
+        : ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate', 'entryInternalRate', 'entryBaseAmount'].includes(key)
           ? value!.trim().replace(',', '.') : value])) as ItemFiscalAnswers
     context.value = await window.desktopApi.saveItemFiscalAnswers({
       batchId: props.batchId, documentId: props.documentId, itemNumber: props.itemNumber,
@@ -122,8 +131,9 @@ async function save(draft = false): Promise<void> {
     notice.value = context.value.appliedItemNumbers && context.value.appliedItemNumbers.length > 1
       ? `Confirmação salva. ${context.value.appliedItemNumbers.length} itens desta nota foram calculados, com os valores de cada produto.`
       : itemCalculationStatus(context.value.calculation) === 'CALCULATED'
-      ? context.value.calculation.result?.component === 'ICMS_ST'
-        ? 'Respostas salvas e tributos da entrada calculados.' : 'Respostas salvas e ICMS da operação calculado.'
+      ? context.value.answers.entryMethod === 'NO_DEBIT' ? 'Decisão de entrada sem novo débito salva com justificativa.' : context.value.calculation.result?.component === 'ICMS_ST'
+        ? 'Respostas salvas e tributos da entrada calculados.' : context.value.calculation.result?.component === 'ICMS_ENTRY'
+          ? 'Respostas salvas e antecipação da entrada calculada.' : 'Respostas salvas e ICMS da operação calculado.'
       : `Rascunho salvo. Cálculo pendente: ${context.value.calculation.reason ?? itemCalculationComponents(context.value.calculation).find(component => component.status !== 'CALCULATED')?.reason ?? 'O item continua pendente.'}`
     const divergent = itemCalculationComponents(context.value.calculation).some(component => component.comparisons?.some(comparison => comparison.status === 'DIFFERENT'))
     if (itemCalculationStatus(context.value.calculation) === 'CALCULATED' && divergent) notice.value += ' Há divergências com os valores declarados no XML; elas permanecem disponíveis para conferência.'
@@ -214,6 +224,7 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
       </section>
       <form v-else-if="!reviewBlock" class="review-main" novalidate @submit.prevent="save()">
         <header class="review-heading"><h4>O que você precisa confirmar</h4><p>Confira a destinação e o tratamento fiscal para calcular este item.</p></header>
+        <p v-if="context.destinationAssumption && selections.destinationBasis === 'ASSUMED_RESALE'" class="review-message is-warning">{{ context.destinationAssumption }}</p>
         <div v-if="error" class="review-message is-error" role="alert"><strong>A confirmação não foi enviada</strong><p>{{ error }}</p></div>
         <div v-if="notice" class="review-message" :class="itemCalculationStatus(context.calculation) === 'CALCULATED' ? 'is-success' : 'is-warning'" role="status"><p>{{ notice }}</p></div>
         <div v-if="savedProblem && !notice" class="review-message is-warning"><strong>Respostas salvas; o último cálculo ficou pendente</strong><p>{{ savedProblem }}</p><small>Os valores disponíveis no XML estão preenchidos abaixo. Revise os campos e clique em Salvar e calcular, ou use o cálculo pelos dados do XML.</small></div>
@@ -231,19 +242,20 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
               <p v-if="context.commonScenario" class="field-help">{{ destinationHint }}</p>
               <div class="destination-options">
                 <label v-for="option in question.options" :key="option.value" class="choice-card" :class="{ selected: selections.destination === option.value, unavailable: !compatibleDestination(option.value) }">
-                  <input v-model="selections.destination" type="radio" :name="`destination-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving || !compatibleDestination(option.value)">
+                  <input v-model="selections.destination" type="radio" :name="`destination-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving || !compatibleDestination(option.value)" @click="selections.destinationBasis = 'CONFIRMED'">
                   <span><strong>{{ option.label }}</strong><small>{{ compatibleDestination(option.value) ? destinationDescriptions[option.value] : 'Não corresponde ao consumidor final informado no XML' }}</small></span>
                 </label>
               </div>
             </template>
-            <input v-else-if="question.inputType === 'decimal'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :aria-describedby="fieldError(question.field) ? `error-${documentId}-${itemNumber}-${question.field}` : undefined" type="text" inputmode="decimal" :disabled="saving" placeholder="Informe o percentual">
+            <textarea v-else-if="question.inputType === 'text'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :disabled="saving" maxlength="1000" rows="3" placeholder="Registre o fundamento da decisão"></textarea>
+            <input v-else-if="question.inputType === 'decimal'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :aria-describedby="fieldError(question.field) ? `error-${documentId}-${itemNumber}-${question.field}` : undefined" type="text" inputmode="decimal" :disabled="saving" :placeholder="question.field === 'entryBaseAmount' ? 'Informe o valor em reais' : 'Informe o percentual'">
             <div v-else-if="question.options?.length === 2" class="binary-options">
               <label v-for="option in question.options" :key="option.value" class="choice-card" :class="{ selected: selections[question.field] === option.value }">
                 <input v-model="selections[question.field]" type="radio" :name="`${question.field}-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving"><span>{{ option.label }}</span>
               </label>
             </div>
             <select v-else v-model="selections[question.field]" :aria-label="question.label" :disabled="saving"><option value="">Escolha uma resposta</option><option v-for="option in question.options" :key="option.value" :value="option.value">{{ option.label }}</option></select>
-            <p v-if="question.field === 'stInternalRate' && question.suggestedValue !== undefined" class="field-help">O XML informa {{ question.suggestedValue.replace('.', ',') }}% de ICMS (pICMSST), com FECOP em campo separado. <button type="button" class="text-button" :disabled="saving" @click="selections.stInternalRate = question.suggestedValue; selections.stInternalRateIncludesFcp = 'false'">Usar valor do XML</button></p>
+            <p v-if="question.field === 'stInternalRate' && question.suggestedValue !== undefined" class="field-help">Referência: {{ question.suggestedValue.replace('.', ',') }}% somente de ICMS. Confira a origem e o enquadramento indicados na pergunta. <button type="button" class="text-button" :disabled="saving" @click="selections.stInternalRate = question.suggestedValue; selections.stInternalRateIncludesFcp = 'false'">Usar referência sem FECOP</button></p>
             <p v-if="fieldError(question.field)" :id="`error-${documentId}-${itemNumber}-${question.field}`" class="field-error" role="alert">{{ fieldError(question.field) }}</p>
           </fieldset>
           <p v-if="destinationConflict" class="review-message is-error" role="status">{{ destinationConflict }}</p>
@@ -320,7 +332,8 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
 .choice-card strong { display: block; font-size: 13px; }
 .choice-card small { display: block; margin-top: 3px; color: #52647f; font-size: 12px; line-height: 1.4; }
 .unavailable small { color: #758094; }
-.review-field > input, .review-field select, .answer-scope select { margin-top: 5px; min-width: 0; font-size: 14px; }
+.review-field > input, .review-field textarea, .review-field select, .answer-scope select { margin-top: 5px; min-width: 0; font-size: 14px; }
+.review-field textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical; font: inherit; }
 .treatment-summary { padding: 17px 18px; margin-top: 22px; border: 1px solid #dbe4f5; border-radius: 10px; background: #f7f9ff; }
 .treatment-summary h5, .answer-scope h5 { margin: 0 0 12px; font-size: 14px; }
 .treatment-summary dl { margin: 0; display: grid; gap: 10px; }

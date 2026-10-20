@@ -7,7 +7,7 @@ import { assertSafeXml } from './xml-security'
 export interface ArtifactSchemaIssue { code: string; message: string }
 
 /** Serializa uma subárvore somente para validação, conservando namespaces herdados. */
-function subtree(xml: string, path: string[]): string | undefined {
+function subtree(xml: string, path: string[], defaultNfeNamespace = false): string | undefined {
   const tree = new XMLParser({ ignoreAttributes: false, parseTagValue: false,
     parseAttributeValue: false, trimValues: false }).parse(xml) as Record<string, unknown>
   let current: any = tree
@@ -21,7 +21,10 @@ function subtree(xml: string, path: string[]): string | undefined {
       if (key === '@_xmlns' || key.startsWith('@_xmlns:')) namespaces[key] = value
     }
     if (localName === path.at(-1)) {
-      return new XMLBuilder({ ignoreAttributes: false }).build({ [name]: { ...namespaces, ...current } })
+      return new XMLBuilder({ ignoreAttributes: false }).build({ [name]: {
+        ...(defaultNfeNamespace && !name.includes(':') && namespaces['@_xmlns'] === undefined ? { '@_xmlns': 'http://www.portalfiscal.inf.br/nfe' } : {}),
+        ...namespaces, ...current,
+      } })
     }
   }
   return undefined
@@ -43,7 +46,7 @@ export async function validateDocumentArtifactSchema(
   assertSafeXml(xml)
   if (parsed.kind === 'NFE') {
     if (!parsed.embeddedProtocol) return []
-    const protocol = subtree(xml, ['nfeProc', 'protNFe'])
+    const protocol = subtree(xml, ['nfeProc', 'protNFe']) ?? subtree(xml, ['NFeLog', 'procNFe', 'protNFe'], true)
     return protocol ? validate(protocol, 'protNFe-adapter.xsd') : []
   }
   if (parsed.kind === 'PROTOCOL') return validate(xml, 'protNFe-adapter.xsd')

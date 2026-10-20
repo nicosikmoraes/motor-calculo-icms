@@ -10,6 +10,12 @@ const protocol = `<protNFe xmlns="${ns}" versao="4.00"><infProt><tpAmb>2</tpAmb>
 async function analyze(xml: string) { return validateDocumentArtifactSchema(xml, parseDocumentArtifactXml(xml)) }
 const event = (type = '110111', detail = '<descEvento>Cancelamento</descEvento><nProt>141260000000001</nProt><xJust>Cancelamento de nota emitida indevidamente</xJust>') => `<evento xmlns="${ns}" versao="1.00"><infEvento Id="ID${type}${key}01"><cOrgao>41</cOrgao><tpAmb>2</tpAmb><CNPJ>12345678000190</CNPJ><chNFe>${key}</chNFe><dhEvento>2026-01-01T12:00:00-03:00</dhEvento><tpEvento>${type}</tpEvento><nSeqEvento>1</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detail}</detEvento></infEvento></evento>`
 describe('XSD offline de artefatos', () => {
+  it('valida o protocolo do NFeLog inclusive sem namespace no exportador', async () => {
+    const xml = new NfeXmlFixtureBuilder().build().replace(/<\?xml[^>]*\?>/, '')
+    const legacy = `<NFeLog versao="1.00">${xml.replace(/<nfeProc\b[^>]*>/, '<procNFe>').replace('</nfeProc>', '</procNFe>')}</NFeLog>`
+    expect(await analyze(legacy)).toEqual([])
+    expect(await analyze(legacy.replace('<verAplic>TESTE</verAplic>', ''))).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'ARTEFATO_XSD_INVALIDO' })]))
+  })
   it('confere integridade de todos os schemas usados no catálogo', async () => {
     const manifest = JSON.parse(await readFile(new URL('../schemas/artifacts/sha256.json', import.meta.url), 'utf8')) as Record<string, string>
     for (const [path, hash] of Object.entries(manifest)) {

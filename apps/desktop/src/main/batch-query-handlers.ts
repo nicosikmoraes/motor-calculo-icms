@@ -10,6 +10,7 @@ import { activeDatabase, requiredInputText } from './main-services'
 import { conflictEvidence, effectiveProcessingDocument } from './conflict-evidence'
 import { artifactSummary, documentaryState, readDocumentaryIndex, relatedEvents, type DocumentaryIndex } from './documentary-evidence'
 import { isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
+import { entryReviewFindings } from './entry-review-findings'
 import { isAutomaticCalculation } from './automatic-xml-calculation'
 import { queryDashboard } from './dashboard-query'
 
@@ -154,6 +155,9 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
         const selectedAssessment = selectedAssessments?.get(id)?.[item.itemNumber] ?? ruleAssessments?.[item.itemNumber]
         return {
           itemNumber: item.itemNumber,
+          ...(normalized.operationDirection === '1' && normalized.recipient?.state === 'PR' && normalized.issuer.state !== 'PR'
+            && companies.get(companyId ?? '')?.cnpj === normalized.recipient?.taxId
+            ? { entryReviewReasons: entryReviewFindings(normalized,item,readItemFiscalAnswers(latestCalculations.get(id)?.items.find(entry=>entry.itemNumber===item.itemNumber)?.memory)).findings.map(f => f.reason) } : {}),
           calculation: (() => {
             const run = latestCalculations.get(id)
             const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
@@ -161,6 +165,10 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
               fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
+              ...(saved.memory.status === 'CALCULATED' && readItemFiscalAnswers(saved.memory).entryMethod
+                && (calculation.status !== 'CALCULATED' || calculation.reviewReason)
+                ? { reviewReason: calculation.reviewReason ?? `${calculation.reason ?? 'Revise as condições da entrada.'} O resultado anterior está preservado para auditoria.`,
+                    reviewStatus: calculation.reviewStatus ?? (calculation.status === 'CALCULATED' ? 'PENDING_RULE' as const : calculation.status) } : {}),
               ...(!isCalculationEligibleCfop(item.cfop) ? { reviewStatus: 'UNSUPPORTED' as const, reviewReason: `${calculationCfopExclusionReason} O resultado anterior está preservado para auditoria.` } : {}),
               ...(isCalculationEligibleCfop(item.cfop) && saved.memory.status === 'CALCULATED' && !isAutomaticCalculation(saved.memory) && (saved.memory.component ?? saved.memory.result?.component) === 'ICMS_ST' && (readItemFiscalAnswers(saved.memory).fcpStApplicableConfirmed === undefined || (calculation.inputs.some(input => input.name === 'stSpecificMvaDecision') && !saved.memory.inputs.some(input => input.name === 'stSpecificMvaDecision')))
                 ? { reviewReason: `${calculation.reason ?? 'Confirme a incidência de FCP-ST e revise a alíquota interna.'} O cálculo anterior está preservado para auditoria.`,

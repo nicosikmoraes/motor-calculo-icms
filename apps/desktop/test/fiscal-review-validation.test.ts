@@ -11,6 +11,13 @@ describe('erros por campo na revisão fiscal', () => {
     expect(fiscalReviewErrors([rate], { stInternalRate: '19,5' })).toEqual({})
     expect(fiscalReviewErrors([], {})).toEqual({})
   })
+  it('valida base em reais separadamente de percentuais', () => {
+    const base:ItemFiscalQuestion={field:'entryBaseAmount',label:'Base legal',inputType:'decimal',suggestedValue:'5043.60'}
+    expect(fiscalReviewErrors([base],{entryBaseAmount:'10000,25'})).toEqual({})
+    expect(fiscalReviewErrors([base],{entryBaseAmount:'0'})).toEqual({})
+    expect(fiscalReviewErrors([base],{entryBaseAmount:'-1'}).entryBaseAmount).toContain('reais')
+    expect(fiscalReviewErrors([base],{}).entryBaseAmount).toContain('5043,60 reais')
+  })
   it('mostra a incompatibilidade de 1% incluindo FECOP e rejeita percentuais inválidos', () => {
     expect(fiscalReviewErrors([rate], { stInternalRate: '1', fcpStApplicableConfirmed: 'true', stInternalRateIncludesFcp: 'true' }).stInternalRate).toContain('maior que 2%')
     expect(fiscalReviewErrors([rate], { stInternalRate: 'abc' }).stInternalRate).toContain('entre 0 e 100%')

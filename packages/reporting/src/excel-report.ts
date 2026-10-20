@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { taxComponentLabel, type ConsolidationEvidence } from '@motor/contracts'
 import { buildExcelItemRows } from './excel-item-rows'
+import { addEntryAssessmentSheet } from './excel-entry-assessment'
 import { roundMoney } from '@motor/tax-engine'
 import type { ReportData } from './report-data'
 
@@ -36,7 +37,7 @@ function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, colu
   for (const [row, value] of [
     [1, `ContabiliNico · ${name}`],
     [2, name === 'Itens' ? 'Uma linha por produto de cada nota. ICMS, ICMS-ST e FCP-ST em colunas separadas. Valores calculados usam os resultados salvos; pendências e exclusões permanecem identificadas.' : `${report.monthly ? 'Conferência mensal entre lotes' : 'Conferência do lote'}, por mês de emissão. Sem apuração de crédito ou saldo a recolher. Valores acima da precisão do Excel permanecem como texto.`],
-    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · CNPJ: ${[...new Set(report.documents.map(document => document.companyCnpj).filter(Boolean))].join(', ') || 'Não identificado'} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 6`],
+    [3, `${report.monthly ? `Empresa: ${report.monthly.companyName} · Mês: ${report.monthly.period} · Lotes: ${report.monthly.batches.length}` : `Lote: ${report.batch.id}`} · CNPJ: ${[...new Set(report.documents.map(document => document.companyCnpj).filter(Boolean))].join(', ') || 'Não identificado'} · Exportado: ${report.metadata.generatedAt} · Aplicativo: ${report.metadata.appVersion} · Layout XLSX: 7`],
   ] as const) {
     sheet.mergeCells(row, 1, row, Math.min(name === 'Itens' ? 5 : 4, columns.length))
     sheet.getCell(row, 1).value = value
@@ -79,6 +80,7 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   if (!summary || summary.batchId !== report.batch.id) throw new Error('Consolidação do lote ausente ou incompatível.')
   const book = new ExcelJS.Workbook()
   book.creator = 'ContabiliNico'; book.created = new Date(report.metadata.generatedAt)
+  if (report.monthly) addEntryAssessmentSheet(book, report)
   const documents = new Map(report.documents.map(document => [document.id, document]))
   const items = new Map(report.items.map(item => [JSON.stringify([item.documentId, item.itemNumber]), item]))
   const companyNames = new Map(summary.groups.map(group => [group.companyId, group.companyName]))
@@ -117,7 +119,7 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
     const rows: Value[][] = []
     const base: Value[] = [companyNames.get(e.companyId) ?? 'Empresa não identificada', e.period, e.documentNumber, e.accessKey, e.itemNumber]
     if (e.status !== 'CALCULATED') rows.push([...base, `Consolidação ${taxComponentLabel(e.component)}`, label(e.status), e.reasons.join('\n'), e.documentId])
-    if (e.status !== 'EXCLUDED') {
+    if (e.status !== 'EXCLUDED' && e.component !== 'ICMS_ENTRY') {
       const reportItem = items.get(JSON.stringify([e.documentId, e.itemNumber]))
       const original = e.component === 'FCP_ST' ? reportItem?.declaredFcpStAmount : e.component === 'ICMS_ST' ? reportItem?.declaredIcmsStAmount : reportItem?.declaredIcmsAmount
       if (e.declaredIcms === undefined) rows.push([...base, `Valor declarado ${taxComponentLabel(e.component)}`, original === undefined ? 'Ausente' : 'Inválido', original, e.documentId])

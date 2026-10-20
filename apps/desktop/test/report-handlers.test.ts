@@ -88,7 +88,7 @@ describe('conferência mensal via IPC', () => {
     expect(summary.summary.evidence[0].batchId).toBe(batchId)
     expect(await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).toEqual({ path })
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
-    expect(book.worksheets).toHaveLength(5)
+    expect(book.worksheets).toHaveLength(6)
     expect(book.getWorksheet('Itens')!.getCell(6, (book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Lote de origem')).value).toBe(batchId)
     expect(book.getWorksheet('Itens')!.getCell('A3').value).toContain('Mês: 2026-10')
     expect(state.database.get('SELECT count(*) AS total FROM execucoes_calculo').total).toBe(0)

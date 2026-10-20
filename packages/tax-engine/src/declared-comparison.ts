@@ -1,7 +1,7 @@
 import { compareDecimals, subtractDecimals, decimalText } from './decimal'
 
 export interface DeclaredComparison {
-  component: 'BASE' | 'RATE' | 'MVA' | 'ICMS' | 'ICMS_ST' | 'FCP_ST'
+  component: 'BASE' | 'RATE' | 'MVA' | 'ICMS' | 'ICMS_ST' | 'FCP_ST' | 'ICMS_ENTRY'
   calculated: string
   declared?: string
   difference?: string

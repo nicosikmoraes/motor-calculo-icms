@@ -18,6 +18,9 @@ export interface ParanaPurchaseIcmsStInput {
   mvaMode?: 'APPLIED_MANUAL' | 'ORIGINAL' | 'ADJUSTED_IMPORT_4' | 'ADJUSTED_INTERSTATE'
   merchandiseOrigin?: string
   supplierRegime?: string
+  /** CRT 1: base própria conferida sem IPI; a dedução não usa pCredSN/vCredICMSSN. */
+  simpleDeductionBase?: string
+  simpleDeductionConfirmed?: boolean
   /** Alíquota interna do PR informada pela regra fiscal aplicável ao NCM/CEST. */
   internalRate?: string
   /** Carga interna usada no ajuste de MVA, incluindo FECOP quando aplicável. */
@@ -60,9 +63,15 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     return pending('Importação direta ou UF de origem não identificada exige outra regra fiscal.', 'UNSUPPORTED')
   }
   if (input.supplierRegime === undefined) return pending('Confirme que o fornecedor está no regime normal (CRT 3).')
-  if (input.supplierRegime !== '3') return pending('A conferência inicial atende fornecedores do regime normal. Simples Nacional e outros regimes exigem tratamento próprio.', 'UNSUPPORTED')
+  const simple = input.supplierRegime === '1'
+  if (!simple && input.supplierRegime !== '3') return pending('Regime do fornecedor fora da cobertura CRT 1/3.', 'UNSUPPORTED')
+  if (simple && (input.issuerState === 'PR' || !['0','4','5'].includes(input.merchandiseOrigin ?? '')))
+    return pending('O recorte do Simples atende remetente interestadual e mercadoria nacional (origem 0, 4 ou 5). Outros casos exigem regra própria.', 'UNSUPPORTED')
+  if (simple && (input.simpleDeductionConfirmed !== true || input.simpleDeductionBase === undefined))
+    return pending('Confirme a base da operação própria do remetente do Simples, sem usar o crédito permitido como dedução da ST.')
   if (input.applicationConfirmed !== true) return pending('Confirme a incidência de ICMS-ST e a MVA aplicável ao NCM/CEST nesta data.')
   const mvaMode = input.mvaMode ?? 'APPLIED_MANUAL'
+  if (simple && mvaMode !== 'ORIGINAL') return pending('Remetente do Simples exige MVA original, sem ajuste interestadual (Anexo IX, arts. 1º, § 4º, e 11, § 4º).')
   const mvaValue = mvaMode === 'APPLIED_MANUAL' ? input.appliedMvaPercent : input.originalMvaPercent
   if (input.productAmount === undefined || mvaValue === undefined
     || input.internalRate === undefined || input.ownOperationRate === undefined) {
@@ -82,7 +91,10 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     const internalRate = decimalText(input.internalRate)
     const adjustmentRate = decimalText(input.mvaAdjustmentInternalRate ?? input.internalRate)
     const ownRate = decimalText(input.ownOperationRate)
-    for (const value of [...Object.values(amounts), mva, internalRate, adjustmentRate, ownRate, ...(declaredOwnIcms !== undefined ? [declaredOwnIcms] : [])]) {
+    const simpleBase = simple ? decimalText(input.simpleDeductionBase!) : undefined
+    if (simple && (ownRate !== '12' || input.ownIcmsAmount !== undefined))
+      return pending('Neste recorte do Simples, a dedução usa a base própria confirmada × alíquota interestadual de 12%, sem ICMS declarado ou crédito do Simples.')
+    for (const value of [...Object.values(amounts), mva, internalRate, adjustmentRate, ownRate, ...(declaredOwnIcms !== undefined ? [declaredOwnIcms] : []), ...(simpleBase !== undefined ? [simpleBase] : [])]) {
       if (compareDecimals(value, '0') < 0) return pending('Valor negativo requer revisão; não será convertido em positivo.')
     }
     if (compareDecimals(internalRate, '100') > 0 || compareDecimals(adjustmentRate, '100') > 0 || compareDecimals(ownRate, '100') > 0) {
@@ -109,7 +121,7 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     if (compareDecimals(amounts.discount, '0') > 0) {
       return pending('A planilha não define o tratamento do desconto na base de ICMS-ST; confirme a regra específica antes de calcular.')
     }
-    if (declaredOwnIcms === undefined && [amounts.freight, amounts.insurance, amounts.other].some(amount => compareDecimals(amount, '0') > 0)) {
+    if (!simple && declaredOwnIcms === undefined && [amounts.freight, amounts.insurance, amounts.other].some(amount => compareDecimals(amount, '0') > 0)) {
       return pending('Com encargos, confirme o ICMS devido na operação própria para a dedução. O valor do produto isolado não determina essa dedução.')
     }
 
@@ -130,16 +142,18 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     const internalNumerator = multiplyDecimals(stBaseNumerator, internalRate)
     const internalDenominator = multiplyDecimals(multiplierDenominator, '100')
     const internalIcms = divideDecimals(internalNumerator, internalDenominator, 20)
-    const ownIcms = declaredOwnIcms ?? divideDecimals(multiplyDecimals(amounts.product, ownRate), '100')
+    const ownIcms = simpleBase !== undefined ? divideDecimals(multiplyDecimals(simpleBase, ownRate), '100')
+      : declaredOwnIcms ?? divideDecimals(multiplyDecimals(amounts.product, ownRate), '100')
     const stNumerator = subtractDecimals(internalNumerator, multiplyDecimals(ownIcms, internalDenominator))
     if (compareDecimals(stNumerator, '0') < 0) return pending(`O ICMS interno projetado (R$ ${roundMoney(internalIcms).replace('.', ',')}) é menor que o ICMS próprio a deduzir (R$ ${roundMoney(ownIcms).replace('.', ',')}). Confira a alíquota interna informada (${internalRate.replace('.', ',')}%) e a MVA aplicada (${appliedMva.replace('.', ',')}%).`)
     const stAmount = roundMoney(divideDecimals(stNumerator, internalDenominator, 2))
 
     return {
       schemaVersion: 1, status: 'CALCULATED', component: 'ICMS_ST',
-      rule: { id: 'PARANA_PURCHASE_ICMS_ST_MVA', version: 4,
+      rule: { id: 'PARANA_PURCHASE_ICMS_ST_MVA', version: 5,
         legalBasis: legalBasis + (mvaMode === 'ADJUSTED_IMPORT_4' ? '; SEFA/PR, Cálculo da MVA ajustada para importados sujeitos a 4%'
-          : mvaMode === 'ADJUSTED_INTERSTATE' ? '; RICMS/PR, Anexo IX, art. 1º, §§ 5º e 6º (ajuste geral interestadual)' : '') },
+          : mvaMode === 'ADJUSTED_INTERSTATE' ? '; RICMS/PR, Anexo IX, art. 1º, §§ 5º e 6º (ajuste geral interestadual)' : '')
+          + (simple ? '; RICMS/PR, Anexo IX, arts. 1º, § 4º, II/III, e 11, § 4º; Convênio ICMS 35/2011; Resolução do Senado 22/1989' : '') },
       inputs: inputs.map(entry => ({ ...entry, treatment: entry.name === 'discountAmount' && compareDecimals(amounts.discount, '0') === 0
         ? 'EXCLUDED' : 'INCLUDED' })),
       steps: [
@@ -153,10 +167,11 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
           inputs: { operationBase, appliedMvaPercent: appliedMva, multiplierNumerator, multiplierDenominator }, result: stBase },
         { name: 'ICMS interno projetado', operation: 'base de cálculo ST × alíquota interna ÷ 100',
           inputs: { stBase: decimalText(stBase), internalRate }, result: decimalText(internalIcms) },
-        { name: 'ICMS próprio da operação', operation: declaredOwnIcms !== undefined
+        { name: 'ICMS próprio da operação', operation: simple ? 'base própria confirmada × alíquota interestadual do Senado; sem dedução do crédito do Simples' : declaredOwnIcms !== undefined
           ? 'ICMS da operação própria informado na NF-e, usado na dedução da ST'
           : 'valor do produto × alíquota própria ÷ 100, conforme a planilha sem encargos',
           inputs: { productAmount: amounts.product, ownOperationRate: ownRate,
+            ...(simpleBase !== undefined ? { simpleDeductionBase: simpleBase } : {}),
             ...(declaredOwnIcms !== undefined ? { ownIcmsAmount: declaredOwnIcms } : {}) }, result: decimalText(ownIcms) },
         { name: 'ICMS-ST calculado', operation: 'ICMS interno projetado - ICMS próprio da operação; arredondado para centavos',
           inputs: { internalIcms: decimalText(internalIcms), ownIcms: decimalText(ownIcms), stNumerator, internalDenominator }, result: stAmount,
