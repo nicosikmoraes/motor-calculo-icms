@@ -16,6 +16,32 @@ pnpm check
 `pnpm dev` abre o aplicativo Electron em modo de desenvolvimento. `pnpm check`
 executa verificação de tipos, testes e build de produção.
 
+## Exportação Excel
+
+`createExcelWorkbook(report)` e `generateExcelReport(report)` exportam o modelo
+simples aprovado: uma aba Produtos, sete colunas e uma linha por item, sem filtros
+ou painéis congelados. O IPC de lote e o mensal usam esse padrão. Os valores vêm
+do snapshot da conferência; o exportador não recalcula imposto nem confirma dados.
+O subtotal simples soma os valores monetários arredondados exibidos nas linhas.
+
+Ferramentas que precisam das evidências detalhadas podem solicitar
+`{ layout: 'AUDIT' }` como segundo argumento. Esse layout conserva resumo,
+memória, pendências, eventos e decisões e a antecipação mensal exata antes do
+arredondamento. Não é o arquivo padrão do usuário.
+
+O teste local `local-simple-excel.test.ts` é opt-in por
+`CONTABILINICO_EXCEL_VALIDATION_MANIFEST`: caminho de um JSON local com `sources`
+(caminhos de XML), `outputDirectory` e `expectedItems`. Ele importa os originais
+em banco temporário, aplica a conferência automática, exporta pelo handler IPC e
+compara todas as linhas reabertas com os valores salvos. Fontes e resultados reais
+permanecem fora do repositório. Esse teste não homologa enquadramentos fiscais.
+
+`XML_ARITHMETIC_2` admite CST 00/modBC 3 com IPI usando somente a base explícita
+vBC para conferir o imposto. Não reconstrói nem homologa essa base; a memória
+mantém o IPI como `UNDECIDED` e compara apenas o imposto. Sem IPI, a reconstrução
+e a comparação da base continuam disponíveis. Memórias v1 e revisões manuais
+são preservadas. Pendências antigas exibem o motivo atual, sem alterar o histórico.
+
 ## Estrutura
 
 ```text

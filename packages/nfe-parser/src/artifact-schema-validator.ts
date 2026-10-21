@@ -45,6 +45,7 @@ export async function validateDocumentArtifactSchema(
 ): Promise<ArtifactSchemaIssue[]> {
   assertSafeXml(xml)
   if (parsed.kind === 'NFE') {
+    if (parsed.embeddedProtocolIssue) return [parsed.embeddedProtocolIssue]
     if (!parsed.embeddedProtocol) return []
     const protocol = subtree(xml, ['nfeProc', 'protNFe']) ?? subtree(xml, ['NFeLog', 'procNFe', 'protNFe'], true)
     return protocol ? validate(protocol, 'protNFe-adapter.xsd') : []

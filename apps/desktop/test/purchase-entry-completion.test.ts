@@ -22,6 +22,20 @@ const context = (a: ItemFiscalAnswers = answers, i: NormalizedNfeItem = item, d:
   buildItemFiscalContext(d, i, a, undefined, undefined, undefined, buyer)
 
 describe('pendências de enquadramento de entradas', () => {
+  it('pede o tratamento da entrada antes do FCP-ST, inclusive no Simples sem destaque', () => {
+    expect(context({}).calculation.reason).toContain('Escolha o tratamento')
+    const simple = context({}, { ...item, declaredIcms: { csosn: '102' } }, { ...nfe, issuer: { ...nfe.issuer, taxRegimeCode: '1' } })
+    expect(simple.calculation.reason).toContain('CSOSN 102')
+    expect(simple.calculation.reason).toContain('Escolha o tratamento')
+    expect(simple.calculation.result).toBeUndefined()
+  })
+  it('prioriza a classificação e a MVA ausentes; só pede FCP quando os dados anteriores estão completos', () => {
+    const { fcpStApplicableConfirmed: _fcp, ...withoutFcp } = answers
+    expect(context({ ...withoutFcp, stMvaMode: 'MANUAL_APPLIED' }, { ...item, cest: '2805600' }).calculation.reason).toContain('Revise a classificação')
+    expect(context(withoutFcp).calculation.reason).toContain('incidência ou não incidência de FCP-ST')
+    const { stApplicableConfirmed: _st, ...withoutSt } = withoutFcp
+    expect(context(withoutSt).calculation.reason).toContain('Confirme primeiro')
+  })
   it('persiste ST/FCP do Simples e os inclui na consolidação sem liberar consumidor final', () => {
     const db=new SqliteDatabase(':memory:')
     try {

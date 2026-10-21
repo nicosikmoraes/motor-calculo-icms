@@ -29,6 +29,18 @@ const complete: ItemFiscalAnswers = { destination: 'RESALE', constructionCompany
 let db: SqliteDatabase
 
 describe('cálculo automático com parâmetros documentados no XML', () => {
+  it('grava a conferência com IPI sem respostas fiscais e conserva a execução ao reabrir', () => {
+    const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' } }, { productAmount: '492.38', ipiAmount: '15.99', cfop: '6102',
+      declaredIcms: { cst: '00', baseMode: '3', baseAmount: '492.38', rate: '4', amount: '19.69' } })
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    const saved = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    expect(saved.calculation.result?.amount).toBe('19.70')
+    expect(saved.answers.stApplicableConfirmed).toBeUndefined()
+    expect(saved.answers.ipiTreatment).toBeUndefined()
+    expect(saved.automaticCalculationNotice).toBeDefined()
+    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
+    expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').runId).toBe(saved.runId)
+  })
   const declaredItem = { productAmount: '1000.00', ncm: '33030010', cest: '2000700', cfop: '6102', declaredIcms: {
     cst: '10', rate: '12', amount: '120.00', stBaseMode: '4', stMarginPercent: '47.77', stBaseAmount: '1477.70', stRate: '19.5', stAmount: '168.15',
     fcpStBaseAmount: '1477.70', fcpStRate: '2', fcpStAmount: '29.55',

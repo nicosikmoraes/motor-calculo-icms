@@ -12,7 +12,7 @@ const comparison = { component: 'ICMS', calculated: '120.00', declared: '119.98'
 const report = { schemaVersion: 1, metadata: { generatedAt: '2026-10-04T12:00:00.000Z', appVersion: 'smoke' },
   batch: { id: 'lote-smoke' }, documents: [{ id: 'doc', number: '0001', series: '01', issuedAt: '2026-09-30T23:30:00-03:00' }],
   items: [{ documentId: 'doc', itemNumber: '1', supplierProductCode: '001', ncm: '01012100', cfop: '5102',
-    description: '=texto externo preservado', declaredIcmsAmount: '119.98', calculation: { result: { base: '1000.00', amount: '120.00' } } }],
+    description: '=texto externo preservado', declaredIcmsAmount: '119.98', calculation: { status: 'CALCULATED', inputs: [], steps: [], result: { base: '1000.00', amount: '120.00' } } }],
   pendencies: [], diagnostics: [], occurrences: [], artifacts: [],
   consolidation: { batchId: 'lote-smoke', groups: [{ companyId: 'company', companyName: 'Empresa de teste', period: '2026-09',
     perspective: 'SALES', environment: '1', authorization: 'WITH_PROTOCOL', counts,
@@ -37,13 +37,11 @@ while (offset >= 0 && zip.readUInt32LE(offset) === 0x02014b50) {
 }
 assert.ok(entries.has('[Content_Types].xml'))
 const workbook = entries.get('xl/workbook.xml')
-for (const name of ['Resumo', 'Itens', 'Divergências', 'Pendências e exclusões']) assert.ok(workbook?.includes(`name="${name}"`), name)
-assert.ok(entries.get('xl/sharedStrings.xml')?.includes('0'.repeat(44)))
+assert.ok(workbook?.includes('name="Produtos"'))
+assert.equal((workbook?.match(/<sheet /g) ?? []).length, 1)
 assert.ok(entries.get('xl/sharedStrings.xml')?.includes('=texto externo preservado'))
-assert.ok(entries.get('xl/worksheets/sheet1.xml')?.includes('<v>120</v>'))
-assert.ok(entries.get('xl/worksheets/sheet3.xml')?.includes('<v>0.02</v>'))
-for (let sheet = 1; sheet <= 4; sheet++) {
-  assert.ok(entries.get(`xl/worksheets/sheet${sheet}.xml`))
-  assert.ok(!entries.get(`xl/worksheets/sheet${sheet}.xml`).includes('<f>'), 'Texto externo interpretado como fórmula')
-}
-console.log(JSON.stringify({ installedExcelExport: 'ok', platform: process.platform, bytes: zip.length, worksheets: 4 }))
+const sheet = entries.get('xl/worksheets/sheet1.xml')
+assert.ok(sheet?.includes('<v>120</v>'))
+assert.ok(sheet?.includes('<v>119.98</v>'))
+for (const forbidden of ['<f>', '<pane', '<autoFilter', '<tableParts', '<mergeCells']) assert.ok(!sheet?.includes(forbidden), forbidden)
+console.log(JSON.stringify({ installedExcelExport: 'ok', platform: process.platform, bytes: zip.length, worksheets: 1 }))

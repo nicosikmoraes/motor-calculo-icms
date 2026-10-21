@@ -30,7 +30,7 @@ describe('resumo das obrigações de entrada',()=>{
     expect(report.consolidation!.evidence[0]!.comparison).toBeUndefined()
     expect(report.consolidation!.counts.declaredMissing).toBe(0)
     expect(buildEntryAssessment(report)).toMatchObject({differenceTotal:'174.79',total:'174.79',issues:[]})
-    const book=createExcelWorkbook(report)
+    const book=createExcelWorkbook(report, { layout: 'AUDIT' })
     expect(book.worksheets[0]?.name).toBe('Entradas')
     expect(book.getWorksheet('Entradas')!.getCell('E6').value).toBe(174.79)
     expect(book.getWorksheet('Entradas')!.getCell('H6').value).toBe(0.04)
@@ -41,7 +41,7 @@ describe('resumo das obrigações de entrada',()=>{
     report.items=[first,{...first,itemNumber:'2',calculation:{status:'PENDING_DATA',inputs:[],steps:[]}}]
     const result=buildEntryAssessment(report)
     expect(result.differenceTotal).toBe('174.79');expect(result.total).toBeUndefined();expect(result.issues).toHaveLength(1)
-    expect(createExcelWorkbook(report).getWorksheet('Entradas')!.getCell('A4').text).toContain('parciais')
+    expect(createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Entradas')!.getCell('A4').text).toContain('parciais')
   })
   it('totaliza a antecipação exata antes de arredondar, conservando a memória de cada item',()=>{
     const report=fixture(),item=report.items[0]!,document=report.documents[0]!
@@ -55,7 +55,7 @@ describe('resumo das obrigações de entrada',()=>{
     expect(report.consolidation.groups[0]!.totals.calculatedIcms).toBe('0.01')
     expect(report.consolidation.evidence[0]!.exactCalculatedIcms).toBe('0.0048')
     expect(buildEntryAssessment(report).total).toBe('0.01')
-    expect(createExcelWorkbook(report).getWorksheet('Entradas')!.getCell('E6').value).toBe(0.01)
+    expect(createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Entradas')!.getCell('E6').value).toBe(0.01)
   })
   it.each(['EXCLUDED','PENDING','UNSUPPORTED'] as const)('exclui memória salva que não está elegível: %s',status=>{
     const report=fixture();report.consolidation!.evidence[0]!.status=status

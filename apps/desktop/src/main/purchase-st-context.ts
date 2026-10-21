@@ -113,7 +113,14 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   const mvaOnly = Boolean(specific && !structuralBlock && (['20','70'].includes(tax?.cst ?? '')
     || [tax?.baseReductionPercent, tax?.stBaseReductionPercent].some(value => value !== undefined && compareDecimals(value,'0') > 0))
     && (tax?.stBaseMode === undefined || tax.stBaseMode === '4'))
+  const needsEntryChoice = interstate && nfe.operationDirection === '1' && answers.entryMethod === undefined && tax?.cst !== '10'
+    && answers.stApplicableConfirmed === undefined && answers.stMvaMode === undefined && answers.stMvaPercent === undefined
+    && answers.stSpecificRuleConfirmed === undefined
+  const entryChoiceReason = simple && tax?.amount === undefined
+    ? `O fornecedor é do Simples (CSOSN ${tax?.csosn ?? 'não informado'}) e não há ICMS próprio destacado para conferir. Escolha o tratamento da entrada: ST, antecipação ou ausência de novo débito. Para ST, confirme a classificação do produto e a base própria de dedução.`
+    : 'Escolha o tratamento desta compra interestadual: ST, antecipação ou ausência de novo débito. A conferência dos valores do XML não define essa obrigação.'
   let calculation = block ? { ...pendingCalculation('UNSUPPORTED', block, [], declared), component: 'ICMS_ST' as const }
+    : needsEntryChoice ? { ...pendingCalculation('PENDING_DATA', entryChoiceReason, [], declared), component: 'ICMS_ST' as const }
     : entrySt && answers.stBuyerLiabilityConfirmed !== true ? { ...pendingCalculation('PENDING_DATA', 'Confirme a responsabilidade do adquirente e a inexistência de retenção ou pagamento que duplique o débito.', [], declared), component: 'ICMS_ST' as const }
     : entrySt && candidates.some(row => row.article === 12) && answers.stMvaFallbackConfirmed !== true ? { ...pendingCalculation('PENDING_DATA', 'Confirme a hipótese de MVA do art. 97, § 1º; preço máximo/sugerido, interdependência e marketing direto exigem outra análise.', [], declared), component: 'ICMS_ST' as const }
     : entrySt && mode === 'CATALOG_ORIGINAL' && interstate && !simple && ownRate !== undefined && compareDecimals(fcp.adjustmentRate ?? fcp.icmsRate ?? '0', ownRate) > 0
@@ -125,9 +132,19 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
       ? { ...pendingCalculation('PENDING_DATA', 'A carga efetiva da MVA difere da alíquota interna de ICMS. Confira a redução ou o significado das alíquotas antes do imposto.', [], declared), component: 'ICMS_ST' as const }
     : decision && scope.supplier.state !== 'PR' && fcp.adjustmentRate !== undefined && compareDecimals(answers.stSpecificEffectiveRate!, fcp.adjustmentRate) !== 0
       ? { ...pendingCalculation('PENDING_DATA', 'A carga efetiva da MVA precisa corresponder ao ICMS mais FECOP desta operação. Confira as alíquotas.', [], declared), component: 'ICMS_ST' as const }
-    : fcp.reason ? { ...pendingCalculation(fcp.status, fcp.reason, [], declared), component: 'ICMS_ST' as const }
     : mode !== 'MANUAL_APPLIED' && mode !== 'SPECIFIC_RULE' && scope.catalog.status !== 'FOUND'
       ? { ...pendingCalculation('PENDING_RULE', scope.catalog.reason, [], declared), component: 'ICMS_ST' as const }
+    : mode === 'MANUAL_APPLIED' && answers.stMvaPercent === undefined
+      ? { ...pendingCalculation('PENDING_DATA', scope.catalog.status === 'FOUND'
+        ? 'Informe a MVA final aplicada ou escolha a MVA do catálogo antes de conferir as alíquotas e o FCP-ST.'
+        : `Não há correspondência completa de MVA para NCM ${item.ncm ?? 'ausente'} e CEST ${item.cest ?? 'ausente'}. Revise a classificação ou informe uma MVA final conferida antes de definir alíquotas e FCP-ST.`, [], declared), component: 'ICMS_ST' as const }
+    : answers.stApplicableConfirmed === undefined
+      ? { ...pendingCalculation('PENDING_DATA', 'Confirme primeiro se esta mercadoria e operação estão sujeitas à ST. Depois confira alíquotas e FCP-ST.', [], declared), component: 'ICMS_ST' as const }
+    : simple && answers.stSimpleDeductionConfirmed === undefined
+      ? { ...pendingCalculation('PENDING_DATA', 'Confira a base própria e a alíquota de dedução do fornecedor do Simples. O ICMS próprio não destacado no XML não será presumido como zero para a ST.', [], declared), component: 'ICMS_ST' as const }
+    : answers.stInternalRate === undefined
+      ? { ...pendingCalculation('PENDING_DATA', 'Informe a alíquota interna de ICMS e confira se ela inclui FECOP; depois confirme o FCP-ST.', [], declared), component: 'ICMS_ST' as const }
+    : fcp.reason ? { ...pendingCalculation(fcp.status, fcp.reason, [], declared), component: 'ICMS_ST' as const }
       : !simple && mode !== 'MANUAL_APPLIED' && tax?.amount === undefined
         ? { ...pendingCalculation('PENDING_DATA', 'O cálculo pela MVA automática exige o ICMS da operação própria informado na NF-e para a dedução.', [], declared), component: 'ICMS_ST' as const }
       : calculateParanaPurchaseIcmsSt({

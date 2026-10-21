@@ -34,10 +34,10 @@ exportação por empresa/mês. Apuração fiscal, créditos e os demais tratamen
 
 ## Prioridade 3 — extensões do XLSX
 
-O layout inicial está implementado na DT-045: Resumo, Itens, Divergências e
-Pendências e exclusões. Inclui filtros, painéis fixos, moeda, datas originais e
-rastreabilidade. Exporta os totais de conferência já salvos, com ambientes e
-protocolos separados, sem fórmulas fiscais ou total definitivo inventado.
+O padrão aprovado na versão 0.1.1 é uma aba Produtos, uma linha por item, sem
+filtros ou painéis fixos. O layout detalhado da DT-045 permanece disponível para
+ferramentas que solicitam a opção de auditoria. Ambos exportam os resultados já
+salvos, sem fórmulas fiscais ou total definitivo inventado.
 
 1. Ampliar, conforme os novos tipos documentais aprovados, a aba Eventos e revisões já implementada na DT-047. Conflitos e decisões está implementada na DT-048; o layout 4 também exporta ST/FCP-ST e decisões de MVA específica.
 2. Ampliar o relatório quando forem aprovadas a apuração entre lotes e as regras de crédito.

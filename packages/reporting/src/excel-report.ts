@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { taxComponentLabel, type ConsolidationEvidence } from '@motor/contracts'
 import { buildExcelItemRows } from './excel-item-rows'
+import { buildSimpleExcelItemRows } from './simple-excel-item-rows'
 import { addEntryAssessmentSheet } from './excel-entry-assessment'
 import { roundMoney } from '@motor/tax-engine'
 import type { ReportData } from './report-data'
@@ -74,8 +75,48 @@ function addSheet(book: ExcelJS.Workbook, report: ReportData, name: string, colu
   if (!rows.length) { sheet.getCell('A6').value = 'Nenhum registro nesta aba.'; sheet.getRow(6).height = 24 }
 }
 
-/** Exporta um snapshot, sem fórmulas fiscais ou recálculo pelo Excel. */
-export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
+export interface ExcelReportOptions { layout?: 'SIMPLE' | 'AUDIT' }
+
+/** Exportação padrão aprovada: uma tabela simples, sem filtros nem painéis congelados. */
+export function createExcelWorkbook(report: ReportData, options: ExcelReportOptions = {}): ExcelJS.Workbook {
+  if (options.layout === 'AUDIT') return createAuditExcelWorkbook(report)
+  if (!report.consolidation || report.consolidation.batchId !== report.batch.id) throw new Error('Consolidação do lote ausente ou incompatível.')
+  const book = new ExcelJS.Workbook()
+  book.creator = 'ContabiliNico'; book.created = new Date(report.metadata.generatedAt)
+  const sheet = book.addWorksheet('Produtos', { views: [{ state: 'normal', showGridLines: true }] })
+  sheet.columns = [
+    { width: 12 }, { width: 9 }, { width: 54 }, { width: 25 }, { width: 26 }, { width: 19 }, { width: 34 },
+  ]
+  sheet.getRow(1).values = ['Nota', 'Item', 'Produto', 'ICMS declarado\nno XML (R$)', 'ICMS calculado\n(R$)', 'FCP calculado\n(R$)', 'Tipo de cálculo']
+  sheet.getRow(1).height = 36
+  sheet.getRow(1).eachCell(cell => {
+    cell.font = { name: 'Arial', size: 11, bold: true }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } }
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+  })
+  const data = buildSimpleExcelItemRows(report)
+  if (data.rows.length > 1_048_574) throw new Error('A aba Produtos excede o limite de linhas do Excel.')
+  for (const values of [...data.rows, ...(data.total ? [data.total] : [])]) {
+    const row = sheet.addRow(values.map((value, index) => index >= 3 && index <= 5 ? excelMoney(value) ?? null : value ?? null))
+    let lines = 1
+    row.eachCell((cell, columnIndex) => {
+      if (typeof cell.value === 'string' && cell.value.length > 32_767) throw new Error('Texto excede o limite do Excel na aba Produtos.')
+      cell.font = { name: 'Arial', size: 11 }
+      cell.numFmt = typeof cell.value === 'string' ? '@' : columnIndex >= 4 && columnIndex <= 6 ? '#,##0.00;[Red]-#,##0.00' : '0'
+      cell.alignment = { vertical: 'middle', wrapText: true, indent: columnIndex <= 2 ? 0 : 1, horizontal: columnIndex <= 2 ? 'center' : columnIndex >= 4 && columnIndex <= 6 ? 'right' : 'left' }
+      if (typeof cell.value === 'string') lines = Math.max(lines, Math.ceil(cell.value.length / Math.max(1, (sheet.getColumn(columnIndex).width ?? 24) - 2)))
+    })
+    row.height = Math.min(409, Math.max(25, lines * 14 + 4))
+  }
+  if (data.total) sheet.lastRow!.eachCell(cell => {
+    cell.font = { name: 'Arial', size: 11, bold: true }
+    cell.border = { top: { style: 'thin', color: { argb: 'FF999999' } } }
+  })
+  return book
+}
+
+/** Evidências detalhadas preservadas para ferramentas que solicitam o layout de auditoria. */
+function createAuditExcelWorkbook(report: ReportData): ExcelJS.Workbook {
   const summary = report.consolidation
   if (!summary || summary.batchId !== report.batch.id) throw new Error('Consolidação do lote ausente ou incompatível.')
   const book = new ExcelJS.Workbook()
@@ -157,6 +198,6 @@ export function createExcelWorkbook(report: ReportData): ExcelJS.Workbook {
       d.conflictResolution!.history.map(r => `${r.revision} · ${r.action} · ${r.documentId} · ${r.createdAt}\n${r.reason}\n${r.computer} · ${r.systemUser}`).join('\n\n'), d.conflictResolution!.contentHash, d.conflictResolution!.sourceBatchId, d.conflictResolution!.sourceBatchName, d.conflictResolution!.sourceFileName]))
   return book
 }
-export async function generateExcelReport(report: ReportData): Promise<Uint8Array> {
-  return new Uint8Array(await createExcelWorkbook(report).xlsx.writeBuffer())
+export async function generateExcelReport(report: ReportData, options: ExcelReportOptions = {}): Promise<Uint8Array> {
+  return new Uint8Array(await createExcelWorkbook(report, options).xlsx.writeBuffer())
 }

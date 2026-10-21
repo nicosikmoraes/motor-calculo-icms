@@ -74,7 +74,7 @@ describe('revisão documental entre lotes', () => {
     const detail = queryBatchDetail(database, n.batchId)
     expect(detail.documents[0]).toMatchObject({ documentaryStatus: 'CANCELED', items: [{ calculation: { status: 'CALCULATED', result: { amount: '120.00' } } }] })
     expect(getItemFiscalContext(database, n.batchId, n.documentId, '1').calculation.status).toBe('UNSUPPORTED')
-    const book = createExcelWorkbook(queryMonthlyReport(database, { companyId, period: '2026-09' }, 'test'))
+    const book = createExcelWorkbook(queryMonthlyReport(database, { companyId, period: '2026-09' }, 'test'), { layout: 'AUDIT' })
     expect(book.getWorksheet('Eventos e revisões')?.getCell('K6').value).toBe(e.batchId)
     expect(book.getWorksheet('Eventos e revisões')?.getCell('O6').value).toContain('ASSOCIATE')
     const items = book.getWorksheet('Itens')!
@@ -95,7 +95,7 @@ describe('revisão documental entre lotes', () => {
     expect(monthly().summary.groups[0]?.totals.calculatedIcms).toBe('120.00')
     expect(queryBatchDetail(database, n.batchId).consolidation?.counts.calculated).toBe(1)
     const report = queryMonthlyReport(database, { companyId, period: '2026-09' }, 'test')
-    expect(createExcelWorkbook(report).getWorksheet('Eventos e revisões')?.getCell('O6').value).toContain('APPROVE_CCE')
+    expect(createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Eventos e revisões')?.getCell('O6').value).toContain('APPROVE_CCE')
     expect(decide(review(e.id), 'REOPEN_CCE')).toMatchObject({ status: 'CCE_PENDING', canApproveCce: true })
     expect(monthly().summary.counts.calculated).toBe(0)
     expect(report.consolidation?.counts.calculated).toBe(1)

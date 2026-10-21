@@ -165,6 +165,8 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
               fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
+              ...(saved.memory.status !== 'CALCULATED' && calculation.status === saved.memory.status && calculation.reason
+                ? { reason: calculation.reason } : {}),
               ...(saved.memory.status === 'CALCULATED' && readItemFiscalAnswers(saved.memory).entryMethod
                 && (calculation.status !== 'CALCULATED' || calculation.reviewReason)
                 ? { reviewReason: calculation.reviewReason ?? `${calculation.reason ?? 'Revise as condições da entrada.'} O resultado anterior está preservado para auditoria.`,
