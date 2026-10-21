@@ -58,18 +58,23 @@ e filtros da conferência.
 
 ### Exportar produtos para Excel
 
-No detalhe do lote, use **Exportar Excel**. A primeira aba, **Itens**, tem uma linha
-por produto de cada nota: nota, série, número do item, código, descrição, ICMS
-declarado, ICMS calculado e diferença. NCM, CFOP, valor do produto, empresa, CNPJ,
-emissão e chave de acesso também ficam nessa linha. ICMS-ST e FCP-ST têm colunas
-próprias, sem repetir o produto em novas linhas. O mesmo produto em notas
-diferentes mantém uma linha para cada nota.
+No detalhe do lote, use **Exportar Excel**. O arquivo abre em uma única aba,
+**Produtos**, com uma tabela simples: nota, item, produto, ICMS declarado no XML,
+ICMS calculado, FCP calculado e tipo de cálculo. Não há filtros, setas de
+cabeçalho, células mescladas ou painéis congelados. Cada produto ocupa uma linha,
+mesmo quando o número do item também aparece em outra nota.
 
-Produtos pendentes e excluídos continuam identificados. Cálculos indisponíveis
-ficam em branco; memórias preservadas para auditoria aparecem em colunas próprias.
-As abas de resumo, divergências e pendências conservam as evidências da
-conferência. A exportação mensal usa essa mesma organização, incluindo o lote de
-origem de cada produto. O arquivo registra o layout XLSX 6.
+**ICMS declarado** é o imposto próprio informado pelo fornecedor no XML;
+**ICMS calculado** mostra o resultado salvo de ST, antecipação ou ICMS próprio,
+identificado em **Tipo de cálculo**. A ST/antecipação não é somada ao imposto
+próprio do fornecedor. FCP fica separado. A conferência automática é identificada
+por **Conferência do XML** e não comprova nova obrigação na entrada.
+
+Um cálculo indisponível aparece como **Pendente**, **Revisar**, **Excluído** ou
+**Fora do escopo**, sem ser substituído por zero. O rodapé soma os valores
+exibidos por item e informa **TOTAL PARCIAL** quando há valores indisponíveis.
+Esses subtotais de conferência não representam saldo definitivo a recolher.
+A memória, os motivos e as origens continuam disponíveis no aplicativo.
 
 ### Atividades contábeis
 
@@ -208,6 +213,14 @@ digitados novamente. Os demais cenários cobertos podem aparecer como
 Esse cálculo confere a declaração recebida. A revisão do enquadramento pelas
 regras fiscais continua disponível em **Revisar enquadramento fiscal**.
 
+Nos itens CST 00, modalidade 3, com IPI, a conferência usa **vBC × pICMS ÷ 100**
+e compara com o ICMS destacado. Ela não confirma se o IPI deveria compor a base;
+essa decisão fica na revisão fiscal. Sem vBC, o item permanece pendente.
+Diferenças de centavos continuam visíveis na memória de cálculo.
+Nas entradas ainda sem tratamento definido, a pendência pede primeiro a escolha
+entre ST, antecipação e ausência de novo débito. Classificação e MVA ausentes
+são indicadas antes da confirmação de FCP-ST.
+
 Na aba **Revisão**, ficam os itens com dados ausentes ou divergências, incluindo
 os que já foram calculados automaticamente. Se a tabela indicar 47,77% e o
 XML declarar 0%, o cálculo por catálogo usa a tabela e mostra a divergência de
@@ -215,8 +228,8 @@ MVA em percentual. A conferência exclusiva dos parâmetros declarados mantém
 a margem do XML. Uma alteração manual de MVA é aceita e suas diferenças são
 calculadas, preservando o histórico.
 Modalidades não suportadas continuam com o motivo da pendência. Respostas
-manuais anteriores são preservadas. O XLSX traz o CNPJ da empresa no cabeçalho,
-nas linhas da conferência e no nome sugerido para o arquivo.
+manuais anteriores são preservadas. O XLSX mantém uma linha por produto e o
+CNPJ da empresa no nome sugerido para o arquivo.
 
 **Salvar e calcular** indica junto a cada campo o dado ausente ou inválido e
 leva o foco ao primeiro problema. **Salvar rascunho** guarda respostas
@@ -474,10 +487,9 @@ clique em **Consultar / atualizar** para refletir alterações de cálculos.
 Notas sem empresa ou data válida devem ser revisadas no histórico dos lotes.
 
 **Exportar Excel mensal** consulta novamente os resultados e salva apenas
-a empresa e o mês selecionados. As abas básicas são Resumo, Itens, Divergências,
-Pendências e exclusões e Lotes. Quando há eventos relacionados, também aparece
-Eventos e revisões. As linhas detalhadas identificam o lote de
-origem. Cancelar o seletor mantém o destino anterior. Conclua ou pause a
+a empresa e o mês selecionados, na mesma tabela simples da aba **Produtos**.
+As origens, os eventos e as decisões continuam disponíveis na conferência e no
+lote de origem. Cancelar o seletor mantém o destino anterior. Conclua ou pause a
 importação antes de consultar ou exportar.
 
 A conferência mensal não concede créditos de compras nem informa saldo final
@@ -506,10 +518,9 @@ retorno inconsistente ou evento com efeito ainda não coberto mantém a exclusã
 Revisão concluída não elimina outras pendências nem duplica notas entre lotes.
 A tela usa evidências locais e não consulta a SEFAZ nem verifica assinaturas.
 
-O Excel inclui **Eventos e revisões** quando há eventos relacionados: protocolo,
-data, texto, origem e decisões. Em **Itens**, as colunas de valores salvos para
-auditoria conservam base e ICMS, inclusive em notas excluídas. Esses valores não
-são acrescentados aos totais do resumo.
+Consulte protocolo, data, texto, origem e decisões na revisão documental do
+aplicativo. O Excel simples identifica os produtos excluídos e não acrescenta
+seus cálculos históricos aos subtotais. As memórias anteriores são preservadas.
 
 
 ## Conflitos entre versões da mesma nota
@@ -542,6 +553,6 @@ denegação reconhecidos em qualquer versão mantêm a exclusão. CC-e vinculada
 um conteúdo descartado exige confirmar o vínculo à versão escolhida e revisá-la
 novamente. Nenhum arquivo ou cálculo anterior é removido.
 
-O Excel acrescenta **Conflitos e decisões** quando houver conflitos relacionados,
-com conteúdo, arquivo e lote de cada ocorrência, escolha vigente e histórico.
-Memórias salvas para auditoria continuam separadas dos valores totalizados.
+Consulte conteúdo, arquivo e lote de cada ocorrência, escolha vigente e histórico
+na tela de conflitos. O Excel simples mantém a linha dos produtos excluídos,
+sem somar suas memórias históricas aos valores calculados elegíveis.

@@ -9,7 +9,7 @@ function column(sheet: ExcelJS.Worksheet, title: string): number {
   if (!found) throw new Error(`Coluna ausente: ${title}`)
   return found
 }
-describe('exportação XLSX de conferência', () => {
+describe('exportação XLSX de auditoria', () => {
   it('exporta um produto em uma única linha com ICMS, ICMS-ST e FCP-ST em colunas próprias', async () => {
     const report = structuredClone(excelFixture())
     const item = report.items[0]!
@@ -25,7 +25,7 @@ describe('exportação XLSX de conferência', () => {
       items: [{ itemNumber: item.itemNumber, declaredIcms: item.declaredIcmsAmount, declaredIcmsSt: item.declaredIcmsStAmount,
         declaredFcpSt: item.declaredFcpStAmount, memory: { schemaVersion: 1, ...item.calculation } }] }])
     expect(report.consolidation.evidence).toHaveLength(3)
-    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await generateExcelReport(report)) as never)
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await generateExcelReport(report, { layout: 'AUDIT' })) as never)
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.rowCount).toBe(6)
     expect(book.worksheets[0]?.name).toBe('Itens')
@@ -45,7 +45,7 @@ describe('exportação XLSX de conferência', () => {
     report.consolidation!.evidence = [report.consolidation!.evidence[0]!, {
       ...report.consolidation!.evidence[0]!, documentId: 'segunda-nota', documentNumber: '0002', accessKey: '1'.repeat(44),
     }]
-    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Itens')!
     expect(sheet.rowCount).toBe(7)
     expect(sheet.getCell(6, column(sheet, 'Nota')).value).toBe('0001')
     expect(sheet.getCell(7, column(sheet, 'Nota')).value).toBe('0002')
@@ -56,7 +56,7 @@ describe('exportação XLSX de conferência', () => {
   it('não totaliza resultados de um produto excluído, mas preserva a memória e o XML na mesma linha', () => {
     const report = structuredClone(excelFixture())
     report.consolidation!.evidence[0]!.status = 'EXCLUDED'
-    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Situação fiscal')).value).toBe('Excluído')
     expect(sheet.getCell(6, column(sheet, 'ICMS calculado (R$)')).value).toBeNull()
     expect(sheet.getCell(6, column(sheet, 'Diferença ICMS (R$)')).value).toBeNull()
@@ -72,7 +72,7 @@ describe('exportação XLSX de conferência', () => {
       companyId: 'company', issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1', authorization: 'WITH_PROTOCOL',
       items: [{ itemNumber: item.itemNumber, declaredIcms: item.declaredIcmsAmount, declaredFcpSt: item.declaredFcpStAmount,
         memory: { schemaVersion: 1, ...item.calculation } }] }])
-    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Itens')!
     expect(sheet.rowCount).toBe(6)
     expect(sheet.getCell(6, column(sheet, 'Situação fiscal')).value).toBe('Pendente')
     expect(sheet.getCell(6, column(sheet, 'ICMS calculado (R$)')).value).toBe(120)
@@ -83,7 +83,7 @@ describe('exportação XLSX de conferência', () => {
   it('não omite produtos quando a consolidação não tem evidência para eles', () => {
     const report = structuredClone(excelFixture())
     report.consolidation!.evidence = []
-    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Itens')!
     expect(sheet.rowCount).toBe(7)
     expect(sheet.getCell(6, column(sheet, 'Situação fiscal')).value).toBe('Sem consolidação')
     expect(sheet.getCell(6, column(sheet, 'ICMS calculado (R$)')).value).toBeNull()
@@ -93,7 +93,7 @@ describe('exportação XLSX de conferência', () => {
     const report = structuredClone(excelFixture())
     report.consolidation!.evidence[0]!.comparisons = [{ component: 'MVA', calculated: '47.77', declared: '0', difference: '47.77',
       tolerance: '0.0001', status: 'DIFFERENT' }]
-    const sheet = createExcelWorkbook(report).getWorksheet('Divergências')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Divergências')!
     let mvaRow = 0
     sheet.eachRow((row, index) => { if (row.getCell(column(sheet, 'Campo conferido')).value === 'MVA') mvaRow = index })
     expect(mvaRow).toBeGreaterThan(5)
@@ -110,7 +110,7 @@ describe('exportação XLSX de conferência', () => {
       accessKey: '0'.repeat(44), companyId: 'company', issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1',
       authorization: 'UNVERIFIED', items: [{ itemNumber: item.itemNumber, declaredIcms: item.declaredIcmsAmount,
         declaredIcmsSt: item.declaredIcmsStAmount, memory: { schemaVersion: 1, ...item.calculation } }] }])
-    const book = createExcelWorkbook(report)
+    const book = createExcelWorkbook(report, { layout: 'AUDIT' })
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Componentes conferidos')).value).toBe('ICMS-ST')
     expect(sheet.getCell(6, column(sheet, 'ICMS-ST declarado (R$)')).value).toBe(106.30)
@@ -129,14 +129,14 @@ describe('exportação XLSX de conferência', () => {
     report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: 'doc', companyId: 'company', documentNumber: '1',
       accessKey: '0'.repeat(44), issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1', authorization: 'UNVERIFIED',
       items: [{ itemNumber: '1', memory: { schemaVersion: 1, ...item.calculation } }] }])
-    const sheet = createExcelWorkbook(report).getWorksheet('Itens')!
+    const sheet = createExcelWorkbook(report, { layout: 'AUDIT' }).getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet,'MVA aplicada (%)')).value).toBe('58.54')
     expect(sheet.getCell(6, column(sheet,'ICMS-ST calculado (R$)')).value).toBeNull()
     expect(sheet.getCell(6, column(sheet,'Regra específica da MVA')).text).toContain('58.54')
   })
   it('gera arquivo reabrível com quatro abas, filtros, cabeçalhos fixos e números conciliados', async () => {
     const report = excelFixture()
-    const bytes = await generateExcelReport(report)
+    const bytes = await generateExcelReport(report, { layout: 'AUDIT' })
     const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(bytes) as never)
     expect(book.worksheets.map(s => s.name)).toEqual(['Itens', 'Resumo', 'Divergências', 'Pendências e exclusões'])
     for (const sheet of book.worksheets) {
@@ -170,7 +170,7 @@ describe('exportação XLSX de conferência', () => {
     const report = structuredClone(excelFixture())
     report.items[0]!.description = '=HYPERLINK("https://example.com", "abrir")'
     report.items[0]!.declaredIcmsAmount = '12345678901234567890.01'
-    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await generateExcelReport(report)) as never)
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await generateExcelReport(report, { layout: 'AUDIT' })) as never)
     const sheet = book.getWorksheet('Itens')!
     expect(sheet.getCell(6, column(sheet, 'Produto')).value).toBe(report.items[0]!.description)
     expect(sheet.getCell(6, column(sheet, 'Produto')).type).toBe(ExcelJS.ValueType.String)
@@ -180,9 +180,9 @@ describe('exportação XLSX de conferência', () => {
   it('mostra abas vazias sem inventar registros e recusa consolidação ausente', () => {
     const report = structuredClone(excelFixture())
     report.consolidation!.groups = []; report.consolidation!.evidence = []
-    const book = createExcelWorkbook(report)
+    const book = createExcelWorkbook(report, { layout: 'AUDIT' })
     expect(book.getWorksheet('Resumo')!.getCell('A6').value).toBe('Nenhum registro nesta aba.')
     delete report.consolidation
-    expect(() => createExcelWorkbook(report)).toThrow('Consolidação')
+    expect(() => createExcelWorkbook(report, { layout: 'AUDIT' })).toThrow('Consolidação')
   })
 })

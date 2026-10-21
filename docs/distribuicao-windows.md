@@ -1,5 +1,12 @@
 # Distribuição Windows inicial
 
+A versão **0.1.1** inclui o Excel padrão simples (aba Produtos, uma linha por
+item), a conferência aritmética de CST 00/modBC 3 com IPI pela base explícita do
+XML e mensagens de pendência que priorizam os dados e decisões ausentes. A leitura
+de nota com protocolo embutido sem versão conserva os itens e registra a ausência
+de comprovação da autorização. O pacote precisa passar pelo workflow Windows da
+própria revisão antes de ser entregue para instalação de teste.
+
 O instalador de teste é NSIS x64, por usuário, com escolha de pasta, sem exigir
 instalação por máquina. `pnpm --filter @motor/desktop dist:win` gera o `.exe`
 em `apps/desktop/release`. O pacote inclui main, preload, renderer, worker de

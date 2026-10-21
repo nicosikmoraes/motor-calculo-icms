@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import ExcelJS from 'exceljs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC_CHANNELS } from '@motor/contracts'
-import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCompanyRepository, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
+import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteCompanyRepository, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
 const state = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => any>(), database: null as any,
   saveDialog: vi.fn(), window: {} as unknown, busy: false }))
 vi.mock('electron', () => ({ app: { getVersion: () => 'test' }, BrowserWindow: { fromWebContents: () => state.window },
@@ -13,6 +13,7 @@ vi.mock('../src/main/main-services', () => ({ activeDatabase: () => state.databa
   requiredInputText: (raw: unknown) => { if (typeof raw !== 'string' || !raw.trim()) throw new Error('Entrada inválida'); return raw.trim() } }))
 import { registerReportHandlers } from '../src/main/report-handlers'
 import { writeExcelFile } from '../src/main/report-file-io'
+import { queryBatchDetail } from '../src/main/batch-query-handlers'
 const org = '00000000-0000-4000-8000-000000000001', batchId = '00000000-0000-4000-8000-000000000002'
 const companyId = '00000000-0000-4000-8000-000000000003', documentId = '00000000-0000-4000-8000-000000000004'
 const fileId = '00000000-0000-4000-8000-000000000005', now = '2026-10-04T12:00:00.000Z'
@@ -38,16 +39,26 @@ beforeEach(async () => {
 })
 afterEach(async () => { state.database.close(); await rm(directory, { recursive: true, force: true }) })
 describe('exportação de lote com destino nativo', () => {
+  it('mostra o motivo atual da pendência sem reescrever a memória histórica', () => {
+    const current = queryBatchDetail(state.database, batchId).documents[0]!.items[0]!.calculation
+    expect(current.status).toBe('UNSUPPORTED')
+    const repository = new SqliteCalculationRepository(state.database)
+    const saved = repository.save({ batchId, documentId, requestId: 'old-pending', engineVersion: 'previous', items: [{ itemNumber: '1',
+      memory: { schemaVersion: 1, status: 'UNSUPPORTED', reason: 'Mensagem antiga', inputs: [], steps: [] } }] })
+    expect(queryBatchDetail(state.database, batchId).documents[0]!.items[0]!.calculation).toMatchObject({ runId: saved.id, reason: current.reason })
+    expect(repository.latestByDocument(documentId)?.items[0]!.memory.reason).toBe('Mensagem antiga')
+    expect(state.database.get('SELECT count(*) AS total FROM execucoes_calculo').total).toBe(1)
+  })
   it('consulta o banco, salva XLSX válido e mantém pendências sem calcular novos impostos', async () => {
     expect(await invoke()).toEqual({ path })
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
-    expect(book.worksheets).toHaveLength(4)
-    expect(book.getWorksheet('Itens')!.getCell('A6').value).toBe('0001')
+    expect(book.worksheets.map(s => s.name)).toEqual(['Produtos'])
+    expect(book.getWorksheet('Produtos')!.getCell('A2').value).toBe('0001')
     expect(state.database.get('SELECT count(*) AS total FROM execucoes_calculo').total).toBe(0)
     expect(state.saveDialog.mock.calls[0]?.[1].defaultPath).toContain('11222333000181')
-    expect(book.getWorksheet('Itens')!.getCell('A3').text).toContain('11222333000181')
-    const headers = book.getWorksheet('Itens')!.getRow(5).values as string[]
-    expect(book.getWorksheet('Itens')!.getCell(6, headers.indexOf('CNPJ da empresa')).text).toBe('11222333000181')
+    expect(book.getWorksheet('Produtos')!.autoFilter).toBeUndefined()
+    expect(book.getWorksheet('Produtos')!.views[0]?.state).toBe('normal')
+    expect(typeof book.getWorksheet('Produtos')!.getCell('E2').value).toBe('string')
     expect(await readdir(directory)).toEqual(['conferencia.xlsx'])
   })
   it('cancela sem alterar o arquivo anterior', async () => {
@@ -67,10 +78,11 @@ describe('exportação de lote com destino nativo', () => {
     expect(await readdir(directory)).toEqual([])
   })
   it('exporta snapshot capturado antes do diálogo mesmo se o banco mudar', async () => {
-    state.saveDialog.mockImplementationOnce(async () => { state.database.run('UPDATE empresas SET razao_social = ? WHERE id = ?', 'Nome alterado', companyId); return { canceled: false, filePath: path } })
+    state.saveDialog.mockImplementationOnce(async () => { state.database.run('UPDATE documentos_fiscais SET numero = ? WHERE id = ?', '9999', documentId); return { canceled: false, filePath: path } })
     await invoke()
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
-    expect(book.getWorksheet('Itens')!.getCell(6, (book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Empresa')).value).toBe('Empresa')
+    expect(book.getWorksheet('Produtos')!.getCell('A2').value).toBe('0001')
+    expect(state.database.get('SELECT numero FROM documentos_fiscais WHERE id = ?', documentId).numero).toBe('9999')
   })
   it('limpa temporários quando a troca do destino falha', async () => {
     const target = join(directory, 'destino.xlsx'); await mkdir(target)
@@ -88,9 +100,8 @@ describe('conferência mensal via IPC', () => {
     expect(summary.summary.evidence[0].batchId).toBe(batchId)
     expect(await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).toEqual({ path })
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
-    expect(book.worksheets).toHaveLength(6)
-    expect(book.getWorksheet('Itens')!.getCell(6, (book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Lote de origem')).value).toBe(batchId)
-    expect(book.getWorksheet('Itens')!.getCell('A3').value).toContain('Mês: 2026-10')
+    expect(book.worksheets.map(s => s.name)).toEqual(['Produtos'])
+    expect(book.getWorksheet('Produtos')!.getCell('A2').value).toBe('0001')
     expect(state.database.get('SELECT count(*) AS total FROM execucoes_calculo').total).toBe(0)
   })
   it('recusa iframe, empresa desconhecida, mês inválido e importação ativa', async () => {
@@ -106,9 +117,10 @@ describe('conferência mensal via IPC', () => {
     await writeFile(path, 'anterior'); state.saveDialog.mockResolvedValueOnce({ canceled: true, filePath: path })
     expect(await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)).toBeNull()
     expect(await readFile(path, 'utf8')).toBe('anterior')
-    state.saveDialog.mockImplementationOnce(async () => { state.database.run('UPDATE empresas SET razao_social = ? WHERE id = ?', 'Alterada', companyId); return { canceled: false, filePath: path } })
+    state.saveDialog.mockImplementationOnce(async () => { state.database.run('UPDATE documentos_fiscais SET numero = ? WHERE id = ?', '9999', documentId); return { canceled: false, filePath: path } })
     await monthly(IPC_CHANNELS.EXPORT_MONTHLY_EXCEL)
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(path) as never)
-    expect(book.getWorksheet('Itens')!.getCell(6, (book.getWorksheet('Itens')!.getRow(5).values as string[]).indexOf('Empresa')).value).toBe('Empresa')
+    expect(book.getWorksheet('Produtos')!.getCell('A2').value).toBe('0001')
+    expect(state.database.get('SELECT numero FROM documentos_fiscais WHERE id = ?', documentId).numero).toBe('9999')
   })
 })

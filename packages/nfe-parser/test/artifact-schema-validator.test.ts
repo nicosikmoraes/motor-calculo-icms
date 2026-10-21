@@ -10,6 +10,10 @@ const protocol = `<protNFe xmlns="${ns}" versao="4.00"><infProt><tpAmb>2</tpAmb>
 async function analyze(xml: string) { return validateDocumentArtifactSchema(xml, parseDocumentArtifactXml(xml)) }
 const event = (type = '110111', detail = '<descEvento>Cancelamento</descEvento><nProt>141260000000001</nProt><xJust>Cancelamento de nota emitida indevidamente</xJust>') => `<evento xmlns="${ns}" versao="1.00"><infEvento Id="ID${type}${key}01"><cOrgao>41</cOrgao><tpAmb>2</tpAmb><CNPJ>12345678000190</CNPJ><chNFe>${key}</chNFe><dhEvento>2026-01-01T12:00:00-03:00</dhEvento><tpEvento>${type}</tpEvento><nSeqEvento>1</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00">${detail}</detEvento></infEvento></evento>`
 describe('XSD offline de artefatos', () => {
+  it('registra protocolo sem versão como diagnóstico sem confirmar sua autorização', async () => {
+    const xml = new NfeXmlFixtureBuilder().build().replace(/(<protNFe\b[^>]*?)\sversao="4\.00"/, '$1')
+    expect(await analyze(xml)).toEqual([expect.objectContaining({ code: 'PROTOCOLO_VERSAO_AUSENTE', message: expect.stringContaining('sem confirmação') })])
+  })
   it('valida o protocolo do NFeLog inclusive sem namespace no exportador', async () => {
     const xml = new NfeXmlFixtureBuilder().build().replace(/<\?xml[^>]*\?>/, '')
     const legacy = `<NFeLog versao="1.00">${xml.replace(/<nfeProc\b[^>]*>/, '<procNFe>').replace('</nfeProc>', '</procNFe>')}</NFeLog>`

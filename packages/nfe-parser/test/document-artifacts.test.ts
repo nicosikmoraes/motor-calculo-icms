@@ -28,6 +28,17 @@ describe('protocolos e eventos XML', () => {
       version: '4.00', statusCode: '100',
     })
   })
+  it('preserva a nota com protocolo sem versão sem confirmar autorização ou inferir versão', () => {
+    const original = readFileSync(new URL('./fixtures/nfe-proc-minima.xml', import.meta.url), 'utf8')
+    const xml = original.replace(/(<protNFe\b[^>]*?)\sversao="4\.00"/, '$1')
+    expect(xml).not.toBe(original)
+    const parsed = parseDocumentArtifactXml(xml)
+    expect(parsed).toMatchObject({ kind: 'NFE', embeddedProtocolIssue: { code: 'PROTOCOLO_VERSAO_AUSENTE' } })
+    if (parsed.kind !== 'NFE') throw new Error('Nota ausente')
+    expect(parsed.embeddedProtocol).toBeUndefined()
+    expect(parsed.note).toEqual((parseDocumentArtifactXml(original) as { note: unknown }).note)
+    expect(() => parseDocumentArtifactXml(`<protNFe><infProt><chNFe>${key}</chNFe><cStat>100</cStat></infProt></protNFe>`)).toThrow(/versao/)
+  })
   it('lê protocolo avulso e evento com retorno correspondente', () => {
     expect(parseDocumentArtifactXml(`<protNFe versao="4.00"><infProt><chNFe>${key}</chNFe><cStat>100</cStat></infProt></protNFe>`))
       .toMatchObject({ kind: 'PROTOCOL', artifact: { accessKey: key, statusCode: '100' } })

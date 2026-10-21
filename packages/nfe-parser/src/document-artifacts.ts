@@ -12,7 +12,7 @@ export enum DocumentArtifactErrorMessage {
   INVALID_EVENT_TYPE = 'Tipo ou sequência do evento inválidos.',
 }
 export type ParsedDocumentArtifact =
-  | { kind: 'NFE'; note: NormalizedNfe; embeddedProtocol?: NormalizedDocumentArtifact }
+  | { kind: 'NFE'; note: NormalizedNfe; embeddedProtocol?: NormalizedDocumentArtifact; embeddedProtocolIssue?: { code: string; message: string } }
   | { kind: 'PROTOCOL' | 'EVENT'; artifact: NormalizedDocumentArtifact }
 
 function required(node: XmlObject | undefined, field: string): string {
@@ -87,6 +87,11 @@ export function parseDocumentArtifactXml(xml: string): ParsedDocumentArtifact {
     if (processed) version(processed, '4.00', 'nfeProc')
     const note = normalizeNfeStructure({ ...(processed ? { processed } : {}), nfe, info })
     const embedded = processed ? asObject(processed.protNFe) : undefined
+    // Um protocolo incompleto não impede ler os itens, mas não comprova autorização.
+    // Não inferimos a versão do protocolo a partir da versão da nota.
+    if (embedded && !asString(embedded['@_versao'])) return { kind: 'NFE', note,
+      embeddedProtocolIssue: { code: 'PROTOCOLO_VERSAO_AUSENTE',
+        message: 'O protocolo embutido não informa a versão. A nota foi importada, mas o protocolo e a autorização permanecem sem confirmação.' } }
     return { kind: 'NFE', note,
       ...(embedded ? { embeddedProtocol: protocol(embedded, ArtifactEnvelopeCode.NFE_PROC, note.accessKey) } : {}) }
   }

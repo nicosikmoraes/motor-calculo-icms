@@ -9,6 +9,12 @@ Pendências e exclusões mantêm o total das entradas em aberto.
 
 ## Importação
 
+Um protocolo embutido sem versão não impede a importação dos produtos: gera
+`PROTOCOLO_VERSAO_AUSENTE`, permanece sem associação e não confirma autorização.
+O XML original é preservado e os resultados continuam provisórios. A versão do
+protocolo não é inferida da versão da nota. Protocolos avulsos continuam exigindo
+sua versão explícita.
+
 Além de `NFe` e `nfeProc`, a aplicação lê a exportação
 `NFeLog versao="1.00"/procNFe/NFe`, com um único documento e no máximo um
 protocolo. O original e seu hash são preservados; não é necessário converter o

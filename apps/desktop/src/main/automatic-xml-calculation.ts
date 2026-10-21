@@ -4,11 +4,11 @@ import { addDecimals, calculateParanaPurchaseIcmsSt, compareDecimals, compareDec
   type CalculationMemory, type CalculationComponentMemory } from '@motor/tax-engine'
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
-export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_1'
+export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_2'
 export const AUTOMATIC_CATALOG_VERSION = 'XML_CATALOG_1'
 export const automaticXmlNotice = 'Calculado automaticamente com os parâmetros declarados no XML. As diferenças aparecem na conferência. A incidência e o enquadramento fiscal podem ser revisados separadamente.'
 export function isAutomaticXmlCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
-  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && input.value === AUTOMATIC_XML_VERSION)
+  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && (input.value === AUTOMATIC_XML_VERSION || input.value === 'XML_ARITHMETIC_1'))
 }
 export function isAutomaticCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
   return isAutomaticXmlCalculation(memory) || memory.inputs.some(input => input.name === 'automaticCatalogCalculation' && input.value === AUTOMATIC_CATALOG_VERSION)
@@ -65,7 +65,7 @@ export function calculateAutomaticXmlItem(nfe: NormalizedNfe, item: NormalizedNf
   const tax = item.declaredIcms
   if (!isCalculationEligibleCfop(item.cfop) || !tax || nfe.model !== '55' || nfe.purposeCode !== '1' || item.includedInDocumentTotal === false) return undefined
   const marker = { name: 'automaticXmlCalculation', value: AUTOMATIC_XML_VERSION, source: 'DERIVED/XML', treatment: 'INCLUDED' as const }
-  const rule = { id: 'XML_DECLARED_ARITHMETIC', version: 1, legalBasis: 'Reconstituição aritmética dos valores, percentuais e modalidade declarados no XML da NF-e.' }
+  const rule = { id: 'XML_DECLARED_ARITHMETIC', version: 2, legalBasis: 'Reconstituição aritmética dos valores, percentuais e modalidade declarados no XML da NF-e.' }
   const pending = (reason: string, component: 'ICMS' | 'ICMS_ST' = 'ICMS'): CalculationMemory => ({
     ...pendingCalculation('PENDING_DATA', reason, [marker]), component, rule,
   })
@@ -127,20 +127,30 @@ export function calculateAutomaticXmlItem(nfe: NormalizedNfe, item: NormalizedNf
       return result
     }
     if (tax.cst !== '00' || tax.baseMode !== '3' || tax.baseReductionPercent !== undefined && compareDecimals(tax.baseReductionPercent, '0') !== 0
-      || [tax.fcpAmount, item.ipiAmount].some(value => value !== undefined && compareDecimals(value, '0') > 0)) return undefined
+      || tax.fcpAmount !== undefined && compareDecimals(tax.fcpAmount, '0') > 0) return undefined
+    if (item.ipiAmount !== undefined && compareDecimals(item.ipiAmount, '0') < 0) return pending('O IPI informado no XML é negativo. Revise esse valor antes da conferência.')
+    const hasIpi = item.ipiAmount !== undefined && compareDecimals(item.ipiAmount, '0') > 0
+    if (hasIpi && tax.baseAmount === undefined) return pending('Este item tem IPI, mas o XML não informa a base de ICMS (vBC). Informe uma base revisada no fluxo fiscal; a conferência automática não presume se o IPI deve integrá-la.')
     if (item.productAmount === undefined || tax.rate === undefined) return pending('O XML precisa informar valor do produto e alíquota de ICMS para calcular automaticamente.')
     const amounts = { productAmount: item.productAmount, freightAmount: item.freightAmount ?? '0', insuranceAmount: item.insuranceAmount ?? '0',
       otherAmount: item.otherAmount ?? '0', discountAmount: item.discountAmount ?? '0' }
     if (Object.values(amounts).some(value => compareDecimals(value, '0') < 0) || compareDecimals(tax.rate, '0') < 0 || compareDecimals(tax.rate, '100') > 0) return pending('O XML contém valores ou alíquota inválidos para o cálculo automático.')
-    const base = subtractDecimals(addDecimals(amounts.productAmount, amounts.freightAmount, amounts.insuranceAmount, amounts.otherAmount), amounts.discountAmount)
-    if (compareDecimals(base, '0') < 0) return pending('O desconto informado supera a base da operação.')
+    // Com IPI, confere apenas vBC × pICMS. Não decide se o IPI integra a base.
+    const base = hasIpi ? tax.baseAmount! : subtractDecimals(addDecimals(amounts.productAmount, amounts.freightAmount, amounts.insuranceAmount, amounts.otherAmount), amounts.discountAmount)
+    if (compareDecimals(base, '0') < 0) return pending(hasIpi ? 'A base de ICMS informada no XML é negativa. Revise esse valor antes da conferência.' : 'O desconto informado supera a base da operação.')
     const amount = roundMoney(divideDecimals(multiplyDecimals(base, tax.rate), '100'))
     return { schemaVersion: 1, status: 'CALCULATED', component: 'ICMS', rule,
-      inputs: [marker, ...Object.entries(amounts).map(([name, value]) => ({ name, value, source: item[name as keyof NormalizedNfeItem] === undefined ? 'LAYOUT_ABSENT' : 'XML/item', treatment: 'INCLUDED' as const })),
+      inputs: [marker, ...Object.entries(amounts).map(([name, value]) => ({ name, value, source: item[name as keyof NormalizedNfeItem] === undefined ? 'LAYOUT_ABSENT' : 'XML/item', treatment: hasIpi ? 'UNDECIDED' as const : 'INCLUDED' as const })),
+        ...(hasIpi ? [
+          { name: 'xmlOwnBaseAmount', value: tax.baseAmount!, source: 'XML/vBC', treatment: 'INCLUDED' as const },
+          { name: 'ipiAmount', value: item.ipiAmount!, source: 'XML/vIPI', treatment: 'UNDECIDED' as const,
+            reason: 'A conferência usa a base declarada e não confirma a inclusão ou exclusão do IPI na base legal.' },
+        ] : []),
         { name: 'rate', value: tax.rate, source: 'XML/item', treatment: 'INCLUDED' }],
-      steps: [{ name: 'Base do ICMS conforme XML', operation: 'produto + frete + seguro + despesas − desconto', inputs: amounts, result: base },
-        { name: 'ICMS conforme XML', operation: 'base recalculada × pICMS ÷ 100', inputs: { base, rate: tax.rate }, result: amount, rounding: { scale: 2, mode: 'HALF_UP' } }],
+      steps: [hasIpi ? { name: 'Base do ICMS informada no XML', operation: 'vBC declarada; composição da base e tratamento do IPI não homologados', inputs: { xmlOwnBaseAmount: base, ipiAmount: item.ipiAmount! }, result: base }
+        : { name: 'Base do ICMS conforme XML', operation: 'produto + frete + seguro + despesas − desconto', inputs: amounts, result: base },
+        { name: 'ICMS conforme XML', operation: hasIpi ? 'vBC declarada × pICMS ÷ 100' : 'base recalculada × pICMS ÷ 100', inputs: { base, rate: tax.rate }, result: amount, rounding: { scale: 2, mode: 'HALF_UP' } }],
       result: { component: 'ICMS', base, rate: tax.rate, amount }, declared: { ...(tax.baseAmount !== undefined ? { base: tax.baseAmount } : {}), rate: tax.rate, ...(tax.amount !== undefined ? { amount: tax.amount } : {}) },
-      comparisons: [compareDeclared('BASE', base, tax.baseAmount), compareDeclared('ICMS', amount, tax.amount)] }
+      comparisons: [...(hasIpi ? [] : [compareDeclared('BASE', base, tax.baseAmount)]), compareDeclared('ICMS', amount, tax.amount)] }
   } catch { return pending('O XML contém um valor decimal inválido. Revise os campos destacados antes de calcular.') }
 }

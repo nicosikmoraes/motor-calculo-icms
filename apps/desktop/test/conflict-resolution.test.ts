@@ -73,7 +73,7 @@ describe('resolução auditada de conflitos', () => {
     expect(monthly().summary.evidence.find(e => e.documentId === a.id)?.reasons.join()).toContain('Versão excluída')
     expect(queryBatchDetail(database, b.batchId).consolidation?.counts.calculated).toBe(1)
     expect(oldReport.consolidation?.counts.calculated).toBe(0)
-    const book = createExcelWorkbook(queryMonthlyReport(database, { companyId, period: '2026-09' }, 'test'))
+    const book = createExcelWorkbook(queryMonthlyReport(database, { companyId, period: '2026-09' }, 'test'), { layout: 'AUDIT' })
     expect(book.getWorksheet('Conflitos e decisões')).toBeTruthy()
     expect(book.getWorksheet('Conflitos e decisões')?.getCell('H6').value).toContain('SELECT')
     expect(new SqliteBatchRepository(database).listNormalizedDocuments(b.batchId)[0]).toEqual(original)
