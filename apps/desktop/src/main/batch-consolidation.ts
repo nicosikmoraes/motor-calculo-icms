@@ -1,4 +1,4 @@
-import { isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
+import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
 import { compareDecimals, paranaStMvaCandidates, specificStSector } from '@motor/tax-engine'
 import { buildBatchConsolidation, type ConsolidationDocument } from '@motor/reporting'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
@@ -58,10 +58,11 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
       runId: run?.id, engineVersion: run?.engineVersion,
       items: nfe.items.map(item => {
         const memory = run?.items.find(saved => saved.itemNumber === item.itemNumber)?.memory
-        if (!isCalculationEligibleCfop(item.cfop)) return { cfop: item.cfop, itemNumber: item.itemNumber,
+        const entryExclusion = paranaInterstateEntryExclusionReason(nfe, item.cfop, company?.cnpj)
+        if (entryExclusion) return { cfop: item.cfop, itemNumber: item.itemNumber,
           declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
           declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate, memory,
-          exclusionReason: calculationCfopExclusionReason }
+          exclusionReason: entryExclusion }
         if (memory?.status === 'CALCULATED' && memory.component === 'ICMS_ENTRY' && readItemFiscalAnswers(memory).entryMethod === 'RATE_DIFFERENCE'
           && !['6101','6102'].includes(item.cfop ?? '')) return { cfop: item.cfop, itemNumber: item.itemNumber, memory: { ...memory,
             status: 'PENDING_RULE' as const, reason: 'Amostra grátis, bonificação ou outra remessa exige regra própria de entrada. A simulação anterior está preservada para auditoria.' } }
@@ -70,9 +71,9 @@ export function getBatchConsolidationDocuments(connection: SqliteDatabase, batch
           const scope = purchaseStScope(nfe, item, answers, company?.cnpj)
           const regime = scope?.supplier.taxRegimeCode ?? (answers.stSupplierNormalConfirmed ? '3' : undefined)
           const simpleCovered = regime === '1' && (memory.rule?.version ?? 0) >= 5
-            && answers.stSimpleDeductionConfirmed === true && ['101','102'].includes(item.declaredIcms?.csosn ?? '')
+            && (answers.stSimpleDeductionConfirmed === true || memory.inputs.some(i=>i.name==='calculationPurpose'&&i.value==='INTERSTATE_ENTRY_ST_ESTIMATE')) && ['101','102'].includes(item.declaredIcms?.csosn ?? '')
             && memory.inputs.some(i => i.name === 'mvaMode' && i.value === 'ORIGINAL')
-          if (!scope || (regime !== '3' && !simpleCovered) || nfe.finalConsumerIndicator === '1' || scope.buyer.stateRegistrationIndicator === '9'
+          if (!scope || (regime !== '3' && !simpleCovered) || nfe.finalConsumerIndicator === '1' && !(answers.destination === 'RESALE' && answers.destinationBasis === 'CONFIRMED' && answers.destinationReviewReason?.trim()) || scope.buyer.stateRegistrationIndicator === '9'
             || (item.declaredIcms?.cst !== undefined && !['00', '10'].includes(item.declaredIcms.cst))) {
             return { cfop: item.cfop, itemNumber: item.itemNumber, declaredIcms: item.declaredIcms?.amount, declaredIcmsSt: item.declaredIcms?.stAmount, declaredFcpSt: item.declaredIcms?.fcpStAmount,
             declaredFcpStBase: item.declaredIcms?.fcpStBaseAmount, declaredFcpStRate: item.declaredIcms?.fcpStRate,

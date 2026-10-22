@@ -29,7 +29,7 @@ export function registerItemFiscalHandlers(): void {
         return input.calculationMode
       })() } : {}),
       ...(input.reuseScope !== undefined ? { reuseScope: (() => {
-        if (input.reuseScope === 'MATCHING_NOTE_ITEMS') return 'MATCHING_NOTE_ITEMS'
+        if (input.reuseScope === 'MATCHING_NOTE_ITEMS' || input.reuseScope === 'MATCHING_BATCH_ITEMS') return input.reuseScope
         if (input.reuseScope !== 'CURRENT_ITEM' && input.reuseScope !== 'FUTURE_NOTES') throw new Error('Alcance das respostas inválido.')
         return input.reuseScope
       })() } : {}),

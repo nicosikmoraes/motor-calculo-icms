@@ -49,8 +49,7 @@ describe('revisão da antecipação do adquirente',()=>{
     expect(reopened.destinationAssumption).toContain('orientação do usuário')
   })
   it('persiste a obrigação separada e preserva o cálculo próprio anterior no histórico',()=>{
-    expect(applyAutomaticXmlCalculations(db,batchId)).toBe(1)
-    const previous=getItemFiscalContext(db,batchId,documentId,'1')
+    const previous=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:randomUUID(),calculationMode:'XML',answers:{}})
     expect(previous.calculation.result?.amount).toBe('87.39')
     const current=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:randomUUID(),expectedRunId:previous.runId!,answers})
     expect(current.calculation.result).toMatchObject({component:'ICMS_ENTRY',amount:'174.79'})

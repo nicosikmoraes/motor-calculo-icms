@@ -34,7 +34,7 @@ export function historyStatus(batch: DashboardBatchSummary): HistoryStatus {
   if (batch.totalPendencies) return { label: 'Diagnósticos', group: 'attention', tone: 'warning' }
   if (counts.calculatedNotes) return { label: 'Concluído', group: 'complete', tone: 'success' }
   if (counts.blockedNotes) return { label: 'Fora dos totais', group: 'excluded', tone: 'neutral' }
-  if (counts.excludedNotes) return { label: 'Sem CFOP iniciado em 6', group: 'excluded', tone: 'neutral' }
+  if (counts.excludedNotes) return { label: 'Sem CFOP elegível', group: 'excluded', tone: 'neutral' }
   return { label: 'Sem notas', group: 'files', tone: 'neutral' }
 }
 

@@ -21,7 +21,7 @@ export function queryDashboard(connection: SqliteDatabase): readonly DashboardBa
         byCompany.set(key, counts)
       }
       counts.receivedNotes++
-      const eligible = document.items.filter(item => isCalculationEligibleCfop(item.cfop))
+      const eligible = document.items.filter(item => !item.exclusionReason && isCalculationEligibleCfop(item.cfop))
       if (document.exclusionReason) {
         counts.blockedNotes++
         const record = evidence.documents.get(document.documentId)

@@ -32,8 +32,8 @@ function notes(hashes: string[], changes: Partial<NormalizedNfe> = {}, company =
     occurrenceId: file.id, contentHash: file.contentHash, eligibleForProcessing: !pending && hashes.length === 1,
     ...((pending || hashes.length > 1) ? { pendingReason: pending ?? 'OCORRENCIA_INELEGIVEL' } : {}), createdAt: now,
     normalized: { kind: 'NFE', layoutVersion: '4.00', model: '55', accessKey, number: '123', series: '1', issuedAt: '2026-09-30T10:00:00-03:00', environmentCode: environment,
-      operationDirection: '1', purposeCode: '1', finalConsumerIndicator: '0', issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
-      recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: { documentAmount: String(1000 + index * 100) }, source,
+      operationDirection: '1', purposeCode: '1', finalConsumerIndicator: '0', issuer: { state: 'SP', taxId: '00000000000191', taxIdType: 'CNPJ', taxRegimeCode: '3' },
+      recipient: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: { documentAmount: String(1000 + index * 100) }, source,
       items: [{ itemNumber: '1', supplierProductCode: '001', cfop: '6102', description: 'Produto teste', productAmount: String(1000 + index * 100), declaredIcms: { cst: '00', amount: '195.00' }, source }], ...changes } }))
   new SqliteBatchRepository(database).createWithOccurrences({ id: batchId, organizationId: organization, status: 'RECEBIDO', originalName: 'Lote de teste', environmentCode: environment as '1' | '2', receivedAt: now, createdAt: now, updatedAt: now }, occurrences, [], documents)
   for (const document of documents) new SqliteCalculationRepository(database).save({ requestId: randomUUID(), batchId, documentId: document.id, engineVersion: 'PR_COMMON_2', items: [{ itemNumber: '1', memory: {
@@ -166,7 +166,7 @@ describe('resolução auditada de conflitos', () => {
     expect(monthly('2026-08').summary.counts.calculated).toBe(1)
     const other = randomUUID()
     new SqliteCompanyRepository(database).create({ id: other, organizationId, legalName: 'Comprador', cnpj: '11444777000161', state: 'PR', active: true, createdAt: now, updatedAt: now })
-    notes(['b'], { issuedAt: '2026-08-31T23:00:00-03:00' }, other)
+    notes(['b'], { issuedAt: '2026-08-31T23:00:00-03:00', recipient: {state:'PR',taxId:'11444777000161',taxIdType:'CNPJ',stateRegistrationIndicator:'1'} }, other)
     expect(row().status).toBe('RESOLVED'); expect(monthly('2026-08', other).summary.counts.calculated).toBe(1)
     expect(monthly('2026-08', other).summary.groups[0]?.perspective).toBe('PURCHASES')
   })

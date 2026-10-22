@@ -1,4 +1,4 @@
-import { consolidationEvidenceDivergent, itemCalculationComponents, type ConsolidationEvidence, type ItemComponentCalculationSummary, type TaxComponent } from '@motor/contracts'
+import { documentaryTaxReview, consolidationEvidenceDivergent, itemCalculationComponents, type ConsolidationEvidence, type ItemComponentCalculationSummary, type TaxComponent } from '@motor/contracts'
 import type { ReportData } from './report-data'
 
 type CellValue = string | number | undefined
@@ -44,17 +44,19 @@ export function buildExcelItemRows(report: ReportData): { columns: ItemColumn[];
   }
   columns.push(text('MVA original (%)'), text('MVA aplicada (%)'), text('Referência da MVA', 50), text('Referência FCP-ST', 50), text('Regra específica da MVA', 60), text('Antecipação exata antes do arredondamento (R$)', 32))
 
+  columns.push(text('Tratamento documental'), money('Base ST anterior informada'), text('Alíquota ST anterior informada (%)'), money('ST anterior informada'), money('ICMS do substituto informado'), money('FCP-ST anterior informado'), money('Desoneração informada'))
   const rows = report.items.map(item => {
+    const documentary = documentaryTaxReview(item.calculation)
     const document = documents.get(item.documentId)
     if (!document) throw new Error('Produto referencia documento ausente.')
     const entries = evidenceByItem.get(itemKey(item.documentId, item.itemNumber)) ?? new Map<TaxComponent, ConsolidationEvidence>()
     const allEntries = [...entries.values()]
     const memories = new Map(itemCalculationComponents(item.calculation).map(memory => [memory.component ?? memory.result?.component ?? (item.declaredIcmsStAmount !== undefined ? 'ICMS_ST' : 'ICMS'), memory] as const))
     const declared = (component: TaxComponent) => component === 'ICMS_ENTRY' ? undefined : component === 'ICMS' ? item.declaredIcmsAmount : component === 'ICMS_ST' ? item.declaredIcmsStAmount : item.declaredFcpStAmount
-    const calculated = (component: TaxComponent) => entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.calculatedIcms : undefined
-    const difference = (component: TaxComponent) => entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.comparison?.difference : undefined
+    const calculated = (component: TaxComponent) => !documentary && entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.calculatedIcms : undefined
+    const difference = (component: TaxComponent) => !documentary && entries.get(component)?.status === 'CALCULATED' ? entries.get(component)?.comparison?.difference : undefined
     const anchor = allEntries[0]
-    const status = !allEntries.length ? 'Sem consolidação'
+    const status = documentary && !allEntries.every(entry => entry.status === 'EXCLUDED') ? 'Não apurado' : !allEntries.length ? 'Sem consolidação'
       : allEntries.every(entry => entry.status === 'EXCLUDED') ? 'Excluído'
         : allEntries.some(entry => entry.status === 'UNSUPPORTED') ? 'Fora do escopo'
           : allEntries.some(entry => entry.status !== 'CALCULATED') ? 'Pendente'
@@ -91,6 +93,7 @@ export function buildExcelItemRows(report: ReportData): { columns: ItemColumn[];
     row.push(input(st, 'originalMvaPercent') ?? specific?.originalMvaPercent,
       st?.steps.find(step => step.name === 'Base de cálculo do ICMS-ST')?.inputs.appliedMvaPercent ?? specific?.appliedMvaPercent,
       input(st, 'mvaCatalogRow'), input(memories.get('FCP_ST'), 'fcpStRule'), specificInput, entries.get('ICMS_ENTRY')?.exactCalculatedIcms)
+    row.push(documentary?.title, documentary?.reported.retainedStBaseAmount, documentary?.reported.retainedStRate, documentary?.reported.retainedStAmount, documentary?.reported.substituteIcmsAmount, documentary?.reported.retainedFcpStAmount, documentary?.reported.exemptAmount)
     return row
   })
   return { columns, rows }

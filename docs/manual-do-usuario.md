@@ -18,9 +18,9 @@ precisam de conferência. Filtre por empresa e pelo mês da importação; o grá
 pode ser agrupado por empresa ou data. Clique nas barras de uma empresa para
 filtrar o painel. **Atualizar** consulta novamente as memórias salvas.
 
-Uma nota é contada como calculada quando todos os seus itens com CFOP iniciado em **6**
+Uma nota é contada como calculada quando todos os seus itens de compra interestadual para a empresa do Paraná
 têm resultado salvo. O gráfico circular separa notas calculadas, notas aguardando
-cálculo, notas sem itens com CFOP iniciado em 6 e notas fora dos totais pela política documental.
+cálculo, notas sem itens com CFOP elegível e notas fora dos totais pela política documental.
 Divergências são contadas por item e podem ocorrer em notas já calculadas.
 O painel não executa nem modifica cálculos.
 
@@ -196,47 +196,14 @@ O usuário não informa alíquota, finalidade ou tratamento durante o envio. O s
 
 ## 4. Interpretar o resultado
 
-### Cálculo automático dos parâmetros do XML
+### Cálculo automático das entradas interestaduais
 
-Após importar, o aplicativo grava o cálculo somente dos itens cujo **CFOP começa
-com 6** e que têm dados suficientes. A presença de ICMS declarado não seleciona
-o item: sem esse valor, ele continua elegível, mas fica pendente se faltar um
-dado necessário à fórmula. Em notas com CFOPs diferentes, cada produto segue
-seu próprio CFOP. Os demais produtos permanecem visíveis na nota e no Excel,
-com o motivo da exclusão e sem participar dos totais calculados. Memórias
-anteriores são preservadas para auditoria. Nas compras com ST declarada que correspondem a uma única
-linha do catálogo vigente, obtém a MVA por NCM, CEST e data e combina com as
-alíquotas e valores do XML. O resultado aparece como **Calculado por XML e
-catálogo**. A tela mostra a origem dos percentuais, sem pedir que sejam
-digitados novamente. Os demais cenários cobertos podem aparecer como
-**Calculado pelo XML**, conferindo os parâmetros declarados.
-Esse cálculo confere a declaração recebida. A revisão do enquadramento pelas
-regras fiscais continua disponível em **Revisar enquadramento fiscal**.
+O cálculo considera apenas compras de outros estados destinadas à empresa compradora do Paraná. O CFOP original do fornecedor normalmente começa com 6; em nota de entrada emitida pela compradora, pode começar com 2. O aplicativo verifica também as UFs, o sentido da operação e o CNPJ da empresa. Notas internas são preservadas para consulta e excluídas dos cálculos e totais.
 
-Nos itens CST 00, modalidade 3, com IPI, a conferência usa **vBC × pICMS ÷ 100**
-e compara com o ICMS destacado. Ela não confirma se o IPI deveria compor a base;
-essa decisão fica na revisão fiscal. Sem vBC, o item permanece pendente.
-Diferenças de centavos continuam visíveis na memória de cálculo.
-Nas entradas ainda sem tratamento definido, a pendência pede primeiro a escolha
-entre ST, antecipação e ausência de novo débito. Classificação e MVA ausentes
-são indicadas antes da confirmação de FCP-ST.
+O motor usa NCM, CEST e data para selecionar a MVA da resolução; aplica o ajuste interestadual quando necessário e separa ICMS-ST e FCP-ST. Produtos, IPI e encargos compõem a base. O desconto incondicional é deduzido na base por MVA quando seu tratamento estiver confirmado ou reconciliado com base e ICMS do XML.
 
-Na aba **Revisão**, ficam os itens com dados ausentes ou divergências, incluindo
-os que já foram calculados automaticamente. Se a tabela indicar 47,77% e o
-XML declarar 0%, o cálculo por catálogo usa a tabela e mostra a divergência de
-MVA em percentual. A conferência exclusiva dos parâmetros declarados mantém
-a margem do XML. Uma alteração manual de MVA é aceita e suas diferenças são
-calculadas, preservando o histórico.
-Modalidades não suportadas continuam com o motivo da pendência. Respostas
-manuais anteriores são preservadas. O XLSX mantém uma linha por produto e o
-CNPJ da empresa no nome sugerido para o arquivo.
+O resultado automático é identificado como estimativa de entrada para revenda por MVA. A memória informa as premissas. Antes do recolhimento, devem ser conferidos descrição legal, preço prevalente, responsabilidade e retenção/pagamentos anteriores. Classificação incompleta, operação especial e produto fora da regra disponível apresentam seu motivo; não viram imposto zero.
 
-**Salvar e calcular** indica junto a cada campo o dado ausente ou inválido e
-leva o foco ao primeiro problema. **Salvar rascunho** guarda respostas
-incompletas e informa que o cálculo continua pendente. Na alíquota interna,
-**Usar valor do XML** restaura o percentual de pICMSST e indica que o FECOP
-está separado. Um cálculo concluído avança a fila; divergências continuam
-disponíveis para conferência.
 
 ### Conferir e calcular com menos perguntas
 

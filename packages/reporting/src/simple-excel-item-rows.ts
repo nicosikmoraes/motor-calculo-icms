@@ -1,4 +1,4 @@
-import { itemCalculationComponents, type ConsolidationEvidence, type TaxComponent } from '@motor/contracts'
+import { documentaryTaxReview, itemCalculationComponents, type ConsolidationEvidence, type TaxComponent } from '@motor/contracts'
 import { addDecimals, roundMoney } from '@motor/tax-engine'
 import type { ReportData } from './report-data'
 
@@ -27,15 +27,17 @@ export function buildSimpleExcelItemRows(report: ReportData): { rows: Value[][];
     if (!document) throw new Error('Produto referencia documento ausente.')
     const entries = evidence.get(key(item.documentId, item.itemNumber))
     const entry = entries?.get('ICMS_ENTRY') ?? entries?.get('ICMS_ST') ?? entries?.get('ICMS')
+    const documentary = entry?.status !== 'EXCLUDED' ? documentaryTaxReview(item.calculation) : undefined
+    const entryEstimate = entry?.status !== 'EXCLUDED' && item.calculation.inputs.some(input=>input.name==='calculationPurpose'&&input.value==='INTERSTATE_ENTRY_ST_ESTIMATE')
     const component = entry?.component ?? 'ICMS'
     const memories = itemCalculationComponents(item.calculation)
     const memory = memories.find(m => (m.component ?? m.result?.component ?? 'ICMS') === component)
     const fcp = entries?.get('FCP_ST'), fcpMemory = memories.find(m => m.component === 'FCP_ST')
-    const amount = entry?.status === 'CALCULATED' && !memory?.reviewReason ? entry.calculatedIcms : undefined
+    const amount = !documentary && entry?.status === 'CALCULATED' && !memory?.reviewReason ? entry.calculatedIcms : undefined
     const fcpAmount = amount !== undefined && fcp?.status === 'CALCULATED' && !fcpMemory?.reviewReason ? fcp.calculatedIcms
       : !fcp && amount !== undefined && !fcpMemory && (!item.declaredFcpStAmount || item.declaredFcpStAmount === '0.00' || item.declaredFcpStAmount === '0') ? '0.00' : undefined
     const automaticXml = memory?.inputs.some(input => input.name === 'automaticXmlCalculation')
-    let type = amount !== undefined ? automaticXml ? 'Conferência do XML' : names[component] : memory?.reviewReason ? 'Revisar' : status(entry)
+    let type = documentary ? documentary.title + ' — sem apuração' : entryEstimate && amount !== undefined ? 'ICMS-ST de entrada — estimativa por MVA' : amount !== undefined ? memory?.rule?.id === 'PR_CONSUMER_DIFAL_REVIEWED' ? 'DIFAL de uso/ativo' : automaticXml ? 'Conferência do XML' : names[component] : memory?.reviewReason ? 'Revisar' : status(entry)
     if (amount !== undefined && fcpAmount === undefined) type += ` — FCP ${status(fcp).toLowerCase()}`
     if (amount !== undefined && entry?.authorization === 'UNVERIFIED') type += ' (provisório)'
     if (entry?.environment === '2') type += ' (homologação)'
@@ -44,8 +46,10 @@ export function buildSimpleExcelItemRows(report: ReportData): { rows: Value[][];
     else if (item.declaredIcmsAmount !== undefined) partial = true
     if (amount !== undefined) icmsTotal = addDecimals(icmsTotal, amount)
     if (fcpAmount !== undefined) fcpTotal = addDecimals(fcpTotal, fcpAmount)
+    if (documentary?.reported.retainedStAmount !== undefined) type += ' · ST anterior informada: R$ ' + documentary.reported.retainedStAmount.replace('.', ',')
+    if (documentary?.reported.retainedFcpStAmount !== undefined) type += ' · FCP anterior: R$ ' + documentary.reported.retainedFcpStAmount.replace('.', ',')
     return [document.number, item.itemNumber, item.description, item.declaredIcmsAmount ?? 'Sem destaque',
-      amount ?? (memory?.reviewReason ? 'Revisar' : status(entry)), fcpAmount ?? (fcpMemory?.reviewReason ? 'Revisar' : status(fcp ?? entry)), type]
+      documentary ? 'Não apurado' : amount ?? (memory?.reviewReason ? 'Revisar' : status(entry)), documentary ? 'Não apurado' : fcpAmount ?? (fcpMemory?.reviewReason ? 'Revisar' : status(fcp ?? entry)), type]
   })
   return { rows, ...(rows.length ? { total: [undefined, undefined, partial ? 'TOTAL PARCIAL' : 'TOTAL', roundMoney(declaredTotal), roundMoney(icmsTotal), roundMoney(fcpTotal), undefined] } : {}) }
 }

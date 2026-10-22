@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isCalculationEligibleCfop } from '@motor/domain'
-import { itemCalculationStatus, itemCalculationComponents, taxComponentLabel } from '@motor/contracts'
+import { documentaryTaxReview, itemCalculationStatus, itemCalculationComponents, taxComponentLabel } from '@motor/contracts'
 import { desktopErrorMessage, RendererErrorMessage } from '../error-messages'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -25,14 +25,33 @@ const selectedProfiles = ref<Record<string, string>>({})
 type DetailPanel = 'overview' | 'documents' | 'pending' | 'files'
 const activePanel = ref<DetailPanel>('documents')
 const search = ref('')
-const documentFilter = ref('all')
+const documentFilter = ref('eligibleCfop')
 const focusedItem = ref('')
 const openDocuments = ref(new Set<string>())
 const fiscalIndex = ref(0)
-const fiscalPendingItems = computed(() => detail.value?.documents.flatMap(document => document.items
+const reviewItems = computed(() => detail.value?.documents.flatMap(document => document.items
   .filter(item => (!hasSavedCalculation(item) || isDivergent(item)) && isEligibleItem(item))
   .map(item => ({ document, item }))) ?? [])
-const excludedCfopCount = computed(() => detail.value?.documents.flatMap(document => document.items)
+const reviewMode = ref<'pending' | 'divergent' | 'documentary'>('pending')
+const reviewReason = ref('')
+const missingCalculationItems = computed(() => reviewItems.value.filter(entry => !hasSavedCalculation(entry.item) && !documentaryTaxReview(entry.item.calculation)))
+const documentaryItems = computed(() => reviewItems.value.filter(entry => documentaryTaxReview(entry.item.calculation)))
+const calculatedDivergentItems = computed(() => reviewItems.value.filter(entry => hasSavedCalculation(entry.item) && isDivergent(entry.item)))
+function exceptionReason(item: FiscalItemSummary): string {
+  return itemCalculationComponents(item.calculation).find(component => component.status !== 'CALCULATED')?.reason
+    ?? item.calculation.reason ?? 'Valores calculados diferentes dos informados no XML'
+}
+const reviewModeItems = computed(() => reviewMode.value === 'pending' ? missingCalculationItems.value : reviewMode.value === 'documentary' ? documentaryItems.value : calculatedDivergentItems.value)
+const reviewReasonGroups = computed(() => {
+  const groups = new Map<string, number>()
+  for (const entry of reviewModeItems.value) { const reason = exceptionReason(entry.item); groups.set(reason, (groups.get(reason) ?? 0) + 1) }
+  return [...groups].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count)
+})
+const fiscalPendingItems = computed(() => reviewModeItems.value.filter(entry => !reviewReason.value || exceptionReason(entry.item) === reviewReason.value))
+watch(reviewMode, () => { reviewReason.value = ''; fiscalIndex.value = 0 })
+watch(reviewReason, () => { fiscalIndex.value = 0 })
+watch(reviewReasonGroups, groups => { if (reviewReason.value && !groups.some(group => group.reason === reviewReason.value)) reviewReason.value = '' })
+const excludedEntryCount = computed(() => detail.value?.documents.flatMap(document => document.items)
   .filter(item => !isEligibleItem(item)).length ?? 0)
 const currentFiscalItem = computed(() => fiscalPendingItems.value[Math.min(fiscalIndex.value, Math.max(0, fiscalPendingItems.value.length - 1))])
 const calculatedCount = computed(() => detail.value?.documents.flatMap(document => document.items)
@@ -178,7 +197,12 @@ function dateTime(value?: string): string {
   return Number.isFinite(date.getTime()) ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : value
 }
 function calculationLabel(item: FiscalItemSummary): string {
-  if (!isEligibleItem(item)) return 'Fora do cálculo · CFOP'
+  if (!isEligibleItem(item)) return 'Fora da entrada interestadual'
+  const documentary = documentaryTaxReview(item.calculation)
+  if (documentary) return documentary.title + ' · sem apuração'
+  if (hasSavedCalculation(item) && item.calculation.inputs.some(input => input.name === 'calculationPurpose' && input.value === 'INTERSTATE_ENTRY_ST_ESTIMATE')) return 'ST de entrada por MVA · estimativa'
+  if (hasSavedCalculation(item) && item.calculation.rule?.id === 'PR_CONSUMER_DIFAL_REVIEWED') return 'DIFAL de uso/ativo · revisão confirmada'
+  if (hasSavedCalculation(item) && item.calculation.component === 'ICMS_ST' && !item.calculation.inputs.some(input=>input.name==='calculationPurpose') && item.calculation.inputs.some(input=>input.name==='automaticXmlCalculation' || input.name==='automaticCatalogCalculation')) return 'ST destacada · conferência do fornecedor'
   if (hasSavedCalculation(item) && item.calculation.inputs.some(input => input.name === 'automaticCatalogCalculation')) return 'Calculado por XML e catálogo'
   if (hasSavedCalculation(item) && item.calculation.inputs.some(input => input.name === 'automaticXmlCalculation')) return 'Calculado pelo XML'
   if (itemCalculationStatus(item.calculation) === 'CALCULATED' && !item.calculation.runId) return 'Aguardando confirmação'
@@ -197,7 +221,7 @@ function isDivergent(item: FiscalItemSummary): boolean {
   return isEligibleItem(item) && Boolean(itemCalculationComponents(item.calculation).some(component => component.comparisons?.some(c => c.status === 'DIFFERENT')))
 }
 function isEligibleItem(item: FiscalItemSummary): boolean {
-  return isCalculationEligibleCfop(item.cfop)
+  return item.entryCalculationEligible !== false && isCalculationEligibleCfop(item.cfop)
 }
 // A diferença exibida vem da consolidação salva do mesmo item e componente.
 const amountComparisons = computed(() => new Map(detail.value?.consolidation?.evidence
@@ -212,10 +236,12 @@ function documentReviewCount(document: FiscalDocumentSummary): number {
 function documentState(document: FiscalDocumentSummary): string {
   if (!document.eligibleForProcessing) return 'Pendente'
   const eligible = document.items.filter(isEligibleItem)
-  if (!eligible.length) return 'Fora do cálculo · CFOP'
+  if (!eligible.length) return 'Fora da entrada interestadual'
   const reviewCount = documentReviewCount(document)
-  if (reviewCount) return `${reviewCount} para revisar`
-  return eligible.length > 0 && documentCalculated(document) === eligible.length ? 'Conferida' : 'Importada para análise'
+  const unassessed = eligible.filter(item => documentaryTaxReview(item.calculation)).length
+  if (unassessed === eligible.length) return `${unassessed} sem apuração`
+  if (reviewCount) return `${reviewCount - unassessed} para conferir${unassessed ? ` · ${unassessed} sem apuração` : ''}`
+  return eligible.length > 0 && documentCalculated(document) === eligible.length ? 'Calculada' : 'Importada para análise'
 }
 function documentCalculated(document: FiscalDocumentSummary): number {
   return document.items.filter(hasSavedCalculation).length
@@ -226,7 +252,7 @@ function ingestionLabel(value: string): string {
     ORIGINAL: 'Original', REPETIDA: 'Repetida', SEM_CONFLITO: 'Sem conflito', CONFLITO_CONTEUDO: 'Conteúdo conflitante' } as Record<string, string>)[value] ?? value
 }
 const divergentCount = computed(() => detail.value?.documents.flatMap(d => d.items).filter(isDivergent).length ?? 0)
-const eligibleItemCount = computed(() => itemCount.value - excludedCfopCount.value)
+const eligibleItemCount = computed(() => itemCount.value - excludedEntryCount.value)
 const calculatedPercent = computed(() => eligibleItemCount.value ? Math.round(calculatedCount.value / eligibleItemCount.value * 100) : 0)
 const visibleDocuments = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('pt-BR')
@@ -235,7 +261,7 @@ const visibleDocuments = computed(() => {
       document.recipientName, ...document.items.flatMap(i => [i.description, i.supplierProductCode, i.ncm, i.cfop])]
       .some(value => value?.toLocaleLowerCase('pt-BR').includes(query))
     const matchesFilter = documentFilter.value === 'all'
-      || (documentFilter.value === 'cfop6' && document.items.some(isEligibleItem))
+      || (documentFilter.value === 'eligibleCfop' && document.items.some(isEligibleItem))
       || (documentFilter.value === 'calculated' && document.items.some(hasSavedCalculation))
       || (documentFilter.value === 'pending' && document.items.some(i => isEligibleItem(i) && !hasSavedCalculation(i)))
       || (documentFilter.value === 'divergent' && document.items.some(isDivergent))
@@ -274,7 +300,7 @@ async function initialize(): Promise<void> {
   error.value = ''
   try {
     await loadDetail()
-    const firstDocument = detail.value?.documents[0]
+    const firstDocument = detail.value?.documents.find(document=>document.items.some(hasSavedCalculation)) ?? detail.value?.documents.find(document=>document.items.some(isEligibleItem))
     if (firstDocument && !route.hash) openDocuments.value.add(firstDocument.id)
     await revealHash()
   }
@@ -307,25 +333,25 @@ watch(() => route.params.id, () => {
 
       <div class="batch-metrics" aria-label="Situação dos itens">
         <button class="card metric" @click="showDocuments()"><span class="metric-caption">Documentos fiscais<span class="metric-symbol" aria-hidden="true">▤</span></span><strong>{{ detail.batch.totalDocuments }}</strong><small>{{ itemCount }} itens neste lote</small></button>
-        <button class="card metric" @click="showDocuments('calculated')"><span class="metric-caption">Itens calculados<span class="metric-symbol green" aria-hidden="true">✓</span></span><strong>{{ calculatedCount }}<span class="metric-denominator"> / {{ eligibleItemCount }}</span></strong><small>{{ calculatedPercent }}% dos itens com CFOP 6 com cálculo salvo</small></button>
-        <button class="card metric" @click="activePanel = 'pending'"><span class="metric-caption">Itens para revisar<span class="metric-symbol amber" aria-hidden="true">!</span></span><strong>{{ fiscalPendingItems.length }}</strong><small>{{ unsupportedCount }} itens fora do escopo</small></button>
+        <button class="card metric" @click="showDocuments('calculated')"><span class="metric-caption">Itens calculados<span class="metric-symbol green" aria-hidden="true">✓</span></span><strong>{{ calculatedCount }}<span class="metric-denominator"> / {{ eligibleItemCount }}</span></strong><small>{{ calculatedPercent }}% dos itens elegíveis com cálculo salvo</small></button>
+        <button class="card metric" @click="activePanel = 'pending'"><span class="metric-caption">Itens sem cálculo<span class="metric-symbol amber" aria-hidden="true">!</span></span><strong>{{ missingCalculationItems.length }}</strong><small>{{ documentaryItems.length }} sem apuração · {{ calculatedDivergentItems.length }} com divergência</small></button>
         <button class="card metric" @click="showDocuments('divergent')"><span class="metric-caption">Itens com divergência<span class="metric-symbol rose" aria-hidden="true">≠</span></span><strong>{{ divergentCount }}</strong><small>Base ou ICMS acima da tolerância</small></button>
       </div>
 
       <nav class="detail-navigation" aria-label="Áreas do lote">
         <button :aria-pressed="activePanel === 'overview'" :class="{ active: activePanel === 'overview' }" @click="activePanel = 'overview'">Resumo</button>
         <button :aria-pressed="activePanel === 'documents'" :class="{ active: activePanel === 'documents' }" @click="activePanel = 'documents'">Notas e itens <span>{{ detail.documents.length }}</span></button>
-        <button :aria-pressed="activePanel === 'pending'" :class="{ active: activePanel === 'pending' }" @click="activePanel = 'pending'">Revisão <span>{{ fiscalPendingItems.length }}</span></button>
+        <button :aria-pressed="activePanel === 'pending'" :class="{ active: activePanel === 'pending' }" @click="activePanel = 'pending'">Conferência <span>{{ reviewItems.length }}</span></button>
         <button :aria-pressed="activePanel === 'files'" :class="{ active: activePanel === 'files' }" @click="activePanel = 'files'">Arquivos e eventos</button>
       </nav>
 
       <section v-show="activePanel === 'overview'" class="panel-stack" aria-label="Resumo do lote">
         <article class="card analysis-progress">
-          <div class="progress-copy"><span class="section-kicker">Andamento da análise</span><h3>{{ fiscalPendingItems.length ? 'Continue a conferência dos itens' : calculatedCount ? 'Confira os resultados salvos' : 'Consulte a situação dos documentos' }}</h3>
-            <p>{{ calculatedCount }} itens calculados, {{ fiscalPendingItems.length }} itens com dados pendentes ou divergências para conferir. {{ excludedCfopCount }} itens com CFOP fora do prefixo 6 ficam fora do cálculo. Os cálculos automáticos usam os parâmetros declarados no XML.</p>
+          <div class="progress-copy"><span class="section-kicker">Andamento da análise</span><h3>{{ reviewItems.length ? 'Continue a conferência dos itens' : calculatedCount ? 'Confira os resultados salvos' : 'Consulte a situação dos documentos' }}</h3>
+            <p>{{ calculatedCount }} itens calculados, {{ missingCalculationItems.length }} sem cálculo, {{ documentaryItems.length }} com tratamento documental sem apuração e {{ calculatedDivergentItems.length }} calculados com divergências. {{ excludedEntryCount }} itens fora das compras interestaduais para o Paraná ficam fora do cálculo e dos totais. O cálculo usa XML, MVA e alíquotas da regra aplicável; as premissas ficam na memória.</p>
             <div class="progress-track" role="progressbar" aria-label="Itens com cálculo salvo" :aria-valuenow="calculatedCount" :aria-valuemax="Math.max(eligibleItemCount, 1)" aria-valuemin="0"><span :style="{ width: `${calculatedPercent}%` }"></span></div>
           </div>
-          <button v-if="fiscalPendingItems.length" class="button secondary" @click="activePanel = 'pending'">Conferir e calcular</button>
+          <button v-if="reviewItems.length" class="button secondary" @click="activePanel = 'pending'">Conferir e calcular</button>
           <button v-else class="button secondary" @click="showDocuments()">Ver notas e itens</button>
         </article>
         <div v-if="detail.consolidation" class="consolidation-area"><BatchConsolidationSummary :summary="detail.consolidation" /></div>
@@ -340,9 +366,9 @@ watch(() => route.params.id, () => {
 
       <section v-show="activePanel === 'documents'" class="panel-stack" aria-label="Notas e itens">
         <div class="section-heading"><div><h3>Documentos fiscais</h3><p>Localize uma nota e expanda seus itens para conferir valores, respostas e memória.</p></div><span class="badge badge-neutral">{{ visibleDocuments.length }} de {{ detail.documents.length }} notas</span></div>
-        <div class="card document-toolbar"><label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input v-model="search" aria-label="Buscar notas e produtos" placeholder="Buscar por nota, produto, chave ou empresa"></label><label class="filter-field"><span>Situação dos itens</span><select v-model="documentFilter" aria-label="Filtrar documentos por situação"><option value="all">Todos os documentos</option><option value="cfop6">CFOP começa com 6</option><option value="pending">Sem cálculo / para revisar</option><option value="divergent">Com divergência</option><option value="calculated">Com itens calculados</option></select></label></div>
+        <div class="card document-toolbar"><label class="search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input v-model="search" aria-label="Buscar notas e produtos" placeholder="Buscar por nota, produto, chave ou empresa"></label><label class="filter-field"><span>Situação dos itens</span><select v-model="documentFilter" aria-label="Filtrar documentos por situação"><option value="all">Todos os documentos</option><option value="eligibleCfop">Compras de outros estados para o PR</option><option value="pending">Sem cálculo / sem apuração</option><option value="divergent">Com divergência</option><option value="calculated">Com itens calculados</option></select></label></div>
         <details v-for="document in visibleDocuments" :key="document.id" :id="`nota-${document.id}`" class="card document-card" :open="openDocuments.has(document.id)" @toggle="($event.target as HTMLDetailsElement).open ? openDocuments.add(document.id) : openDocuments.delete(document.id)">
-          <summary class="document-heading"><span class="document-icon" aria-hidden="true">▤</span><div class="document-title"><strong>NF-e {{ document.number }} <span>Série {{ document.series }}</span></strong><small>{{ document.issuerName || document.issuerTaxId || document.companyName || 'Emitente não informado' }}</small></div><span class="document-counts"><span>{{ document.items.length }} produtos</span><span>{{ documentCalculated(document) }} calculados</span></span><span class="badge" :class="!document.eligibleForProcessing || documentReviewCount(document) ? 'badge-amber' : documentState(document) === 'Conferida' ? 'badge-green' : 'badge-blue'">{{ documentState(document) }}</span><span class="document-chevron" aria-hidden="true">⌄</span></summary>
+          <summary class="document-heading"><span class="document-icon" aria-hidden="true">▤</span><div class="document-title"><strong>NF-e {{ document.number }} <span>Série {{ document.series }}</span></strong><small>{{ document.issuerName || document.issuerTaxId || document.companyName || 'Emitente não informado' }}</small></div><span class="document-counts"><span>{{ document.items.length }} produtos</span><span>{{ documentCalculated(document) }} calculados</span></span><span class="badge" :class="!document.eligibleForProcessing || documentReviewCount(document) ? 'badge-amber' : documentState(document) === 'Calculada' ? 'badge-green' : 'badge-blue'">{{ documentState(document) }}</span><span class="document-chevron" aria-hidden="true">⌄</span></summary>
           <div class="document-body"><div class="document-context"><span>{{ document.companyName || 'Empresa não identificada' }}</span><span>{{ dateTime(document.issuedAt) }} · {{ environment(document.environmentCode) }}</span></div>
             <p v-if="document.pendingReason" class="inline-notice">{{ document.pendingReason }}</p>
             <p v-if="document.conflictResolution" class="inline-notice">{{ document.conflictResolution.reason }} <RouterLink class="text-button" :to="{ path: '/conflitos-notas', query: { key: document.accessKey } }">Comparar versões e decisões</RouterLink></p>
@@ -353,15 +379,15 @@ watch(() => route.params.id, () => {
               <div class="item-heading"><span class="item-number">{{ item.itemNumber }}</span><div><h4>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</h4><p>{{ item.supplierProductCode ? `Código ${item.supplierProductCode} · ` : '' }}NCM {{ item.ncm || '—' }} · CFOP {{ item.cfop || '—' }}</p></div><span class="badge" :class="hasSavedCalculation(item) ? 'badge-green' : !isEligibleItem(item) ? 'badge-neutral' : itemCalculationStatus(item.calculation) === 'UNSUPPORTED' ? 'badge-neutral' : 'badge-amber'">{{ calculationLabel(item) }}</span><span v-if="isDivergent(item)" class="badge badge-rose">Divergência</span></div>
               <div class="item-values">
                 <div><span>Valor do produto</span><strong>{{ money(item.productAmount) }}</strong></div>
-                <div><span>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'ICMS próprio na nota' : isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div>
-                <div class="value-calculated"><span>{{ taxComponentLabel(itemComponent(item)) }} calculado</span><strong>{{ money(isEligibleItem(item) ? item.calculation.result?.amount : undefined) }}</strong></div>
+                <div v-if="documentaryTaxReview(item.calculation)"><span>{{ documentaryTaxReview(item.calculation)?.kind === 'PREVIOUS_ST' ? 'ICMS-ST anterior informado no XML' : 'Destaque nesta NF-e' }}</span><strong>{{ documentaryTaxReview(item.calculation)?.kind === 'PREVIOUS_ST' ? money(documentaryTaxReview(item.calculation)?.reported.retainedStAmount) : 'Sem destaque' }}</strong></div><div v-else><span>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'ICMS próprio na nota' : isIcmsSt(item) ? 'ICMS-ST declarado' : 'ICMS declarado' }}</span><strong>{{ money(isIcmsSt(item) ? item.declaredIcmsStAmount : item.declaredIcmsAmount) }}</strong></div>
+                <div class="value-calculated"><span>{{ documentaryTaxReview(item.calculation) ? 'Imposto devido nesta operação' : taxComponentLabel(itemComponent(item)) + ' calculado' }}</span><strong>{{ documentaryTaxReview(item.calculation) ? 'Não apurado' : money(isEligibleItem(item) ? item.calculation.result?.amount : undefined) }}</strong></div>
                 <div class="value-difference" :class="{ 'amount-divergent': amountComparison(document, item)?.status === 'DIFFERENT' }"><span>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'Conferência com XML' : 'Diferença' }}</span><strong>{{ itemComponent(item) === 'ICMS_ENTRY' ? 'Não se aplica' : money(amountComparison(document, item)?.difference) }}</strong></div>
               </div>
               <div v-if="item.calculation.deferredAmount !== undefined || item.calculation.additionalComponents?.some(component => component.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined" class="item-additional-values">
                 <span v-if="isEligibleItem(item) && item.calculation.deferredAmount !== undefined">ICMS diferido <b>{{ money(item.calculation.deferredAmount) }}</b></span>
                 <template v-if="item.calculation.additionalComponents?.some(component => component.component === 'FCP_ST') || item.declaredFcpStAmount !== undefined"><span>FCP-ST declarado <b>{{ money(item.declaredFcpStAmount) }}</b></span><span>FCP-ST calculado <b>{{ money(isEligibleItem(item) ? item.calculation.additionalComponents?.find(component => component.component === 'FCP_ST')?.result?.amount : undefined) }}</b></span></template>
               </div>
-              <details class="item-analysis" :open="focusedItem === `item-${document.id}-${item.itemNumber}`"><summary>Dados e memória de cálculo <span class="analysis-toggle" aria-hidden="true"></span></summary><div class="item-analysis-grid"><div class="item-analysis-block"><h5>Cálculo da operação</h5><p v-if="!isEligibleItem(item)" class="muted">Este item fica fora do cálculo porque o CFOP não começa com 6.</p><p v-else class="muted">Complete as respostas ou confira a memória do resultado.</p><ItemFiscalQuestions v-if="isEligibleItem(item)" :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="handleFiscalSaved" /><CalculationMemoryDetails :calculation="item.calculation" /></div><div class="item-analysis-block"><h5>Cadastro e enquadramento</h5><p class="muted">Classificação e seleção de regras deste produto.</p><ItemClassificationDetails :item="item" /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action"><label>Perfil fiscal do produto<select v-model="selectedProfiles[itemKey(document, item)]"><option value="">Escolher perfil</option><option v-for="profile in profilesByCompany[document.companyId]" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label><button class="button secondary" type="button" :disabled="saving || !selectedProfiles[itemKey(document, item)]" @click="linkItem(document, item)">Vincular</button></div></div></div></details>
+              <details class="item-analysis" :open="focusedItem === `item-${document.id}-${item.itemNumber}`"><summary>Dados e memória de cálculo <span class="analysis-toggle" aria-hidden="true"></span></summary><div class="item-analysis-grid"><div class="item-analysis-block"><h5>Cálculo da operação</h5><p v-if="!isEligibleItem(item)" class="muted">{{ item.entryCalculationExclusionReason || 'Este item não corresponde a uma compra de outro estado destinada à empresa do Paraná.' }}</p><p v-else class="muted">Complete as respostas ou confira a memória do resultado.</p><ItemFiscalQuestions v-if="isEligibleItem(item)" :batch-id="detail.batch.id" :document-id="document.id" :item-number="item.itemNumber" @saved="handleFiscalSaved" /><CalculationMemoryDetails :calculation="item.calculation" /></div><div class="item-analysis-block"><h5>Cadastro e enquadramento</h5><p class="muted">Classificação e seleção de regras deste produto.</p><ItemClassificationDetails :item="item" /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><div v-if="document.companyId && document.issuerTaxId?.length === 14 && item.supplierProductCode && profilesByCompany[document.companyId]?.length" class="catalog-inline-action"><label>Perfil fiscal do produto<select v-model="selectedProfiles[itemKey(document, item)]"><option value="">Escolher perfil</option><option v-for="profile in profilesByCompany[document.companyId]" :key="profile.id" :value="profile.id">{{ profile.name }}</option></select></label><button class="button secondary" type="button" :disabled="saving || !selectedProfiles[itemKey(document, item)]" @click="linkItem(document, item)">Vincular</button></div></div></div></details>
             </article>
             </div>
             <details class="document-identification"><summary>Identificação da nota e chave de acesso<span aria-hidden="true">⌄</span></summary><dl class="document-data"><div><dt>Empresa analisada</dt><dd>{{ document.companyName || '—' }}</dd></div><div><dt>Emitente</dt><dd>{{ document.issuerName || document.issuerTaxId || '—' }}</dd></div><div><dt>Destinatário</dt><dd>{{ document.recipientName || document.recipientTaxId || '—' }}</dd></div><div><dt>Emissão e ambiente</dt><dd>{{ dateTime(document.issuedAt) }} · {{ environment(document.environmentCode) }} · Modelo {{ document.model }}</dd></div><div class="access-key"><dt>Chave de acesso</dt><dd class="monospace">{{ document.accessKey }}</dd></div></dl></details>
@@ -371,16 +397,22 @@ watch(() => route.params.id, () => {
       </section>
 
       <section v-show="activePanel === 'pending'" class="panel-stack" aria-label="Pendências do lote">
-        <div class="section-heading"><div><h3>Revisar exceções do cálculo</h3><p>Os dados disponíveis no XML são calculados automaticamente. Confira as divergências e complete somente os dados ou o enquadramento que ainda faltam.</p></div><span class="badge badge-amber">{{ fiscalPendingItems.length }} itens para revisar</span></div>
+        <div class="section-heading"><div><h3>Conferência do lote</h3><p>Resolva o que impede o cálculo ou confira diferenças nos resultados que já foram calculados.</p></div><span class="badge badge-neutral">{{ calculatedCount }} concluídos</span></div>
+        <div class="card review-controls">
+          <div class="review-tabs" aria-label="Tipo de conferência"><button type="button" :aria-pressed="reviewMode === 'pending'" :class="{ active: reviewMode === 'pending' }" @click="reviewMode = 'pending'">Sem cálculo <span>{{ missingCalculationItems.length }}</span></button><button type="button" :aria-pressed="reviewMode === 'divergent'" :class="{ active: reviewMode === 'divergent' }" @click="reviewMode = 'divergent'">Calculados com divergência <span>{{ calculatedDivergentItems.length }}</span></button><button type="button" :aria-pressed="reviewMode === 'documentary'" :class="{ active: reviewMode === 'documentary' }" @click="reviewMode = 'documentary'">Sem apuração <span>{{ documentaryItems.length }}</span></button></div>
+          <label v-if="reviewReasonGroups.length" class="review-reason-filter">Filtrar pelo motivo<select v-model="reviewReason"><option value="">Todos os motivos ({{ reviewModeItems.length }} itens)</option><option v-for="group in reviewReasonGroups" :key="group.reason" :value="group.reason">{{ group.count }} itens · {{ group.reason }}</option></select></label>
+          <p>{{ reviewMode === 'documentary' ? 'O tratamento do XML foi identificado. Estes itens não têm imposto devido apurado e não são contabilizados como cálculos de valor zero.' : reviewMode === 'pending' ? 'Estes itens precisam de um dado ou de uma regra específica. Ao responder um produto, as respostas também podem atender os compatíveis da nota.' : 'O cálculo destes itens está concluído. A diferença com o XML está preservada para conferência e não impede consultar ou exportar os valores.' }}</p>
+        </div>
         <article v-if="currentFiscalItem" class="card pending-workspace">
           <header class="pending-context">
             <div><span class="section-kicker">Revisão {{ Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1 }} de {{ fiscalPendingItems.length }}</span><h4>NF-e {{ currentFiscalItem.document.number }} · Item {{ currentFiscalItem.item.itemNumber }}</h4><p class="review-product-name">{{ currentFiscalItem.item.description || currentFiscalItem.item.supplierProductCode || 'Produto sem descrição' }}</p><p>{{ currentFiscalItem.document.companyName || 'Empresa não informada' }}</p></div>
             <div class="review-navigation"><label>Escolher item<select v-model.number="fiscalIndex" aria-label="Escolher item para revisar"><option v-for="(entry, index) in fiscalPendingItems" :key="itemKey(entry.document, entry.item)" :value="index">NF {{ entry.document.number }} · Item {{ entry.item.itemNumber }} · {{ entry.item.supplierProductCode || entry.item.description }}</option></select></label><button type="button" class="text-button" @click="showItem(currentFiscalItem.document, currentFiscalItem.item)">Ver nota completa</button></div>
           </header>
+          <div class="exception-context"><strong>{{ reviewMode === 'documentary' ? 'Tratamento identificado · imposto não apurado' : reviewMode === 'pending' ? 'Dados do item para conferência' : 'O cálculo já está concluído' }}</strong><p v-if="reviewMode === 'divergent'">Confira abaixo os valores e a origem da diferença com o XML.</p><div class="exception-facts"><span>CFOP {{ currentFiscalItem.item.cfop || '—' }}</span><span>NCM {{ currentFiscalItem.item.ncm || '—' }}</span></div></div>
           <ItemFiscalQuestions :key="itemKey(currentFiscalItem.document, currentFiscalItem.item)" :batch-id="detail.batch.id" :document-id="currentFiscalItem.document.id" :item-number="currentFiscalItem.item.itemNumber" expanded @saved="handleFiscalSaved" />
           <footer v-if="fiscalPendingItems.length > 1" class="pending-actions"><span>As respostas são enviadas ao confirmar o cálculo.</span><div><button type="button" class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) - 1 + fiscalPendingItems.length) % fiscalPendingItems.length">Anterior</button><button type="button" class="button secondary" @click="fiscalIndex = (Math.min(fiscalIndex, fiscalPendingItems.length - 1) + 1) % fiscalPendingItems.length">Próximo item</button></div></footer>
         </article>
-        <article v-else class="card complete-state"><span aria-hidden="true">✓</span><div><h4>Nenhum item pendente com CFOP iniciado em 6</h4><p v-if="excludedCfopCount">{{ excludedCfopCount }} item(ns) com CFOP fora do prefixo 6 ficaram fora do cálculo. Consulte os dados nas notas.</p><p v-else>Consulte os resultados e a memória dos itens nas notas.</p></div><button class="button secondary" @click="showDocuments()">Ver notas e itens</button></article>
+        <article v-else class="card complete-state"><span aria-hidden="true">✓</span><div><h4>{{ reviewMode === 'pending' ? 'Nenhum item sem cálculo neste filtro' : reviewMode === 'documentary' ? 'Nenhum item sem apuração neste filtro' : 'Nenhuma divergência neste filtro' }}</h4><p v-if="excludedEntryCount">{{ excludedEntryCount }} item(ns) fora das compras interestaduais para o Paraná ficaram fora do cálculo. Consulte os dados nas notas.</p><p v-else>Consulte os resultados e a memória dos itens nas notas.</p></div><button class="button secondary" @click="showDocuments()">Ver notas e itens</button></article>
         <details class="card registration-pendencies"><summary><span>Pendências cadastrais <span class="badge badge-neutral">{{ pendingItems.length }}</span></span><span class="muted">Perfis e vínculos de produtos</span></summary><div class="registration-body"><p class="muted">Os vínculos cadastrais são conferidos separadamente das respostas fiscais do cálculo. <RouterLink to="/perfis">Gerenciar perfis fiscais</RouterLink>.</p><p v-if="!pendingItems.length" class="empty-state">Nenhum item com classificação cadastral pendente.</p><div v-else class="item-pendency-grid"><article v-for="{ document, item } in pendingItems" :key="itemKey(document, item)" class="item-pendency-card"><div class="item-pendency-context"><strong>NF-e {{ document.number }} · Item {{ item.itemNumber }}</strong><span>{{ item.description || item.supplierProductCode || 'Produto sem descrição' }}</span></div><ItemClassificationDetails :item="item" expanded /><RuleAssessmentDetails :assessment="item.ruleAssessment" :original-assessment="item.originalRuleAssessment" /><button class="text-button" @click="showItem(document, item)">Conferir item na nota</button></article></div></div></details>
       </section>
 
@@ -604,4 +636,21 @@ watch(() => route.params.id, () => {
 }
 @media (max-width: 1150px) { .document-counts { gap: 10px; font-size: 10px; } }
 @media (prefers-reduced-motion: reduce) { .document-chevron, .analysis-toggle, .document-identification > summary > span { transition: none; } }
+.review-controls { padding: 22px 24px; }
+.review-tabs { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.review-tabs button { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 12px 18px; border: 1px solid #dce3ef; border-radius: 10px; background: #f8fafd; color: #52647f; cursor: pointer; font: inherit; font-size: 13px; }
+.review-tabs button.active { border-color: #455fdb; background: #eef3ff; color: #304ab6; font-weight: 650; }
+.review-tabs span { padding: 3px 8px; border-radius: 6px; background: #e2e9f7; font-variant-numeric: tabular-nums; }
+.review-reason-filter { display: grid; gap: 9px; color: #52647f; font-size: 13px; }
+.review-reason-filter select { width: 100%; min-width: 0; }
+.review-controls > p { margin: 16px 0 0; font-size: 13px; color: #52647f; line-height: 1.65; }
+.exception-context { margin: 22px 0 26px; padding: 18px 20px; border: 1px solid #dce5f3; border-radius: 12px; background: #f5f8fd; }
+.exception-context strong { font-size: 14px; color: #2d4363; }
+.exception-context p { margin: 9px 0 16px; color: #52647f; line-height: 1.65; font-size: 13px; }
+.exception-facts { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; }
+.exception-facts span { padding: 5px 9px; background: #fff; border: 1px solid #e1e7f0; border-radius: 6px; font-size: 11px; }
+.pending-context > div:first-child { min-width: 0; }
+.review-navigation { width: min(330px, 42%); }
+@media (max-width: 800px) { .review-navigation { width: 100%; } .review-tabs button { width: 100%; justify-content: space-between; } }
+.review-navigation select, .review-reason-filter select { appearance: auto; padding-right: 28px; cursor: pointer; }
 </style>

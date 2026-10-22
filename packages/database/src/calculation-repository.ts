@@ -28,13 +28,21 @@ export class SqliteCalculationRepository {
   constructor(private readonly database: SqliteDatabase) {}
 
   save(input: SaveCalculationRunInput, additionalWrite?: (record: CalculationRunRecord) => void): CalculationRunRecord {
+    return this.database.transaction(() => this.saveInTransaction(input, additionalWrite))
+  }
+
+  /** Uma confirmação do lote grava todas as notas ou nenhuma. */
+  saveMany(inputs: readonly SaveCalculationRunInput[]): readonly CalculationRunRecord[] {
+    return this.database.transaction(() => inputs.map(input => this.saveInTransaction(input)))
+  }
+
+  private saveInTransaction(input: SaveCalculationRunInput, additionalWrite?: (record: CalculationRunRecord) => void): CalculationRunRecord {
     if (!input.requestId.trim() || !input.batchId.trim() || !input.documentId.trim() || !input.engineVersion.trim() || !input.items.length) {
       throw new AppError(AppErrorCode.CALCULATION_RUN_INCOMPLETE)
     }
     if (new Set(input.items.map((item) => item.itemNumber)).size !== input.items.length) {
       throw new AppError(AppErrorCode.DUPLICATE_CALCULATION_ITEM)
     }
-    return this.database.transaction(() => {
       const existing = this.findByRequest(input.requestId, input.documentId)
       if (existing) {
         if (existing.batchId !== input.batchId || existing.engineVersion !== input.engineVersion
@@ -94,7 +102,6 @@ export class SqliteCalculationRepository {
       }
       additionalWrite?.(record)
       return record
-    })
   }
 
   findByRequest(requestId: string, documentId: string): CalculationRunRecord | undefined {

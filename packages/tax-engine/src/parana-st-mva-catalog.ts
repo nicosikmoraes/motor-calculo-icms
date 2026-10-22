@@ -34,7 +34,7 @@ export function selectParanaStMva(input: { operationDate?: string | undefined; n
   if (!input.ncm || !/^\d{8}$/.test(input.ncm) || !input.cest || !/^\d{7}$/.test(input.cest)) return {
     status: 'MISSING_CLASSIFICATION', reason: 'A consulta da MVA exige NCM com oito dígitos e CEST com sete dígitos no XML.' }
   const cestRows = catalog.rows.filter(row => row.cest === input.cest)
-  if (!cestRows.length) return { status: 'NO_MATCH', reason: 'Produto fora das tabelas de higiene/cosméticos e materiais de construção deste catálogo. Confira a MVA manualmente.' }
+  if (!cestRows.length) return { status: 'NO_MATCH', reason: paranaStMvaCandidates(date,input.ncm,catalog).length ? 'O CEST do XML não foi localizado neste catálogo, mas há referências pelo NCM. Confira a descrição e confirme a classificação revisada, preservando o XML.' : 'Sem MVA neste catálogo para a classificação informada. Confira o segmento e a regra vigente; isso não comprova ausência de ST. É possível informar uma MVA final conferida.' }
   const matches = cestRows.filter(row => row.ncmPrefixes.some(prefix => input.ncm!.startsWith(prefix)))
   if (!matches.length) return { status: 'CLASSIFICATION_CONFLICT', reason: 'O NCM não corresponde ao CEST nas tabelas consultadas. Revise a classificação antes de usar a MVA do catálogo.' }
   if (matches.length > 1) return { status: 'AMBIGUOUS', reason: 'Mais de uma MVA corresponde à classificação e à data. A seleção fiscal precisa de revisão.' }

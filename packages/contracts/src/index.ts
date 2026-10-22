@@ -487,6 +487,8 @@ export interface ItemRuleAssessment {
 }
 
 export interface FiscalItemSummary {
+  entryCalculationEligible?: boolean
+  entryCalculationExclusionReason?: string
   entryReviewReasons?: readonly string[]
   itemNumber: string
   classification: `${FiscalItemClassificationCode}`
@@ -545,8 +547,49 @@ export interface ItemComponentCalculationSummary {
 export interface ItemCalculationSummary extends ItemComponentCalculationSummary {
   additionalComponents?: readonly ItemComponentCalculationSummary[]
 }
+export interface DocumentaryTaxReview {
+  kind: 'PREVIOUS_ST' | 'SIMPLE_WITHOUT_HIGHLIGHT' | 'EXEMPT_DECLARED'
+  title: string
+  reason: string
+  reported: {
+    retainedStBaseAmount?: string; retainedStRate?: string; retainedStAmount?: string; substituteIcmsAmount?: string
+    retainedFcpStBaseAmount?: string; retainedFcpStRate?: string; retainedFcpStAmount?: string; exemptAmount?: string
+  }
+}
+/** Tratamento documental não é uma apuração de imposto devido, inclusive em memórias antigas. */
+export function documentaryTaxReview(calculation: Pick<ItemComponentCalculationSummary, 'inputs'>): DocumentaryTaxReview | undefined {
+  if (!calculation.inputs.some(input => input.name === 'automaticXmlCalculation')) return undefined
+  const kind = calculation.inputs.find(input => input.name === 'xmlTreatment')?.value
+  if (!['PREVIOUS_ST', 'SIMPLE_WITHOUT_HIGHLIGHT', 'EXEMPT_DECLARED'].includes(kind ?? '')) return undefined
+  const reported: DocumentaryTaxReview['reported'] = {}
+  for (const field of ['retainedStBaseAmount', 'retainedStRate', 'retainedStAmount', 'substituteIcmsAmount', 'retainedFcpStBaseAmount', 'retainedFcpStRate', 'retainedFcpStAmount', 'exemptAmount'] as const) {
+    const value = calculation.inputs.find(input => input.name === field)?.value
+    if (value !== undefined) reported[field] = value
+  }
+  return { kind: kind as DocumentaryTaxReview['kind'], reported,
+    title: kind === 'PREVIOUS_ST' ? 'ST anterior informada' : kind === 'SIMPLE_WITHOUT_HIGHLIGHT' ? 'Simples Nacional sem destaque' : 'Isenção informada no XML',
+    reason: kind === 'PREVIOUS_ST' ? 'O XML informa retenção anterior. A base, a alíquota e o imposto dessa etapa não comprovam o débito atual. A apuração de complemento, restituição ou novo recolhimento exige a operação original e a regra aplicável.'
+      : kind === 'SIMPLE_WITHOUT_HIGHLIGHT' ? 'O código do Simples do emitente não determina sozinho o imposto devido pelo destinatário. Sem destaque no XML não significa imposto devido igual a zero; a apuração exige o regime e a obrigação da empresa analisada.'
+        : 'O XML informa isenção. A validade do benefício e as condições da operação precisam de uma regra fiscal aplicável; não foi apurado imposto devido igual a zero.' }
+}
+export function fiscalCalculationView<T extends ItemCalculationSummary>(calculation: T): T {
+  const review = documentaryTaxReview(calculation)
+  if (!review) return calculation
+  const documented = { ...calculation }
+  delete documented.result
+  delete documented.comparisons
+  delete documented.deferredAmount
+  delete documented.additionalComponents
+  delete documented.reviewReason
+  delete documented.reviewStatus
+  documented.status = 'PENDING_RULE'
+  documented.reason = review.reason
+  documented.steps = []
+  return documented
+}
 export function itemCalculationComponents(calculation: ItemCalculationSummary): readonly ItemComponentCalculationSummary[] {
-  return [calculation, ...(calculation.additionalComponents ?? [])]
+  const safe = fiscalCalculationView(calculation)
+  return [safe, ...(safe.additionalComponents ?? [])]
 }
 /** Situação do item: cada componente conserva o resultado e a pendência próprios. */
 export function itemCalculationStatus(calculation: ItemCalculationSummary): `${CalculationStatusCode}` {
@@ -560,12 +603,14 @@ export function itemCalculationStatus(calculation: ItemCalculationSummary): `${C
 }
 
 export interface ItemFiscalAnswers {
-  entryMethod?: 'RATE_DIFFERENCE' | 'ICMS_ST' | 'NO_DEBIT'
+  entryMethod?: 'RATE_DIFFERENCE' | 'ICMS_ST' | 'NO_DEBIT' | 'CONSUMER_DIFAL'
   entryNoDebitConfirmed?: boolean
   entryNoDebitReason?: string
   entryApplicationConfirmed?: boolean
   entryBaseConfirmed?: boolean
   entryBaseAmount?: string
+  entryInterstateRate?: string
+  destinationReviewReason?: string
   entryInternalRate?: string
   destination?: 'RESALE' | 'INDUSTRIALIZATION' | 'FIXED_ASSET' | 'OWN_USE'
   destinationBasis?: 'ASSUMED_RESALE' | 'CONFIRMED'
@@ -615,6 +660,9 @@ export interface SpecificStMvaSummary {
   legalBasis: string; sourceUrl: string
 }
 export interface ItemFiscalContext {
+  xmlFinalConsumerIndicator?: string
+  entryLegislationHint?: { reason: string; sourceUrl: string }
+  consumerDifalSuggestions?: { operationAmount?: string; internalRate?: string; interstateRate?: string }
   destinationAssumption?: string
   entryRateDifferenceAvailable?: boolean
   xmlCalculationAvailable?: boolean
@@ -623,6 +671,9 @@ export interface ItemFiscalContext {
   purchaseReviewCompany?: { cnpj: string; name?: string }
   xmlData?: readonly { label: string; value: string }[]
   commonScenario?: { finalConsumerIndicator?: string }
+  stMvaCandidates?: readonly { id: string; cest: string; description: string; originalMvaPercent: string; suggested: boolean }[]
+  matchingBatchItems?: readonly { documentId: string; documentNumber: string; itemNumber: string; description?: string }[]
+  appliedBatchItems?: number
   matchingNoteItems?: readonly { itemNumber: string; description?: string; productCode?: string }[]
   appliedItemNumbers?: readonly string[]
   stSpecificMva?: SpecificStMvaSummary
@@ -644,7 +695,7 @@ export interface ItemFiscalContext {
 
 export interface SaveItemFiscalAnswersInput {
   calculationMode?: 'FISCAL_RULE' | 'XML' | 'AUTOMATIC'
-  reuseScope?: 'CURRENT_ITEM' | 'MATCHING_NOTE_ITEMS' | 'FUTURE_NOTES'
+  reuseScope?: 'CURRENT_ITEM' | 'MATCHING_NOTE_ITEMS' | 'MATCHING_BATCH_ITEMS' | 'FUTURE_NOTES'
   expectedDefinitionId?: string
   batchId: string
   documentId: string

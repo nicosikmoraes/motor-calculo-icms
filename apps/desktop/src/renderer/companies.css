@@ -117,3 +117,8 @@
   .cmp-form-two { grid-template-columns: minmax(0,1fr) 100px; }
 }
 @media (pointer: coarse) { .cmp-button, .cmp-link { min-height: 44px; } }
+
+.companies-view > .notice { margin: 18px 0 26px; padding: 16px 20px; line-height: 1.65; border: 1px solid #c4dfd0; border-radius: 10px; }
+.cmp-form-actions { padding-top: 14px; gap: 12px; }
+
+.cmp-field select { appearance: auto; padding-right: 28px; cursor: pointer; }

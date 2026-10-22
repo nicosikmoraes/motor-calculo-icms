@@ -3,6 +3,7 @@ import { addDecimals, compareDecimals, decimalText, divideDecimals, multiplyDeci
 
 /** Entradas explícitas para a primeira planilha de ICMS-ST de compras no Paraná. */
 export interface ParanaPurchaseIcmsStInput {
+  discountTreatment?: 'UNCONDITIONAL' | 'CONDITIONAL' | undefined
   operationDate?: string
   issuerState?: string
   recipientState?: string
@@ -118,7 +119,7 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
     if (adjustedMode && compareDecimals(adjustmentRate, '100') >= 0) {
       return pending('A alíquota interna deve ser inferior a 100% para ajustar a MVA.')
     }
-    if (compareDecimals(amounts.discount, '0') > 0) {
+    if (compareDecimals(amounts.discount, '0') > 0 && input.discountTreatment === undefined) {
       return pending('A planilha não define o tratamento do desconto na base de ICMS-ST; confirme a regra específica antes de calcular.')
     }
     if (!simple && declaredOwnIcms === undefined && [amounts.freight, amounts.insurance, amounts.other].some(amount => compareDecimals(amount, '0') > 0)) {
@@ -127,7 +128,9 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
 
     // A planilha aplica a MVA ao valor do produto com IPI. Encargos informados
     // também entram na base da ST; o desconto fica pendente até haver regra.
-    const operationBase = addDecimals(amounts.product, amounts.ipi, amounts.freight, amounts.insurance, amounts.other)
+    const grossOperationBase = addDecimals(amounts.product, amounts.ipi, amounts.freight, amounts.insurance, amounts.other)
+    const operationBase = input.discountTreatment === 'UNCONDITIONAL' ? subtractDecimals(grossOperationBase, amounts.discount) : grossOperationBase
+    if (compareDecimals(operationBase, '0') < 0) return pending('O desconto supera o valor da operação.')
     // Manter a razão sem arredondar a MVA intermediária. A divisão de exibição
     // tem 20 casas; base/ICMS finais são calculados diretamente da razão exata.
     const adjustMva = adjustedMode && compareDecimals(adjustmentRate, ownRate) >= 0
@@ -161,7 +164,7 @@ export function calculateParanaPurchaseIcmsSt(input: ParanaPurchaseIcmsStInput):
           operation: adjustMva ? '[(1 + MVA original/100) × (1 − alíquota interestadual/100) ÷ (1 − carga interna/100) − 1] × 100; exibição com 20 casas, razão exata usada no imposto' : 'Carga interna inferior à interestadual: usar MVA original, art. 1º, § 6º',
           inputs: { originalMvaPercent: mva, interstateRate: ownRate, internalRate: adjustmentRate, icmsInternalRate: internalRate, multiplierNumerator, multiplierDenominator }, result: appliedMva,
           rounding: { scale: 20, mode: 'HALF_UP_DISPLAY_ONLY' } }] : []),
-        { name: 'Base antes da MVA', operation: 'valor do produto + IPI + frete + seguro + outras despesas informadas',
+        { name: 'Base antes da MVA', operation: input.discountTreatment === 'UNCONDITIONAL' ? 'produto + IPI + frete + seguro + despesas − desconto incondicional (Consulta SEFA/PR 038/2018)' : 'valor do produto + IPI + frete + seguro + outras despesas informadas',
           inputs: amounts, result: operationBase },
         { name: 'Base de cálculo do ICMS-ST', operation: 'base antes da MVA × (1 + MVA aplicada ÷ 100)',
           inputs: { operationBase, appliedMvaPercent: appliedMva, multiplierNumerator, multiplierDenominator }, result: stBase },

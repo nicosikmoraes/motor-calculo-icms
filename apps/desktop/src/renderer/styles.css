@@ -108,3 +108,7 @@ summary { list-style: none; }
 summary::-webkit-details-marker { display: none; }
 summary::marker { content: ''; }
 select { appearance: none; background-image: none; }
+
+/* Mensagens com respiro entre formulários, títulos e painéis. */
+.form-error, .form-success { margin-block: 16px 20px; padding: 14px 18px; line-height: 1.6; }
+.notice + .card, .notice + section { margin-top: 6px; }
