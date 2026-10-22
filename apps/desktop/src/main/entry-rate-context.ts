@@ -1,6 +1,6 @@
 import type { ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion } from '@motor/contracts'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
-import { calculateParanaEntryRateDifference, compareDecimals, PARANA_ENTRY_RATE_REFERENCE, pendingCalculation } from '@motor/tax-engine'
+import { addDecimals, subtractDecimals, calculateParanaEntryRateDifference, compareDecimals, PARANA_ENTRY_RATE_REFERENCE, pendingCalculation } from '@motor/tax-engine'
 
 export function entryRateDifferenceAvailable(nfe: NormalizedNfe, companyCnpj?: string): boolean {
   return nfe.operationDirection === '1' && nfe.model === '55' && nfe.purposeCode === '1'
@@ -14,9 +14,12 @@ export function entryRateQuestions(item: NormalizedNfeItem): ItemFiscalQuestion[
       { value: 'RESALE', label: 'Revenda' }, { value: 'INDUSTRIALIZATION', label: 'Industrialização' },
       { value: 'FIXED_ASSET', label: 'Ativo imobilizado' }, { value: 'OWN_USE', label: 'Uso ou consumo' },
     ] },
+    { field: 'destinationReviewReason', label: 'Quando a destinação adotada divergir do indicador de consumidor final do XML, registre a justificativa e a evidência da revisão.', inputType: 'text' },
+    { field: 'entryInterstateRate', label: 'Alíquota interestadual do DIFAL (%) — 4%, 7% ou 12%, conferida conforme origem e mercadoria', inputType: 'decimal', ...(item.declaredIcms?.rate !== undefined ? { suggestedValue: item.declaredIcms.rate } : {}) },
     { field: 'entryMethod', label: 'Qual obrigação de entrada será conferida para este produto?', options: [
       { value: 'RATE_DIFFERENCE', label: 'Antecipação por diferença de alíquotas, sem ST' },
       { value: 'ICMS_ST', label: 'ICMS-ST da entrada por operações subsequentes' },
+      { value: 'CONSUMER_DIFAL', label: 'DIFAL para uso/consumo ou ativo imobilizado (contribuinte)' },
       { value: 'NO_DEBIT', label: 'Sem novo débito de entrada, com justificativa' },
     ] },
     { field: 'entryApplicationConfirmed', label: 'Confirma comprador contribuinte, destinação para comercialização ou industrialização e antecipação desta mercadoria importada a 4%, sem ST ou benefício que afaste o recolhimento, com a carga efetiva aplicável?', options: [

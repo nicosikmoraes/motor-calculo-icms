@@ -9,6 +9,6 @@ export function purchaseDestinationAnswers(nfe: NormalizedNfe, answers: ItemFisc
   const supplier=nfe.operationDirection === '0' ? nfe.recipient : nfe.issuer
   const purchase = ['0','1'].includes(nfe.operationDirection ?? '') && buyer?.taxId === companyCnpj
     && Boolean(companyCnpj && supplier && supplier.taxId !== companyCnpj)
-  return purchase && answers.destination === undefined
+  return purchase && nfe.finalConsumerIndicator !== '1' && answers.destination === undefined
     ? Object.fromEntries(Object.entries({ ...answers, destination: 'RESALE', destinationBasis: 'ASSUMED_RESALE' }).sort(([a],[b])=>a<b?-1:a>b?1:0)) as ItemFiscalAnswers : answers
 }

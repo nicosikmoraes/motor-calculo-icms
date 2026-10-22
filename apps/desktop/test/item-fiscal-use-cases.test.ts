@@ -32,8 +32,7 @@ describe('cálculo automático com parâmetros documentados no XML', () => {
   it('grava a conferência com IPI sem respostas fiscais e conserva a execução ao reabrir', () => {
     const next = laterNote({ issuer: { ...nfe.issuer, state: 'SP' } }, { productAmount: '492.38', ipiAmount: '15.99', cfop: '6102',
       declaredIcms: { cst: '00', baseMode: '3', baseAmount: '492.38', rate: '4', amount: '19.69' } })
-    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
-    const saved = getItemFiscalContext(db, next.batchId, next.documentId, '1')
+    const saved = saveXml(next)
     expect(saved.calculation.result?.amount).toBe('19.70')
     expect(saved.answers.stApplicableConfirmed).toBeUndefined()
     expect(saved.answers.ipiTreatment).toBeUndefined()
@@ -168,7 +167,7 @@ describe('conferência de ICMS-ST de compras', () => {
         result: { component: 'ICMS_ST', base: '648.61', rate: '19.5', amount: '106.30' } } }] })
     const summary = getBatchConsolidation(db, next.batchId)
     expect(summary.counts.calculated).toBe(0)
-    expect(summary.evidence[0]?.status).toBe('UNSUPPORTED')
+    expect(summary.evidence[0]?.status).toBe('EXCLUDED')
     expect(summary.groups[0]?.totals.calculatedIcms).toBe('0.00')
     expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.items[0]?.memory).toEqual(prior.items[0]?.memory)
   })
@@ -183,7 +182,10 @@ describe('conferência de ICMS-ST de compras', () => {
       buildItemFiscalContext(purchase, { ...purchase.items[0]!, declaredIcms: { ...purchase.items[0]!.declaredIcms, cst: '60' } }, answers),
       buildItemFiscalContext({ ...purchase, issuer: { ...purchase.issuer, taxRegimeCode: '1' } }, purchase.items[0]!, answers),
     ]
-    expect(cases.every(context => context.calculation.status === 'UNSUPPORTED' && context.calculation.result === undefined)).toBe(true)
+    expect(cases[0]!.calculation.status).toBe('PENDING_DATA')
+    expect(cases[0]!.calculation.reason).toContain('consumidor final')
+    expect(cases.every(context => context.calculation.result === undefined)).toBe(true)
+    expect(cases.slice(1).every(context=>context.calculation.status === 'UNSUPPORTED')).toBe(true)
   })
 
   it('consulta a MVA de 2026, ajusta importado a 4% e confere o ST da compra emitida pelo fornecedor', () => {
@@ -215,7 +217,7 @@ describe('conferência de ICMS-ST de compras', () => {
       issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
       recipient: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ' },
       declaredTotals: { discountAmount: '5' },
-    }, { productAmount: '504.36', ncm: '39249000', declaredIcms: { cst: '10', rate: '4', amount: '20.17', stBaseMode: '4' } })
+    }, { cfop: '2102', productAmount: '504.36', ncm: '39249000', declaredIcms: { cst: '10', rate: '4', amount: '20.17', stBaseMode: '4' } })
     const context = saveItemFiscalAnswers(db, { ...next, requestId: 'self-issued', answers: {
       stApplicableConfirmed: true, stMvaPercent: '28.6', stInternalRate: '19.5', fcpStApplicableConfirmed: false, stSupplierNormalConfirmed: true,
     } })
@@ -336,7 +338,7 @@ describe('MVA específica de combustíveis e veículos no fluxo de entrada', () 
     expect(getBatchConsolidation(db, next.batchId).counts).toMatchObject({ calculated: 0, excluded: 1 })
     expect(() => saveItemFiscalAnswers(db, { ...next, requestId: 'new-moto', expectedRunId: old.id, answers: {
       ...vehicleAnswers, stVehicleImportedConfirmed: false,
-    } })).toThrow(/CFOP iniciado em 6/)
+    } })).toThrow(/CFOP|interestadual|outro estado/)
     expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.items[0]?.memory).toEqual(old.items[0]?.memory)
   })
   it('não utiliza o PDF em combustível monofásico nem aceita burlar a regra com MVA manual', () => {
@@ -410,7 +412,7 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
   it('mantém CFOP 5 fora da revisão e do cálculo mesmo com ICMS declarado', () => {
     const context = getItemFiscalContext(db, batchId, docId, '1')
     expect(context.calculation.status).toBe('UNSUPPORTED')
-    expect(context.blockedReason).toContain('CFOP iniciado em 6')
+    expect(context.blockedReason).toMatch(/CFOP|interestadual|outro estado/)
     expect(context.calculation.result).toBeUndefined()
     expect(context.commonScenario).toBeUndefined()
     expect(context.matchingNoteItems).toBeUndefined()
@@ -423,7 +425,8 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
       { ...xmlItem, declaredIcms: { ...xmlItem.declaredIcms, amount: '0.00' } },
       { ...xmlItem, itemNumber: '2', declaredIcms: { cst: '00', baseMode: '3', rate: '12' } },
     ] })
-    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(2)
+    saveXml(next, '1')
+    saveXml(next, '2', randomUUID(), new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.id)
     const first = getItemFiscalContext(db, next.batchId, next.documentId, '1').calculation
     const second = getItemFiscalContext(db, next.batchId, next.documentId, '2').calculation
     expect(first.result?.amount).toBe('120.00')
@@ -437,13 +440,13 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
     const next = xmlNote({ environmentCode: '1', declaredTotals: { freightAmount: '50' }, items: [
       { ...xmlItem, productAmount: '300' }, { ...xmlItem, itemNumber: '2', cfop: '5102', productAmount: '200' },
     ] })
-    expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(1)
+    saveXml(next)
     expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').calculation.result).toMatchObject({ base: '330', amount: '39.60' })
     expect(getItemFiscalContext(db, next.batchId, next.documentId, '2').calculation.result).toBeUndefined()
     const summary = getBatchConsolidation(db, next.batchId)
     expect(summary.counts).toMatchObject({ items: 2, calculated: 1, excluded: 1, pending: 0 })
     expect(summary.groups.find(group => group.component === 'ICMS')?.totals.calculatedIcms).toBe('39.60')
-    expect(summary.evidence.find(entry => entry.itemNumber === '2')?.reasons.join()).toContain('CFOP iniciado em 6')
+    expect(summary.evidence.find(entry => entry.itemNumber === '2')?.reasons.join()).toMatch(/CFOP|interestadual|outro estado/)
   })
   it('preserva um cálculo anterior de CFOP 5 sem incluí-lo nos novos totais', () => {
     const { run } = historicalDefinition()
@@ -457,7 +460,7 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
   it('bloqueia confirmação individual e em grupo para CFOP fora do filtro sem gravar execução', () => {
     for (const reuseScope of ['CURRENT_ITEM', 'MATCHING_NOTE_ITEMS', 'FUTURE_NOTES'] as const) {
       expect(() => saveItemFiscalAnswers(db, { batchId, documentId: docId, itemNumber: '1', requestId: randomUUID(),
-        reuseScope, answers: complete })).toThrow(/CFOP iniciado em 6/)
+        reuseScope, answers: complete })).toThrow(/CFOP|interestadual|outro estado/)
     }
     expect(new SqliteCalculationRepository(db).latestByDocument(docId)).toBeUndefined()
   })
@@ -468,7 +471,7 @@ describe('seleção dos produtos pelo CFOP da nota', () => {
       const next = xmlNote({ items: [item] })
       expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
       for (const calculationMode of ['XML', 'AUTOMATIC'] as const) {
-        expect(() => saveItemFiscalAnswers(db, { ...next, requestId: randomUUID(), calculationMode, answers: {} })).toThrow(/CFOP iniciado em 6/)
+        expect(() => saveItemFiscalAnswers(db, { ...next, requestId: randomUUID(), calculationMode, answers: {} })).toThrow(/CFOP|interestadual|outro estado/)
       }
       expect(new SqliteCalculationRepository(db).latestByDocument(next.documentId)).toBeUndefined()
     }
@@ -508,7 +511,7 @@ describe('definições anteriores após a mudança do filtro', () => {
     for (const changes of [{ ncm: '12345678' }, { declaredIcms: { cst: '00', amount: '0' } }, { ipiAmount: '10' }]) {
       const next = laterNote({}, { ...changes, cfop: '5102' })
       expect(applyReusableFiscalAnswers(db, next.batchId)).toBe(0)
-      expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').blockedReason).toContain('CFOP iniciado em 6')
+      expect(getItemFiscalContext(db, next.batchId, next.documentId, '1').blockedReason).toMatch(/CFOP|interestadual|outro estado/)
     }
   })
   it('isola empresa, fornecedor e produto ao preservar definições anteriores', () => {
@@ -521,13 +524,13 @@ describe('definições anteriores após a mudança do filtro', () => {
   it('preserva a memória manual anterior quando uma revisão de CFOP 5 é recusada', () => {
     const { run } = historicalDefinition()
     expect(() => saveItemFiscalAnswers(db, { batchId, documentId: docId, itemNumber: '1', requestId: 'revision',
-      expectedRunId: run.id, answers: { destination: 'RESALE' } })).toThrow(/CFOP iniciado em 6/)
+      expectedRunId: run.id, answers: { destination: 'RESALE' } })).toThrow(/CFOP|interestadual|outro estado/)
     expect(new SqliteCalculationRepository(db).latestByDocument(docId)?.items[0]?.memory).toEqual(run.items[0]?.memory)
   })
   it('mantém histórico de definições imutável e não cria revisão para item excluído', () => {
     const { key, definition, run } = historicalDefinition()
     expect(() => saveItemFiscalAnswers(db, { batchId, documentId: docId, itemNumber: '1', requestId: 'stale-def',
-      expectedRunId: run.id, answers: complete, reuseScope: 'FUTURE_NOTES' })).toThrow(/CFOP iniciado em 6/)
+      expectedRunId: run.id, answers: complete, reuseScope: 'FUTURE_NOTES' })).toThrow(/CFOP|interestadual|outro estado/)
     expect(new SqliteCalculationRepository(db).findByRequest('stale-def', docId)).toBeUndefined()
     expect(new SqliteFiscalAnswerDefinitionRepository(db).latest(key)?.id).toBe(definition.id)
     expect(() => db.run('UPDATE definicoes_respostas_fiscais SET respostas_json = ?', '{}')).toThrow(/imutável/)
@@ -584,9 +587,12 @@ describe('perguntas fiscais no lote', () => {
   })
   it('mantém consumidor final fora do cenário de ST e não permite respostas para burlar o CFOP', () => {
     const next = laterNote({ finalConsumerIndicator: '1' }, { cfop: '6403', declaredIcms: { cst: '10', amount: '120' } })
-    expect(() => saveItemFiscalAnswers(db, { ...next, requestId: 'consumer', answers: stAnswers })).toThrow(/consumidor final/)
+    const consumer=saveItemFiscalAnswers(db, { ...next, requestId: 'consumer', answers: stAnswers })
+    expect(consumer.calculation.status).toBe('PENDING_DATA')
+    expect(consumer.calculation.reason).toContain('consumidor final')
+    expect(consumer.calculation.result).toBeUndefined()
     expect(() => saveItemFiscalAnswers(db, { batchId, documentId: docId, itemNumber: '1', requestId: 'cfop',
-      answers: { ...complete, destination: 'OWN_USE' } })).toThrow(/CFOP iniciado em 6/)
+      answers: { ...complete, destination: 'OWN_USE' } })).toThrow(/CFOP|interestadual|outro estado/)
   })
   it('preserva informações de desconto e IPI para conferência', () => {
     const fields = buildItemFiscalContext(nfe, { ...nfe.items[0]!, discountAmount: '10', ipiAmount: '5' }).questions.map(question => question.field)
@@ -598,8 +604,8 @@ describe('perguntas fiscais no lote', () => {
     const next = xmlNote({}, { declaredIcms: { cst: '00', baseMode: '3' } })
     expect(applyAutomaticXmlCalculations(db, next.batchId)).toBe(0)
     const memory = new SqliteCalculationRepository(db).latestByDocument(next.documentId)?.items[0]?.memory
-    expect(memory?.status).toBe('PENDING_DATA')
-    expect(memory?.reason).toContain('alíquota')
+    expect(memory?.status).toBe('PENDING_RULE')
+    expect(memory?.reason).toContain('MVA')
     expect(getBatchConsolidation(db, next.batchId).counts).toMatchObject({ pending: 1, excluded: 0 })
   })
   it('bloqueia cancelamento aceito e preserva o histórico de um item elegível', () => {

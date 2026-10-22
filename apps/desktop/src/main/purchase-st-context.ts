@@ -3,6 +3,7 @@ import type { NormalizedNfe, NormalizedNfeItem, NormalizedParty } from '@motor/d
 import { addDecimals, calculateParanaPurchaseIcmsSt, compareDecimals, pendingCalculation, selectParanaStMva, paranaStMvaCandidates,
   PARANA_FCP_ST_RULE, specificStSector, type ParanaStMvaSelection } from '@motor/tax-engine'
 
+import { classificationCandidates } from './product-classification-review'
 import { preparePurchaseSpecificMva } from './purchase-specific-mva-context'
 import { preparePurchaseFcpContext } from './purchase-fcp-context'
 
@@ -43,7 +44,7 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   const simple = scope.supplier.taxRegimeCode === '1'
   const entrySt = answers.entryMethod === 'ICMS_ST'
   const interstate = scope.supplier.state !== scope.buyer.state
-  const candidates = paranaStMvaCandidates(nfe.issuedAt?.slice(0, 10), item.ncm)
+  const candidates = classificationCandidates(nfe.issuedAt?.slice(0, 10), item)
   const specific = preparePurchaseSpecificMva(nfe, item, answers, scope.supplier)
   const decision = specific?.decision
   const fcp = preparePurchaseFcpContext(nfe, item, answers, decision)
@@ -53,31 +54,32 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   const date = nfe.issuedAt?.slice(0, 10)
   const cosmetics = Boolean(item.ncm && ['3303','3304','3305','3307'].some(prefix => item.ncm!.startsWith(prefix))
     && item.ncm !== '33051000' && !item.ncm.startsWith('330720'))
-  const rateSuggestion = date && date >= '2024-03-18' && date <= '2026-10-18' && scope.catalog.status === 'FOUND'
+  const rateSuggestion = date && date >= '2024-03-18' && date <= '2026-10-18' && candidates.length > 0
     ? cosmetics ? '23' : '19.5' : undefined
   const mode = specific ? 'SPECIFIC_RULE' : answers.stMvaMode ?? (answers.stMvaPercent !== undefined ? 'MANUAL_APPLIED'
     : scope.catalog.status === 'FOUND' ? catalogMode : 'MANUAL_APPLIED')
-  const deductDeclaredOwn = mode !== 'MANUAL_APPLIED'
+  const deductDeclaredOwn = entrySt || mode !== 'MANUAL_APPLIED'
     || [item.freightAmount, item.insuranceAmount, item.otherAmount].some(value => value !== undefined && compareDecimals(value, '0') > 0)
   const questions: ItemFiscalQuestion[] = [
     { field: 'stApplicableConfirmed', label: 'Confirma ICMS-ST relativo às operações subsequentes, comprador contribuinte e mercadoria correspondente à descrição legal e às condições desta compra?', options: yesNo },
     ...(interstate ? [{ field: 'stBuyerLiabilityConfirmed' as const, label: 'Conferiu a responsabilidade do adquirente pelo recolhimento nesta entrada, sem retenção válida para o PR ou pagamento já realizado que duplique o débito?', options: yesNo }] : []),
-    ...(candidates.length ? [{ field: 'stCatalogRowId' as const, label: 'Classificação para consultar a MVA. Uma revisão exige fundamento e conserva o XML original; salve o rascunho para atualizar a referência.', suggestedValue: 'XML', options: [
+    ...(candidates.length ? [{ field: 'stCatalogRowId' as const, label: 'Classificação para consultar a MVA. Uma revisão exige fundamento e conserva o XML original; salve o rascunho para atualizar a referência.', suggestedValue: candidates.find(row=>row.suggested)?.id ?? 'XML', options: [
       { value: 'XML', label: `Usar classificação do XML (CEST ${item.cest ?? 'ausente'}) ou MVA manual` },
-      ...candidates.map(row => ({ value: row.id, label: `CEST ${row.cest} · ${row.description.split(' (')[0]} · MVA ${row.originalMvaPercent}%` })),
+      ...candidates.map(row => ({ value: row.id, label: `${row.suggested ? 'Sugestão pela descrição · ' : ''}CEST ${row.cest} · ${row.description.split(' (')[0]} · MVA ${row.originalMvaPercent}%` })),
     ] },
     { field: 'stClassificationConfirmed' as const, label: 'A descrição e as condições legais do produto correspondem à classificação revisada selecionada?', options: yesNo },
     { field: 'stClassificationReason' as const, label: 'Fundamento da classificação revisada e evidência do produto; o XML original será preservado.', inputType: 'text' as const }] : []),
     ...(candidates.some(row => row.article === 12) ? [{ field: 'stMvaFallbackConfirmed' as const,
       label: 'Confirma a hipótese de MVA do art. 97, § 1º: sem preço máximo/sugerido que prevaleça, sem interdependência ou marketing direto que exija outro tratamento?', options: yesNo }] : []),
     { field: 'stMvaMode', label: 'Como obter a MVA desta operação?', suggestedValue: mode, options: [
-      ...(specific ? [{ value: 'SPECIFIC_RULE', label: 'Calcular a MVA pela regra específica da resolução' }] : scope.catalog.status === 'FOUND' ? [
-        { value: 'CATALOG_ORIGINAL', label: `Usar MVA original da tabela: ${scope.catalog.row.originalMvaPercent}%` },
+      ...(specific ? [{ value: 'SPECIFIC_RULE', label: 'Calcular a MVA pela regra específica da resolução' }] : candidates.length ? [
+        { value: 'CATALOG_ORIGINAL', label: scope.catalog.status === 'FOUND' ? `Usar MVA original da tabela: ${scope.catalog.row.originalMvaPercent}%` : 'Usar MVA original da classificação revisada' },
         ...(!simple ? [{ value: 'CATALOG_IMPORT_4', label: 'Ajustar a MVA da tabela para importado interestadual a 4%' },
           { value: 'CATALOG_INTERSTATE', label: 'Ajustar a MVA da tabela para a operação interestadual a 4%, 7% ou 12%' }] : []),
       ] : []),
       ...(!specific ? [{ value: 'MANUAL_APPLIED', label: 'Informar MVA final aplicada, conferida na legislação' }] : []),
     ] },
+    ...(item.discountAmount && compareDecimals(item.discountAmount, '0') > 0 ? [{ field: 'discountTreatment' as const, label: 'Tratamento do desconto para a base ST por MVA', options: [{ value: 'UNCONDITIONAL', label: 'Incondicional: deduzir da operação antes da MVA' }, { value: 'CONDITIONAL', label: 'Condicional: manter na base' }] }] : []),
     { field: 'stMvaPercent', label: 'MVA final aplicada (%) — no modo manual, informe o percentual já ajustado quando necessário.', inputType: 'decimal' },
     { field: 'stInternalRate', label: `Alíquota interna do Paraná (%) — ${rateSuggestion ? `sugestão de ${rateSuggestion}% somente de ICMS (Lei 11.580/1996, art. 14 e § 9º). Confira o enquadramento e o FECOP separado.` : 'informe o ICMS ou a carga com FECOP e confirme abaixo se ela inclui o adicional.'}`,
       inputType: 'decimal', ...(rateSuggestion && tax?.stRate === undefined ? { suggestedValue: rateSuggestion } : {}) },
@@ -97,7 +99,7 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   if (!block && (nfe.model !== '55' || nfe.purposeCode !== '1' || item.includedInDocumentTotal === false)) {
     block = 'Este cálculo atende NF-e de compra destinadas ao Paraná, de finalidade normal e item incluído no documento.'
   }
-  if (!block && (nfe.finalConsumerIndicator === '1' || scope.buyer.stateRegistrationIndicator === '9')) {
+  if (!block && scope.buyer.stateRegistrationIndicator === '9') {
     block = 'Esta compra indica consumidor final ou comprador não contribuinte. A ST por operações subsequentes não cobre esse enquadramento; exige regra própria.'
   }
   if (!block && ['OWN_USE','FIXED_ASSET'].includes(answers.destination ?? '')) block = 'A destinação informada é uso/consumo ou ativo. A ST por operações subsequentes exige outro enquadramento.'
@@ -119,7 +121,9 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   const entryChoiceReason = simple && tax?.amount === undefined
     ? `O fornecedor é do Simples (CSOSN ${tax?.csosn ?? 'não informado'}) e não há ICMS próprio destacado para conferir. Escolha o tratamento da entrada: ST, antecipação ou ausência de novo débito. Para ST, confirme a classificação do produto e a base própria de dedução.`
     : 'Escolha o tratamento desta compra interestadual: ST, antecipação ou ausência de novo débito. A conferência dos valores do XML não define essa obrigação.'
+  const destinationReview = nfe.finalConsumerIndicator === '1' && !(answers.destination === 'RESALE' && answers.destinationBasis === 'CONFIRMED' && answers.destinationReviewReason?.trim())
   let calculation = block ? { ...pendingCalculation('UNSUPPORTED', block, [], declared), component: 'ICMS_ST' as const }
+    : destinationReview ? { ...pendingCalculation('PENDING_DATA', 'O XML indica consumidor final. Confirme revenda com justificativa ou selecione uso/ativo e DIFAL.', [], declared), component: 'ICMS_ST' as const }
     : needsEntryChoice ? { ...pendingCalculation('PENDING_DATA', entryChoiceReason, [], declared), component: 'ICMS_ST' as const }
     : entrySt && answers.stBuyerLiabilityConfirmed !== true ? { ...pendingCalculation('PENDING_DATA', 'Confirme a responsabilidade do adquirente e a inexistência de retenção ou pagamento que duplique o débito.', [], declared), component: 'ICMS_ST' as const }
     : entrySt && candidates.some(row => row.article === 12) && answers.stMvaFallbackConfirmed !== true ? { ...pendingCalculation('PENDING_DATA', 'Confirme a hipótese de MVA do art. 97, § 1º; preço máximo/sugerido, interdependência e marketing direto exigem outra análise.', [], declared), component: 'ICMS_ST' as const }
@@ -159,6 +163,7 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
         ...(item.insuranceAmount !== undefined ? { insuranceAmount: item.insuranceAmount } : {}),
         ...(item.otherAmount !== undefined ? { otherAmount: item.otherAmount } : {}),
         ...(item.discountAmount !== undefined ? { discountAmount: item.discountAmount } : {}),
+        ...(answers.discountTreatment ? { discountTreatment: answers.discountTreatment } : {}),
         mvaMode: decision?.engineMvaMode ?? (mode === 'MANUAL_APPLIED' ? 'APPLIED_MANUAL' : mode === 'CATALOG_IMPORT_4' ? 'ADJUSTED_IMPORT_4' : mode === 'CATALOG_INTERSTATE' ? 'ADJUSTED_INTERSTATE' : 'ORIGINAL'),
         ...(decision?.engineMvaMode === 'APPLIED_MANUAL' ? { appliedMvaPercent: decision.appliedMvaPercent! } : {}),
         ...(decision?.engineMvaMode !== 'APPLIED_MANUAL' && decision?.originalMvaPercent ? { originalMvaPercent: decision.originalMvaPercent } : {}),
@@ -217,7 +222,7 @@ export function buildPurchaseStContext(nfe: NormalizedNfe, item: NormalizedNfeIt
     validFrom: scope.catalog.catalog.validFrom, verifiedThrough: scope.catalog.catalog.verifiedThrough,
     sourceUrl: scope.catalog.catalog.sourceUrl, legalBasis: scope.catalog.catalog.legalBasis,
   } : { status: scope.catalog.status, reason: scope.catalog.reason }
-  return { answers, questions, stMvaReference, ...(decision ? { stSpecificMva: { status: decision.status, sector: decision.sector, article: decision.article,
+  return { answers, questions, stMvaCandidates: candidates.map(({id,cest,description,originalMvaPercent,suggested})=>({id,cest,description,originalMvaPercent,suggested})), stMvaReference, ...(decision ? { stSpecificMva: { status: decision.status, sector: decision.sector, article: decision.article,
     ...(decision.reason ? { reason: decision.reason } : {}), ...(decision.originalMvaPercent ? { originalMvaPercent: decision.originalMvaPercent } : {}),
     ...(decision.appliedMvaPercent ? { appliedMvaPercent: decision.appliedMvaPercent } : {}), legalBasis: decision.rule.legalBasis, sourceUrl: decision.rule.sourceUrl } } : {}), ...(block && !mvaOnly ? { blockedReason: block } : {}), xmlFacts: [
     `Compra destinada ao PR · fornecedor ${scope.supplier.state ?? 'UF ausente'} · comprador ${scope.buyer.state}`,

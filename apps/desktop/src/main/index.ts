@@ -1,5 +1,6 @@
 import { stopImportWorkers } from './import-worker-client'
 import { registerBackupHandlers, stopBackups } from './backup-handlers'
+import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
@@ -19,6 +20,14 @@ import { batchOperations, closeDatabase, openDatabase, requiredInputText } from 
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | undefined
+
+// A versão de desenvolvimento roda isolada da instalação e não compartilha o SQLite do usuário.
+if (!app.isPackaged) {
+  const devUserDataDirectory = process.env.CONTABILINICO_DEV_DATA_DIRECTORY ?? join(currentDirectory, '../../../.dev-user-data')
+  mkdirSync(devUserDataDirectory, { recursive: true })
+  app.setPath('userData', devUserDataDirectory)
+  app.setName('ContabiliNico Dev')
+}
 
 /** Cria a janela isolada e carrega o frontend de desenvolvimento ou produção. */
 function createWindow(): void {

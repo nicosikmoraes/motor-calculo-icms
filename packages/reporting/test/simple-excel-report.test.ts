@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { buildBatchConsolidation } from '../src/consolidation'
 import { createExcelWorkbook, generateExcelReport } from '../src/excel-report'
+import { buildExcelItemRows } from '../src/excel-item-rows'
+import { itemCalculationStatus } from '@motor/contracts'
 import { excelFixture } from './excel-report.fixture'
 
 function fixture() {
@@ -110,4 +112,33 @@ describe('Excel simples aprovado', () => {
     report.items = []; report.consolidation!.evidence = []
     expect(createExcelWorkbook(report).worksheets[0]!.rowCount).toBe(1)
   })
+  it.each(['CALCULATED', 'PENDING_RULE'] as const)('não trata documento %s como imposto zero, mesmo com evidência antiga', oldStatus => {
+    const report = fixture(), item = report.items[0]!
+    item.calculation = { status: oldStatus, component: 'ICMS_ST', inputs: [
+      { name: 'automaticXmlCalculation', value: 'XML_ARITHMETIC_3', source: 'DERIVED/XML', treatment: 'INCLUDED' },
+      { name: 'xmlTreatment', value: 'PREVIOUS_ST', source: 'XML/ICMS', treatment: 'UNDECIDED' },
+      { name: 'retainedStAmount', value: '41.43', source: 'XML/ICMS', treatment: 'EXCLUDED' },
+      { name: 'retainedFcpStAmount', value: '3.31', source: 'XML/ICMS', treatment: 'EXCLUDED' },
+    ], steps: [], ...(oldStatus === 'CALCULATED' ? { result: { component: 'ICMS_ST', base: '0.00', rate: '0', amount: '0.00' } } : {}) }
+    expect(itemCalculationStatus(item.calculation)).toBe('PENDING_RULE')
+    // A planilha também se protege quando recebe evidência de uma versão anterior.
+    report.consolidation!.evidence[0]!.component = 'ICMS_ST'
+    const sheet = createExcelWorkbook(report).worksheets[0]!
+    expect(sheet.getCell('E2').value).toBe('Não apurado')
+    expect(sheet.getCell('F2').value).toBe('Não apurado')
+    expect(sheet.getCell('G2').text).toContain('41,43')
+    expect(sheet.getCell('E3').value).toBe(0)
+    expect(sheet.getCell('C3').value).toBe('TOTAL PARCIAL')
+    const audit = buildExcelItemRows(report)
+    const value = (title: string) => audit.rows[0]![audit.columns.findIndex(column => column.title === title)]
+    expect(value('Situação fiscal')).toBe('Não apurado')
+    expect(value('ICMS-ST calculado (R$)')).toBeUndefined()
+    expect(value('Imposto salvo para auditoria ICMS-ST (R$)')).toBeUndefined()
+    expect(value('ST anterior informada (R$)')).toBe('41.43')
+    expect(value('FCP-ST anterior informado (R$)')).toBe('3.31')
+    report.consolidation = buildBatchConsolidation(report.batch.id, [{ documentId: item.documentId, documentNumber: '0001', accessKey: '0'.repeat(44), companyId: 'company', issuedAt: '2026-09-01', perspective: 'PURCHASES', environment: '1', authorization: 'WITH_PROTOCOL', items: [{ itemNumber: item.itemNumber, memory: { schemaVersion: 1, ...item.calculation } }] }])
+    expect(report.consolidation.counts).toMatchObject({ calculated: 0, pending: 1 })
+    expect(report.consolidation.evidence[0]?.calculatedIcms).toBeUndefined()
+  })
+
 })

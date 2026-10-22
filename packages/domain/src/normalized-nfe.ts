@@ -29,6 +29,19 @@ export interface NormalizedDeclaredIcms {
   baseAmount?: DecimalText
   rate?: DecimalText
   amount?: DecimalText
+  operationAmount?: DecimalText
+  deferralPercent?: DecimalText
+  deferredAmount?: DecimalText
+  retainedStBaseAmount?: DecimalText
+  retainedStRate?: DecimalText
+  retainedStAmount?: DecimalText
+  substituteIcmsAmount?: DecimalText
+  retainedFcpStBaseAmount?: DecimalText
+  retainedFcpStRate?: DecimalText
+  retainedFcpStAmount?: DecimalText
+  effectiveIcmsAmount?: DecimalText
+  stDestinationAmount?: DecimalText
+  exemptAmount?: DecimalText
   stBaseMode?: string
   stMarginPercent?: DecimalText
   stBaseReductionPercent?: DecimalText

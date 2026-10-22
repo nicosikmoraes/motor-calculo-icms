@@ -1,5 +1,5 @@
-import type { ItemCalculationSummary, ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion, SaveItemFiscalAnswersInput } from '@motor/contracts'
-import { isCalculationEligibleCfop, calculationCfopExclusionReason, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
+import { documentaryTaxReview, fiscalCalculationView, itemCalculationStatus, type ItemCalculationSummary, type ItemFiscalAnswers, type ItemFiscalContext, type ItemFiscalQuestion, type SaveItemFiscalAnswersInput } from '@motor/contracts'
+import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, calculationCfopExclusionReason, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
 import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationRepository, type SqliteDatabase,
   type NormalizedFiscalDocumentRecord, type DocumentArtifactRecord, SqliteFiscalAnswerDefinitionRepository,
   type FiscalAnswerDefinitionKey, SqliteCompanyRepository } from '@motor/database'
@@ -11,16 +11,18 @@ import { addDecimals, subtractDecimals, allocateProportionally, compareDeclared,
 
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 import { buildEntryNoDebitContext, buildEntryRateContext, entryRateDifferenceAvailable, entryRateQuestions } from './entry-rate-context'
+import { classificationProductFamily } from './product-classification-review'
+import { buildConsumerDifalContext } from './consumer-difal-context'
 import { entryReviewFindings } from './entry-review-findings'
 import { purchaseDestinationAnswers, RESALE_DEFAULT_NOTICE } from './purchase-destination-policy'
 import { AUTOMATIC_XML_VERSION, AUTOMATIC_CATALOG_VERSION, automaticCalculationDescription, calculateAutomaticItem, calculateAutomaticXmlItem, isAutomaticCalculation, isAutomaticXmlCalculation } from './automatic-xml-calculation'
 
 const answersInputName = 'fiscalAnswers'
-const version = 'PR_FISCAL_9'
+const version = 'PR_FISCAL_10'
 const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed', 'fcpStApplicableConfirmed', 'stInternalRateIncludesFcp', 'stSpecificRuleConfirmed', 'stFuelArt50OperationBaseConfirmed', 'stFuelMonophaseConfirmed', 'stVehicleNewForResaleConfirmed', 'stVehicleMvaFallbackConfirmed', 'stVehicleImportedConfirmed', 'stVehicleImportPriceFloorConfirmed'] as const
-const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate', 'entryInternalRate'] as const
+const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate', 'entryInternalRate', 'entryInterstateRate'] as const
 const enums = {
-  entryMethod: ['RATE_DIFFERENCE', 'ICMS_ST', 'NO_DEBIT'],
+  entryMethod: ['RATE_DIFFERENCE', 'ICMS_ST', 'NO_DEBIT', 'CONSUMER_DIFAL'],
   stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4', 'CATALOG_INTERSTATE', 'SPECIFIC_RULE'],
   stFuelCategory: ['PETROLEUM_NONINCIDENCE', 'SHALE_OIL', 'OTHER'],
   destination: ['RESALE', 'INDUSTRIALIZATION', 'FIXED_ASSET', 'OWN_USE'],
@@ -43,7 +45,7 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
       if (compareDecimals(normalized, '0') < 0) throw new Error('A base de antecipação não pode ser negativa.')
       result[key] = normalized; continue
     }
-    if (key === 'entryNoDebitReason' || key === 'stClassificationReason') {
+    if (key === 'entryNoDebitReason' || key === 'stClassificationReason' || key === 'destinationReviewReason') {
       if (typeof value !== 'string' || !value.trim() || value.trim().length > 1000) throw new Error('Informe uma justificativa de até 1000 caracteres para a decisão fiscal.')
       result[key] = value.trim(); continue
     }
@@ -208,17 +210,20 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   answers = purchaseDestinationAnswers(nfe, answers, companyCnpj)
   const originalItem = item
   const xmlData = reviewXmlData(nfe, item)
-  let block = externalBlock ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
-  const entryAvailable = !externalBlock && entryRateDifferenceAvailable(nfe, companyCnpj)
-  if (answers.entryMethod === 'RATE_DIFFERENCE' || answers.entryMethod === 'NO_DEBIT') {
+  let block = externalBlock ?? (companyCnpj ? paranaInterstateEntryExclusionReason(nfe,item.cfop,companyCnpj) : undefined) ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
+  const entryAvailable = !block && entryRateDifferenceAvailable(nfe, companyCnpj)
+  if (answers.entryMethod === 'RATE_DIFFERENCE' || answers.entryMethod === 'NO_DEBIT' || answers.entryMethod === 'CONSUMER_DIFAL') {
     const entryBlock = block ?? (!entryAvailable ? 'A empresa e a operação não correspondem à aquisição interestadual destinada ao Paraná.' : undefined)
-    const context = answers.entryMethod === 'NO_DEBIT' ? buildEntryNoDebitContext(item, answers, entryBlock) : buildEntryRateContext(nfe, item, answers, entryBlock)
+    const context = answers.entryMethod === 'CONSUMER_DIFAL' ? buildConsumerDifalContext(nfe,item,answers,companyCnpj,entryBlock) : answers.entryMethod === 'NO_DEBIT' ? buildEntryNoDebitContext(item, answers, entryBlock) : buildEntryRateContext(nfe, item, answers, entryBlock)
     const scope = purchaseStScope(nfe, item, answers, companyCnpj)
     if (scope) context.questions = [...context.questions, ...buildPurchaseStContext(nfe, item, answers, scope, block).questions]
     context.xmlFacts = [...context.xmlFacts, ...entryReviewFindings(nfe,item,answers).findings.map(f => f.reason)]
-    return finishContext({ ...context, xmlData }, originalItem, answers, [], saved, runId)
+    return finishContext({ ...context, entryRateDifferenceAvailable: entryAvailable, xmlData }, originalItem, answers, [], saved, runId)
   }
   let purchaseReviewCompany: ItemFiscalContext['purchaseReviewCompany']
+  const buyerForReview = nfe.operationDirection === '0' ? nfe.issuer : nfe.recipient
+  const supplierForReview = nfe.operationDirection === '0' ? nfe.recipient : nfe.issuer
+  if (!externalBlock && companyCnpj && companyCnpj === supplierForReview?.taxId && buyerForReview?.state === 'PR' && buyerForReview.taxId) purchaseReviewCompany = {cnpj:buyerForReview.taxId,...(buyerForReview.name?{name:buyerForReview.name}:{})}
   let allocationSteps: CalculationMemory['steps'] = []
   try {
     const allocated = allocatedDocument(nfe).get(item.itemNumber)
@@ -362,14 +367,14 @@ function reuseKey(database: SqliteDatabase, document: NormalizedFiscalDocumentRe
 }
 
 /** Valores/quantidades variam entre notas; características fiscais devem permanecer iguais. */
-function reuseFingerprint(nfe: NormalizedNfe, item: NormalizedNfeItem): string {
+function reuseFingerprint(nfe: NormalizedNfe, item: NormalizedNfeItem, description?: string): string {
   item = allocatedDocument(nfe).get(item.itemNumber)?.item ?? item
   const tax = item.declaredIcms
   return JSON.stringify([
     version, nfe.model, nfe.issuer.state, nfe.issuer.taxRegimeCode, nfe.recipient?.taxId,
     nfe.recipient?.taxIdType, nfe.recipient?.state, nfe.recipient?.stateRegistrationIndicator,
     nfe.operationDirection, nfe.purposeCode, nfe.finalConsumerIndicator, nfe.environmentCode,
-    item.description, item.ncm, item.cest, item.cfop, item.commercialUnit, item.includedInDocumentTotal,
+    description ?? item.description, item.ncm, item.cest, item.cfop, item.commercialUnit, item.includedInDocumentTotal,
     tax?.group, tax?.originCode, tax?.cst, tax?.csosn, tax?.rate, tax?.baseMode, tax?.baseReductionPercent,
     tax?.stRate, tax?.fcpRate, tax?.fcpStRate,
     positive(item.ipiAmount), positive(item.discountAmount), positive(tax?.stBaseAmount), positive(tax?.stAmount),
@@ -389,25 +394,131 @@ function reuseState(database: SqliteDatabase, document: NormalizedFiscalDocument
   return { key, definition, matches }
 }
 
-/** Compartilha apenas contexto comum idêntico dentro da mesma nota, preservando itens já calculados. */
+function noteAnswerSharingAvailable(context: ItemFiscalContext): boolean {
+  const { answers } = context
+  // Base revisada, fundamento individual e regras setoriais exigem conferência do próprio produto.
+  if (context.blockedReason || context.stSpecificMva || answers.entryBaseAmount !== undefined
+    || answers.entryMethod && answers.entryMethod !== 'ICMS_ST') return false
+  return Boolean(context.commonScenario) || context.calculation.component === 'ICMS_ST'
+}
+
+/** Compartilha o mesmo perfil fiscal dentro da nota, mesmo quando descrição e valores da linha variam. */
 function matchingNoteItems(nfe: NormalizedNfe, item: NormalizedNfeItem,
-  previous: readonly { itemNumber: string; memory: CalculationMemory }[] = [], externalBlock?: string, companyCnpj?: string) {
-  const fingerprint = reuseFingerprint(nfe, item)
+  previous: readonly { itemNumber: string; memory: CalculationMemory }[] = [], externalBlock?: string, companyCnpj?: string,
+  sourceAnswers?: ItemFiscalAnswers) {
+  const allocated = allocatedDocument(nfe)
+  const noteFingerprint = (candidate: NormalizedNfeItem) => {
+    candidate = allocated.get(candidate.itemNumber)?.item ?? candidate
+    const tax = candidate.declaredIcms
+    return JSON.stringify([
+      version, nfe.model, nfe.issuer.state, nfe.issuer.taxRegimeCode, nfe.recipient?.taxId,
+      nfe.recipient?.taxIdType, nfe.recipient?.state, nfe.recipient?.stateRegistrationIndicator,
+      nfe.operationDirection, nfe.purposeCode, nfe.finalConsumerIndicator, nfe.environmentCode,
+      ...(purchaseStScope(nfe,item,{},companyCnpj)?.catalog.status !== 'FOUND' || sourceAnswers?.stCatalogRowId && sourceAnswers.stCatalogRowId !== 'XML' ? [classificationProductFamily(candidate)] : []),
+      candidate.ncm, candidate.cest, candidate.cfop, candidate.includedInDocumentTotal, candidate.fuelAnpCode,
+      tax?.group, tax?.originCode, tax?.cst, tax?.csosn, tax?.rate, tax?.baseMode, tax?.baseReductionPercent,
+      tax?.stBaseMode, tax?.stMarginPercent, tax?.stBaseReductionPercent, tax?.stRate, tax?.fcpRate, tax?.fcpStRate,
+    ])
+  }
+  const fingerprint = noteFingerprint(item)
   return nfe.items.filter(candidate => {
     if (!isCalculationEligibleCfop(candidate.cfop)) return false
-    if (candidate.itemNumber !== item.itemNumber && previous.find(entry => entry.itemNumber === candidate.itemNumber)?.memory.status === 'CALCULATED') return false
-    if (reuseFingerprint(nfe, candidate) !== fingerprint) return false
-    return Boolean(buildItemFiscalContext(nfe, candidate, {}, undefined, undefined, externalBlock, companyCnpj).commonScenario)
+    const memory = previous.find(entry => entry.itemNumber === candidate.itemNumber)?.memory
+    if (candidate.itemNumber !== item.itemNumber && memory && itemCalculationStatus(memory) === 'CALCULATED') return false
+    if (noteFingerprint(candidate) !== fingerprint) return false
+    const answers = candidate.itemNumber === item.itemNumber && sourceAnswers ? sourceAnswers : readItemFiscalAnswers(memory)
+    return noteAnswerSharingAvailable(buildItemFiscalContext(nfe, candidate, answers, undefined, undefined, externalBlock, companyCnpj))
   })
+}
+
+/** Identidade fiscal e período iguais; descrição/família estreita evita propagar por NCM isolado. */
+function matchingBatchTargets(database: SqliteDatabase, batchId: string, source: NormalizedFiscalDocumentRecord, sourceItem: NormalizedNfeItem, answers: ItemFiscalAnswers) {
+  const repository = new SqliteCalculationRepository(database)
+  const fingerprint = (nfe: NormalizedNfe,item: NormalizedNfeItem) => {
+    const family = classificationProductFamily(item)
+    return JSON.stringify([nfe.issuedAt?.slice(0,7),nfe.issuer.taxId,reuseFingerprint(nfe,item,family),item.declaredIcms?.stBaseMode,item.declaredIcms?.stMarginPercent,item.declaredIcms?.stBaseReductionPercent])
+  }
+  const expected = fingerprint(source.normalized,sourceItem)
+  const batches = new SqliteBatchRepository(database)
+  const artifacts = batches.listDocumentArtifacts(batchId)
+  const evidence = readDocumentaryIndex(database)
+  const targets: {document: NormalizedFiscalDocumentRecord; item: NormalizedNfeItem; companyCnpj: string | undefined}[] = []
+  for (const document of batches.listNormalizedDocuments(batchId)) {
+    if (document.companyId !== source.companyId) continue
+    const companyCnpj = analyzedCompanyCnpj(database,document)
+    const block = documentFiscalBlock(effectiveProcessingDocument(evidence,document),artifacts) ?? (documentaryState(evidence,document).canceled ? 'Documento cancelado.' : undefined)
+    if (block) continue
+    const latest = repository.latestByDocument(document.id)
+    for (const item of document.normalized.items) {
+      const isSource = document.id === source.id && item.itemNumber === sourceItem.itemNumber
+      const previous = latest?.items.find(entry=>entry.itemNumber === item.itemNumber)?.memory
+      if (!isSource && previous && (itemCalculationStatus(previous)==='CALCULATED' || previous.inputs.some(i=>['answerRequestId','reuseDefinitionId'].includes(i.name)))) continue
+      if (paranaInterstateEntryExclusionReason(document.normalized,item.cfop,companyCnpj)) continue
+      try { if (fingerprint(document.normalized,item)!==expected) continue } catch { continue }
+      const context = buildItemFiscalContext(document.normalized,item,answers,undefined,undefined,block,companyCnpj)
+      if (noteAnswerSharingAvailable(context)) targets.push({document,item,companyCnpj})
+    }
+  }
+  return targets
+}
+
+function saveBatchFiscalAnswers(database: SqliteDatabase,input: SaveItemFiscalAnswersInput): ItemFiscalContext {
+  const {document,item,externalBlock,companyCnpj} = target(database,input.batchId,input.documentId,input.itemNumber)
+  const answers = purchaseDestinationAnswers(document.normalized,validateItemFiscalAnswers(input.answers),companyCnpj)
+  const repository = new SqliteCalculationRepository(database)
+  const existing = repository.findByRequest(input.requestId,input.documentId)
+  if (existing) {
+    const memory = existing.items.find(entry=>entry.itemNumber===input.itemNumber)?.memory
+    if (!memory || memory.inputs.find(entry=>entry.name==='answerReuseScope')?.value!=='MATCHING_BATCH_ITEMS'
+      || memory.inputs.find(entry=>entry.name==='answerGroupSourceDocumentId')?.value!==input.documentId
+      || memory.inputs.find(entry=>entry.name==='answerGroupSourceItemNumber')?.value!==input.itemNumber
+      || existing.previousRunId!==input.expectedRunId || JSON.stringify(readItemFiscalAnswers(memory))!==JSON.stringify(answers)) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
+    return getItemFiscalContext(database,input.batchId,input.documentId,input.itemNumber)
+  }
+  if (repository.latestByDocument(input.documentId)?.id!==input.expectedRunId) throw new Error('As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.')
+  const context=buildItemFiscalContext(document.normalized,item,answers,undefined,undefined,externalBlock,companyCnpj)
+  if (!noteAnswerSharingAvailable(context)) throw new Error(context.blockedReason ?? 'Este tratamento exige revisão individual da base ou das condições do produto.')
+  const targets=matchingBatchTargets(database,input.batchId,document,item,answers)
+  if (targets.length<2) throw new Error('Não há dois itens equivalentes disponíveis no lote. Salve somente neste item.')
+  const documents=[...new Set(targets.map(entry=>entry.document.id))]
+  const records=documents.map(documentId=>{
+    const selected=targets.filter(entry=>entry.document.id===documentId)
+    const current=selected[0]!
+    const latest=repository.latestByDocument(documentId)
+    return {requestId:input.requestId,batchId:input.batchId,documentId,engineVersion:version,...(latest ? {previousRunId:latest.id} : {}),
+      items:current.document.normalized.items.map(entry=>{
+        const affected=selected.find(target=>target.item.itemNumber===entry.itemNumber)
+        if (!affected) return {itemNumber:entry.itemNumber,memory:latest?.items.find(saved=>saved.itemNumber===entry.itemNumber)?.memory ?? memorySnapshot(buildItemFiscalContext(current.document.normalized,entry,{},undefined,undefined,undefined,current.companyCnpj).calculation)}
+        const calculation=buildItemFiscalContext(current.document.normalized,entry,answers,undefined,undefined,undefined,current.companyCnpj).calculation
+        return {itemNumber:entry.itemNumber,memory:{...memorySnapshot(calculation),inputs:[...calculation.inputs,
+          {name:'answerRequestId',value:input.requestId,source:'USER/current_item',treatment:'UNDECIDED' as const},
+          {name:'answerReuseScope',value:'MATCHING_BATCH_ITEMS',source:'USER/current_item',treatment:'UNDECIDED' as const},
+          {name:'answerGroupSourceDocumentId',value:input.documentId,source:'USER/current_item',treatment:'UNDECIDED' as const},
+          {name:'answerGroupSourceItemNumber',value:input.itemNumber,source:'USER/current_item',treatment:'UNDECIDED' as const},
+          {name:'answerAppliedBatchItems',value:String(targets.length),source:'USER/current_item',treatment:'UNDECIDED' as const}]}}
+      })}
+  })
+  repository.saveMany(records)
+  return getItemFiscalContext(database,input.batchId,input.documentId,input.itemNumber)
 }
 
 export function getItemFiscalContext(database: SqliteDatabase, batchId: string, documentId: string, itemNumber: string): ItemFiscalContext {
   const { document, item, externalBlock, batch, companyCnpj } = target(database, batchId, documentId, itemNumber)
   const run = new SqliteCalculationRepository(database).latestByDocument(documentId)
-  const saved = run?.items.find(entry => entry.itemNumber === itemNumber)?.memory
+  const rawSaved = run?.items.find(entry => entry.itemNumber === itemNumber)?.memory
+  const saved = rawSaved ? { ...fiscalCalculationView(rawSaved), schemaVersion: 1 as const } : undefined
   const state = reuseState(database, document, item, batch.receivedAt)
   const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock, companyCnpj)
   const tax = item.declaredIcms
+  if (document.normalized.finalConsumerIndicator !== undefined) context.xmlFinalConsumerIndicator = document.normalized.finalConsumerIndicator
+  try {
+    const allocated = allocatedDocument(document.normalized).get(item.itemNumber)?.item ?? item
+    context.consumerDifalSuggestions = { ...(allocated.productAmount !== undefined ? {operationAmount:subtractDecimals(addDecimals(allocated.productAmount,allocated.ipiAmount ?? '0',allocated.freightAmount ?? '0',allocated.insuranceAmount ?? '0',allocated.otherAmount ?? '0'),allocated.discountAmount ?? '0')} : {}), internalRate:'19.5', ...(tax?.rate !== undefined ? {interstateRate:tax.rate} : {}) }
+  } catch { /* O bloqueio de composição/rateio continua no contexto; não sugerir base incompleta. */ }
+  const date = document.normalized.issuedAt?.slice(0,10)
+  if (date && date >= '2024-08-01' && date <= '2026-10-12' && item.cest === '1400500' && item.ncm?.startsWith('3924')) context.entryLegislationHint = {
+    reason:'Artefatos de higiene/toucador de plástico para uso doméstico: a seção de ST e sua MVA foram revogadas a partir de 01/08/2024 (Decreto PR 6.048/2024 e Resolução SEFA 852/2024). Confira a descrição, a destinação e eventual antecipação da entrada. Não use a MVA antiga nem a tabela de chupetas/mamadeiras apenas pelo NCM.',
+    sourceUrl:'https://www.legislacao.pr.gov.br/legislacao/exibirAto.do?action=iniciarProcesso&codAto=327771&codItemAto=2074937' }
   const suggestions: Partial<Record<keyof ItemFiscalAnswers, string>> = {
     ...(tax?.stRate !== undefined ? { stInternalRate: tax.stRate } : {}),
     ...(tax?.rate !== undefined ? { stOwnOperationRate: tax.rate } : {}),
@@ -423,18 +534,24 @@ export function getItemFiscalContext(database: SqliteDatabase, batchId: string, 
     try { context.xmlCalculationAvailable = calculateAutomaticItem(document.normalized, allocatedDocument(document.normalized).get(item.itemNumber)!.item, companyCnpj)?.status === 'CALCULATED' }
     catch { context.xmlCalculationAvailable = false }
   }
-  if (saved && run && isAutomaticCalculation(saved) && !externalBlock) {
+  const matching = noteAnswerSharingAvailable(context) ? matchingNoteItems(document.normalized, item, run?.items, externalBlock, companyCnpj, context.answers) : []
+  const batchMatching = noteAnswerSharingAvailable(context) ? matchingBatchTargets(database,batchId,document,item,context.answers).map(entry=>({documentId:entry.document.id,documentNumber:entry.document.normalized.number ?? '',itemNumber:entry.item.itemNumber,...(entry.item.description ? {description:entry.item.description} : {})})) : []
+  const batchMatchingContext = batchMatching.length > 1 ? { matchingBatchItems:batchMatching } : {}
+  const appliedBatch = saved?.inputs.find(entry=>entry.name==='answerAppliedBatchItems')?.value
+  const matchingContext = matching.length > 1 ? { matchingNoteItems: matching.map(entry => ({ itemNumber: entry.itemNumber,
+    ...(entry.description ? { description: entry.description } : {}), ...(entry.supplierProductCode ? { productCode: entry.supplierProductCode } : {}) })) } : {}
+  if (saved && run && isAutomaticCalculation(saved) && !externalBlock && !paranaInterstateEntryExclusionReason(document.normalized,item.cfop,companyCnpj)) {
     const { blockedReason, ...available } = context
-    return { ...available, automaticCalculationNotice: automaticCalculationDescription(saved),
+    const { purchaseReviewCompany, ...automaticContext } = available
+    return { ...(document.normalized.purposeCode === '4' ? automaticContext : available),
+      ...(saved.status === 'UNSUPPORTED' && document.normalized.purposeCode === '4' ? { blockedReason: saved.reason } : {}), automaticCalculationNotice: automaticCalculationDescription(saved),
       ...(blockedReason ? { manualReviewBlockedReason: blockedReason } : {}),
-      reuseAvailable: false, calculation: { ...saved, runId: run.id, engineVersion: run.engineVersion } }
+      ...matchingContext, ...batchMatchingContext, reuseAvailable: false, calculation: { ...saved, runId: run.id, engineVersion: run.engineVersion } }
   }
   const reused = saved?.inputs.find(entry => entry.name === 'reuseDefinitionId')?.value
-  const matching = context.commonScenario ? matchingNoteItems(document.normalized, item, run?.items, externalBlock, companyCnpj) : []
   const appliedItems = saved?.inputs.find(entry => entry.name === 'answerAppliedItemNumbers')?.value
   return { ...context, reuseAvailable: context.calculation.component !== 'ICMS_ST' && context.calculation.result?.component !== 'ICMS_ST' && Boolean(state.key), ...(state.definition ? { definitionId: state.definition.id } : {}),
-    ...(matching.length > 1 ? { matchingNoteItems: matching.map(entry => ({ itemNumber: entry.itemNumber,
-      ...(entry.description ? { description: entry.description } : {}), ...(entry.supplierProductCode ? { productCode: entry.supplierProductCode } : {}) })) } : {}),
+    ...matchingContext, ...batchMatchingContext, ...(appliedBatch ? {appliedBatchItems:Number(appliedBatch)} : {}),
     ...(appliedItems ? { appliedItemNumbers: JSON.parse(appliedItems) as string[] } : {}),
     ...(saved && run ? { calculation: { ...context.calculation, engineVersion: run.engineVersion } } : {}),
     ...(reused ? { reuseNotice: 'Respostas reaproveitadas de uma definição anterior para esta empresa e produto do fornecedor.' }
@@ -444,6 +561,7 @@ export function getItemFiscalContext(database: SqliteDatabase, batchId: string, 
 
 export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemFiscalAnswersInput): ItemFiscalContext {
   if (input.calculationMode === 'XML' || input.calculationMode === 'AUTOMATIC') return saveItemXmlCalculation(database, input)
+  if (input.reuseScope === 'MATCHING_BATCH_ITEMS') return saveBatchFiscalAnswers(database,input)
   const validatedAnswers = validateItemFiscalAnswers(input.answers)
   const scope = input.reuseScope ?? 'CURRENT_ITEM'
   if (!['CURRENT_ITEM', 'MATCHING_NOTE_ITEMS', 'FUTURE_NOTES'].includes(scope)) throw new Error('Escolha um alcance válido para as respostas.')
@@ -472,17 +590,19 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
     throw new Error('Para reutilizar nas próximas notas, identifique a empresa e o produto do fornecedor e conclua este cálculo. Você pode salvar respostas parciais somente neste item.')
   }
   const affected = scope === 'MATCHING_NOTE_ITEMS'
-    ? matchingNoteItems(document.normalized, item, latest?.items, externalBlock, companyCnpj) : [item]
-  if (scope === 'MATCHING_NOTE_ITEMS' && (!context.commonScenario || context.calculation.status !== 'CALCULATED' || affected.length < 2)) {
-    throw new Error('Para aplicar aos itens compatíveis desta nota, conclua as respostas e confira se há pelo menos dois itens com o mesmo contexto fiscal ainda sem cálculo. Você pode salvar só neste item.')
+    ? matchingNoteItems(document.normalized, item, latest?.items, externalBlock, companyCnpj, answers) : [item]
+  if (scope === 'MATCHING_NOTE_ITEMS' && !noteAnswerSharingAvailable(context)) {
+    throw new Error('Este tratamento exige revisão individual da base, da classificação ou das condições do produto. Escolha Somente neste item para salvar.')
+  }
+  if (scope === 'MATCHING_NOTE_ITEMS' && affected.length < 2) {
+    throw new Error('Para aplicar aos itens compatíveis desta nota, confira se há pelo menos dois itens com o mesmo contexto fiscal ainda sem cálculo. Você pode salvar só neste item.')
   }
   const updated = new Map<string, CalculationMemory>()
   for (const entry of affected) {
+    const previousAnswers = readItemFiscalAnswers(latest?.items.find(saved => saved.itemNumber === entry.itemNumber)?.memory)
+    const itemAnswers = entry.itemNumber === input.itemNumber ? answers : { ...previousAnswers, ...answers }
     const calculation = entry.itemNumber === input.itemNumber ? context.calculation
-      : buildItemFiscalContext(document.normalized, entry, answers, undefined, undefined, externalBlock, companyCnpj).calculation
-    if (scope === 'MATCHING_NOTE_ITEMS' && calculation.status !== 'CALCULATED') {
-      throw new Error('Um dos itens não pode ser calculado com estas respostas. Revise cada item antes de aplicar em conjunto.')
-    }
+      : buildItemFiscalContext(document.normalized, entry, itemAnswers, undefined, undefined, externalBlock, companyCnpj).calculation
     updated.set(entry.itemNumber, { ...memorySnapshot(calculation), inputs: [
       ...calculation.inputs,
       { name: 'answerRequestId', value: input.requestId, source: 'USER/current_item', treatment: 'UNDECIDED' },
@@ -515,6 +635,8 @@ function saveItemXmlCalculation(database: SqliteDatabase, input: SaveItemFiscalA
   if (Object.keys(validateItemFiscalAnswers(input.answers)).length || input.reuseScope && input.reuseScope !== 'CURRENT_ITEM') throw new Error('O cálculo pelo XML usa somente os dados desta nota.')
   const { document, item, externalBlock, companyCnpj } = target(database, input.batchId, input.documentId, input.itemNumber)
   if (externalBlock) throw new Error(externalBlock)
+  const scopeBlock = paranaInterstateEntryExclusionReason(document.normalized,item.cfop,companyCnpj)
+  if (scopeBlock) throw new Error(scopeBlock)
   const repository = new SqliteCalculationRepository(database)
   const existing = repository.findByRequest(input.requestId, input.documentId)
   if (existing) {
@@ -557,6 +679,7 @@ export function applyReusableFiscalAnswers(database: SqliteDatabase, batchId: st
     const documentary = documentaryState(evidence, document)
     const block = documentFiscalBlock(effectiveProcessingDocument(evidence, document), artifacts) ?? (documentary.canceled ? documentary.reason : undefined)
     if (block) continue
+    if (document.normalized.items.every(item => paranaInterstateEntryExclusionReason(document.normalized,item.cfop,companyCnpj))) continue
     const latest = repository.latestByDocument(document.id)
     let changed = 0
     const items = document.normalized.items.map(item => {
@@ -603,6 +726,7 @@ export function applyAutomaticXmlCalculations(database: SqliteDatabase, batchId:
     const block = documentFiscalBlock(effectiveProcessingDocument(evidence, document), batches.listDocumentArtifacts(batchId))
       ?? (documentaryState(evidence, document).canceled ? 'Documento cancelado.' : undefined)
     if (block) continue
+    if (document.normalized.items.every(item => paranaInterstateEntryExclusionReason(document.normalized,item.cfop,companyCnpj))) continue
     const latest = repository.latestByDocument(document.id)
     let changed = false
     let allocations: ReturnType<typeof allocatedDocument>
@@ -611,10 +735,12 @@ export function applyAutomaticXmlCalculations(database: SqliteDatabase, batchId:
       const previous = latest?.items.find(entry => entry.itemNumber === item.itemNumber)?.memory
       if (previous && (!isAutomaticCalculation(previous) && (previous.status === 'CALCULATED'
         || previous.inputs.some(input => ['answerRequestId', 'reuseDefinitionId'].includes(input.name)))
-        || previous.inputs.some(input => input.name === 'answerCalculationMode'))) return { itemNumber: item.itemNumber, memory: previous }
+        || previous.inputs.some(input => input.name === 'answerCalculationMode') && !(documentaryTaxReview(previous) && previous.result))) return { itemNumber: item.itemNumber, memory: previous }
       const allocated = allocations.get(item.itemNumber)!
       const memory = calculateAutomaticItem(document.normalized, allocated.item, companyCnpj)
-      if (previous && isAutomaticCalculation(previous) && memory && isAutomaticXmlCalculation(previous) === isAutomaticXmlCalculation(memory)) return { itemNumber: item.itemNumber, memory: previous }
+      if (previous && isAutomaticCalculation(previous) && memory
+        && previous.inputs.find(input => ['automaticXmlCalculation', 'automaticCatalogCalculation'].includes(input.name))?.value
+          === memory.inputs.find(input => ['automaticXmlCalculation', 'automaticCatalogCalculation'].includes(input.name))?.value) return { itemNumber: item.itemNumber, memory: previous }
       if (memory) {
         changed = true
         if (memory.status === 'CALCULATED' && !memory.additionalComponents?.some(component => component.status !== 'CALCULATED')) calculated++

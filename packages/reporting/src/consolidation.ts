@@ -1,4 +1,4 @@
-import { consolidationEvidenceDivergent, type BatchConsolidation, type ConsolidationCounts, type ConsolidationEvidence, type ConsolidationGroup } from '@motor/contracts'
+import { documentaryTaxReview, itemCalculationComponents, consolidationEvidenceDivergent, type BatchConsolidation, type ConsolidationCounts, type ConsolidationEvidence, type ConsolidationGroup } from '@motor/contracts'
 import { addDecimals, roundMoney, compareDeclared, compareDecimals, type CalculationComponentMemory, type CalculationMemory } from '@motor/tax-engine'
 import { exactEntryAmount } from './exact-entry-amount'
 
@@ -55,9 +55,10 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
     for (const item of doc.items) {
       const componentEvidence: ConsolidationEvidence[] = []
       physical.push({ item, entries: componentEvidence })
-      const components: (CalculationComponentMemory | undefined)[] = [item.memory, ...(item.memory?.additionalComponents ?? [])]
+      const components: (CalculationComponentMemory | undefined)[] = item.memory
+        ? itemCalculationComponents(item.memory).map(component => ({ ...component, schemaVersion: 1 as const })) : [undefined]
       if (item.memory?.component !== 'ICMS_ENTRY' && [item.declaredFcpSt, item.declaredFcpStBase, item.declaredFcpStRate].some(value => value !== undefined)
-        && !(zeroFcpDeclaration(item) && item.memory?.inputs.some(input => input.name === 'fcpStApplicableConfirmed' && input.value === 'false'))
+        && !(zeroFcpDeclaration(item) && item.memory?.inputs.some(input => input.name === 'automaticXmlCalculation' || input.name === 'fcpStApplicableConfirmed' && input.value === 'false'))
         && !components.some(memory => memory?.component === 'FCP_ST')) components.push({
         schemaVersion: 1, component: 'FCP_ST', status: 'PENDING_DATA', inputs: [], steps: [], reason: 'FCP-ST declarado no XML exige conferência própria.',
         declared: { ...(item.declaredFcpSt !== undefined ? { amount: item.declaredFcpSt } : {}),
@@ -85,8 +86,8 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
         const originalDeclared = component === 'ICMS_ENTRY' ? undefined : component === 'FCP_ST' ? item.declaredFcpSt : component === 'ICMS_ST' ? item.declaredIcmsSt : item.declaredIcms
         const declared = money(originalDeclared)
         if (declared !== undefined) { entry.declaredIcms = declared; sum('declaredIcms', declared) }
-        else if (originalDeclared === undefined && component !== 'ICMS_ENTRY') group.counts.declaredMissing++
-        else if (component !== 'ICMS_ENTRY') group.counts.declaredInvalid++
+        else if (originalDeclared === undefined && component !== 'ICMS_ENTRY' && !(item.memory && documentaryTaxReview(item.memory))) group.counts.declaredMissing++
+        else if (originalDeclared !== undefined && component !== 'ICMS_ENTRY') group.counts.declaredInvalid++
         const base = money(memory?.result?.base), amount = money(memory?.result?.amount)
         const exactEntry = component === 'ICMS_ENTRY' ? exactEntryAmount(memory) : undefined
         if (memory?.status === 'CALCULATED' && (component !== 'FCP_ST' || item.memory?.status === 'CALCULATED') && base !== undefined && amount !== undefined && (component !== 'ICMS_ENTRY' || exactEntry !== undefined)) {
@@ -97,7 +98,7 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
           sum('calculatedBase', base); sum('calculatedIcms', exactEntry ?? amount)
           const deferred = money(memory.deferredAmount ?? memory.steps.find(step => step.name === 'ICMS diferido')?.result)
           if (deferred !== undefined) { entry.deferredIcms = deferred; sum('deferredIcms', deferred) }
-          else if (component === 'ICMS') group.counts.deferredMissing++
+          else if (component === 'ICMS' && !(item.memory && documentaryTaxReview(item.memory))) group.counts.deferredMissing++
           if (declared !== undefined) {
             entry.comparison = compareDeclared(component, amount, declared)
             group.counts.comparableItems++
@@ -125,11 +126,12 @@ export function buildBatchConsolidation(batchId: string, documents: readonly Con
     else if (entries.some(e => e.status !== 'CALCULATED')) total.pending++
     else total.calculated++
     const eligible = entries.filter(e => e.status !== 'EXCLUDED' && e.component !== 'ICMS_ENTRY')
-    if (eligible.some(e => e.declaredIcms === undefined)) {
+    const comparableDeclaration = !(originals.memory && documentaryTaxReview(originals.memory))
+    if (comparableDeclaration && eligible.some(e => e.declaredIcms === undefined)) {
       if (eligible.some(e => e.declaredIcms === undefined && (e.component === 'FCP_ST' ? originals?.declaredFcpSt : e.component === 'ICMS_ST' ? originals?.declaredIcmsSt : originals?.declaredIcms) !== undefined)) total.declaredInvalid++
       if (eligible.some(e => e.declaredIcms === undefined && (e.component === 'FCP_ST' ? originals?.declaredFcpSt : e.component === 'ICMS_ST' ? originals?.declaredIcmsSt : originals?.declaredIcms) === undefined)) total.declaredMissing++
     }
-    if (eligible.some(e => e.status === 'CALCULATED' && e.component === 'ICMS' && e.deferredIcms === undefined)) total.deferredMissing++
+    if (comparableDeclaration && eligible.some(e => e.status === 'CALCULATED' && e.component === 'ICMS' && e.deferredIcms === undefined)) total.deferredMissing++
     if (eligible.some(e => e.comparison)) total.comparableItems++
     if (eligible.some(e => consolidationEvidenceDivergent(e))) total.divergentItems++
     if (eligible.some(e => e.comparison?.status === 'WITHIN_TOLERANCE')) total.withinToleranceItems++

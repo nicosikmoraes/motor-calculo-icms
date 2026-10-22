@@ -1,19 +1,28 @@
-import { isCalculationEligibleCfop, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
+import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
 import { addDecimals, calculateParanaPurchaseIcmsSt, compareDecimals, compareDeclared,
   divideDecimals, multiplyDecimals, pendingCalculation, roundMoney, subtractDecimals, paranaFcpStCoverage, specificStSector,
   type CalculationMemory, type CalculationComponentMemory } from '@motor/tax-engine'
+import { calculateAutomaticInterstateEntry } from './automatic-interstate-entry'
+import { calculateDeclaredTreatment } from './automatic-declared-treatment'
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
-export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_2'
-export const AUTOMATIC_CATALOG_VERSION = 'XML_CATALOG_1'
+export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_6'
+export const AUTOMATIC_CATALOG_VERSION = 'XML_CATALOG_3'
 export const automaticXmlNotice = 'Calculado automaticamente com os parâmetros declarados no XML. As diferenças aparecem na conferência. A incidência e o enquadramento fiscal podem ser revisados separadamente.'
 export function isAutomaticXmlCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
-  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && (input.value === AUTOMATIC_XML_VERSION || input.value === 'XML_ARITHMETIC_1'))
+  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && (input.value === AUTOMATIC_XML_VERSION || input.value === 'XML_ARITHMETIC_5' || input.value === 'XML_ARITHMETIC_4' || input.value === 'XML_ARITHMETIC_3' || input.value === 'XML_ARITHMETIC_2' || input.value === 'XML_ARITHMETIC_1'))
 }
 export function isAutomaticCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
-  return isAutomaticXmlCalculation(memory) || memory.inputs.some(input => input.name === 'automaticCatalogCalculation' && input.value === AUTOMATIC_CATALOG_VERSION)
+  return isAutomaticXmlCalculation(memory) || memory.inputs.some(input => input.name === 'automaticCatalogCalculation' && (input.value === AUTOMATIC_CATALOG_VERSION || input.value === 'XML_CATALOG_2' || input.value === 'XML_CATALOG_1'))
 }
 export function automaticCalculationDescription(memory: { inputs: readonly { name: string; value?: string }[] }): string {
+  if (memory.inputs.some(input => input.name === 'calculationPurpose' && input.value === 'INTERSTATE_ENTRY_ST_ESTIMATE')) return 'ICMS-ST de entrada calculado com XML, MVA e alíquotas da regra do Paraná. Estimativa para revenda por MVA; conferir descrição legal, preço prevalente e retenção/pagamentos anteriores antes de recolher.'
+  const treatment = memory.inputs.find(input => input.name === 'xmlTreatment')?.value
+  if (treatment === 'PREVIOUS_ST') return 'ST anterior identificada no XML. Os valores declarados estão preservados; o imposto devido nesta operação permanece sem apuração.'
+  if (treatment === 'SIMPLE_WITHOUT_HIGHLIGHT') return 'Código do Simples identificado no XML. A ausência de destaque não determina o imposto devido pela empresa analisada.'
+  if (treatment === 'EXEMPT_DECLARED') return 'Isenção declarada no XML (CST 40). O benefício e o imposto devido ainda não foram apurados.'
+  if (treatment === 'DEFERRED_ICMS') return 'ICMS calculado automaticamente com a base, alíquota e percentual de diferimento informados no XML.'
+  if (treatment === 'DECLARED_ST_BASE') return 'ICMS-ST conferido automaticamente pela base declarada no XML. A composição da base e a modalidade ST estão identificadas na memória.'
   return isAutomaticXmlCalculation(memory) ? automaticXmlNotice
     : 'Calculado automaticamente com os dados da nota e a MVA do catálogo correspondente ao NCM, CEST e data. A memória identifica a origem de cada valor e as divergências com o XML.'
 }
@@ -21,6 +30,10 @@ export function automaticCalculationDescription(memory: { inputs: readonly { nam
 /** Aplica a tabela a um cenário de ST explicitamente declarado, sem perguntas repetidas. */
 export function calculateAutomaticItem(nfe: NormalizedNfe, item: NormalizedNfeItem, companyCnpj?: string): CalculationMemory | undefined {
   if (!isCalculationEligibleCfop(item.cfop)) return undefined
+  const exclusion = companyCnpj ? paranaInterstateEntryExclusionReason(nfe,item.cfop,companyCnpj) : undefined
+  if (exclusion) return { ...pendingCalculation('UNSUPPORTED',exclusion,[{name:'automaticXmlCalculation',value:AUTOMATIC_XML_VERSION,source:'USER_POLICY/INTERSTATE_PURCHASES_PR',treatment:'EXCLUDED'}]), component:'ICMS_ST' }
+  const entry = calculateAutomaticInterstateEntry(nfe, item, companyCnpj)
+  if (entry) return entry
   const xml = () => calculateAutomaticXmlItem(nfe, item)
   try {
     const tax = item.declaredIcms
@@ -63,13 +76,18 @@ export function calculateAutomaticItem(nfe: NormalizedNfe, item: NormalizedNfeIt
 /** Reconstitui a aritmética declarada, sem inventar respostas de enquadramento legal. */
 export function calculateAutomaticXmlItem(nfe: NormalizedNfe, item: NormalizedNfeItem): CalculationMemory | undefined {
   const tax = item.declaredIcms
-  if (!isCalculationEligibleCfop(item.cfop) || !tax || nfe.model !== '55' || nfe.purposeCode !== '1' || item.includedInDocumentTotal === false) return undefined
+  if (!isCalculationEligibleCfop(item.cfop) || !tax || nfe.model !== '55' || item.includedInDocumentTotal === false) return undefined
   const marker = { name: 'automaticXmlCalculation', value: AUTOMATIC_XML_VERSION, source: 'DERIVED/XML', treatment: 'INCLUDED' as const }
   const rule = { id: 'XML_DECLARED_ARITHMETIC', version: 2, legalBasis: 'Reconstituição aritmética dos valores, percentuais e modalidade declarados no XML da NF-e.' }
   const pending = (reason: string, component: 'ICMS' | 'ICMS_ST' = 'ICMS'): CalculationMemory => ({
     ...pendingCalculation('PENDING_DATA', reason, [marker]), component, rule,
   })
+  if (nfe.purposeCode !== '1') return nfe.purposeCode === '4'
+    ? { ...pendingCalculation('UNSUPPORTED', 'Esta NF-e é uma devolução (finNFe 4). O estorno ou crédito deve considerar a operação original; seus valores não são tratados como um novo débito de compra normal.', [marker]), component: 'ICMS', rule }
+    : undefined
   try {
+    const treatment = calculateDeclaredTreatment(nfe, item, marker, rule)
+    if (treatment) return treatment
     const st = tax.stAmount !== undefined || tax.stBaseMode !== undefined
     if (st) {
       if (tax.cst !== '10' || tax.stBaseMode !== '4') return undefined

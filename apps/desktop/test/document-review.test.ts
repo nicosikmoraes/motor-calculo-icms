@@ -38,8 +38,8 @@ function note(hash = 'a'.repeat(64), env = '1') {
     occurrenceId: file.id, contentHash: hash, eligibleForProcessing: true, createdAt: now,
     normalized: { kind: 'NFE', layoutVersion: '4.00', model: '55', accessKey, number: '123', series: '1',
       issuedAt: '2026-09-30T10:00:00-03:00', environmentCode: env, operationDirection: '1', purposeCode: '1', finalConsumerIndicator: '0',
-      issuer: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', taxRegimeCode: '3' },
-      recipient: { state: 'PR', taxId: '11444777000161', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: {}, source,
+      issuer: { state: 'SP', taxId: '00000000000191', taxIdType: 'CNPJ', taxRegimeCode: '3' },
+      recipient: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' }, declaredTotals: {}, source,
       items: [{ itemNumber: '1', cfop: '6102', supplierProductCode: '001', productAmount: '1000', declaredIcms: { cst: '00', amount: '120.00' }, source }] } }])
   const run = new SqliteCalculationRepository(database).save({ requestId: randomUUID(), batchId, documentId, engineVersion: 'PR_COMMON_2',
     items: [{ itemNumber: '1', memory: { schemaVersion: 1, status: 'CALCULATED', rule: { id: 'teste', version: 1, legalBasis: 'Caso sintético' },

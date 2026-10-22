@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { itemCalculationComponents, itemCalculationStatus, taxComponentLabel, type ItemCalculationSummary } from '@motor/contracts'
+import { documentaryTaxReview, itemCalculationComponents, itemCalculationStatus, taxComponentLabel, type ItemCalculationSummary } from '@motor/contracts'
 import { computed } from 'vue'
 
 const props = defineProps<{ calculation: ItemCalculationSummary }>()
@@ -11,7 +11,7 @@ const comparisonLabels = { MATCH: 'Confere', WITHIN_TOLERANCE: 'Dentro da toler�
 
 <template>
   <details class="calculation-memory">
-    <summary>{{ itemCalculationStatus(calculation) === 'CALCULATED' ? 'Memória do cálculo' : 'Cálculo fiscal pendente' }}</summary>
+    <summary>{{ documentaryTaxReview(calculation) ? 'Dados documentais preservados · sem apuração' : itemCalculationStatus(calculation) === 'CALCULATED' ? 'Memória do cálculo' : 'Cálculo fiscal pendente' }}</summary>
     <p v-if="calculation.reviewReason">{{ calculation.reviewReason }}</p>
     <div v-for="component in components" :key="component.component ?? component.result?.component ?? 'ICMS'" class="calculation-body">
       <p><strong>{{ taxComponentLabel(component.component ?? component.result?.component) }}</strong></p>

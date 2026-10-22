@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { PARANA_ST_MVA_CATALOG, selectParanaStMva } from '../src'
+import pdfReference from './fixtures/resolucao-1245-pdf.json'
 const perfume = { operationDate: '2026-04-01', ncm: '33030010', cest: '2000700' }
 describe('consulta da MVA publicada pela Resolução SEFA 1245/2025', () => {
+  it('corresponde às 144 linhas extraídas do PDF fornecido, com CEST, NCM e MVA original', () => {
+    expect(PARANA_ST_MVA_CATALOG.validFrom).toBe(pdfReference.effectiveFrom)
+    expect(pdfReference.rows.filter(row => row.article === 12)).toHaveLength(69)
+    expect(pdfReference.rows.filter(row => row.article === 16)).toHaveLength(75)
+    expect(PARANA_ST_MVA_CATALOG.rows.map(row => ({ article: row.article, item: row.item, cest: row.cest,
+      ncm: [...row.ncmPrefixes].sort(), mva: row.originalMvaPercent })))
+      .toEqual(pdfReference.rows.map(({ page: _page, ...row }) => row))
+  })
   it('encontra perfumes pela classificação conjunta e conserva a fonte e a vigência', () => {
     const selection = selectParanaStMva(perfume)
     expect(selection.status).toBe('FOUND')

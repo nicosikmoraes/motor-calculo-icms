@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { getBatchConsolidation } from './batch-consolidation'
-import { IPC_CHANNELS, type BatchDetail, type BatchListItem } from '@motor/contracts'
+import { fiscalCalculationView, IPC_CHANNELS, type BatchDetail, type BatchListItem } from '@motor/contracts'
 import { SqliteBatchRepository, SqliteCompanyRepository, SqliteFiscalCatalogRepository,
   SqliteOrganizationRepository, SqliteCalculationRepository, type SqliteDatabase } from '@motor/database'
 import { AppError, AppErrorCode } from '@motor/domain'
@@ -9,7 +9,7 @@ import { buildItemFiscalContext, documentFiscalBlock, readItemFiscalAnswers } fr
 import { activeDatabase, requiredInputText } from './main-services'
 import { conflictEvidence, effectiveProcessingDocument } from './conflict-evidence'
 import { artifactSummary, documentaryState, readDocumentaryIndex, relatedEvents, type DocumentaryIndex } from './documentary-evidence'
-import { isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
+import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, calculationCfopExclusionReason } from '@motor/domain'
 import { entryReviewFindings } from './entry-review-findings'
 import { isAutomaticCalculation } from './automatic-xml-calculation'
 import { queryDashboard } from './dashboard-query'
@@ -155,17 +155,20 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
         const selectedAssessment = selectedAssessments?.get(id)?.[item.itemNumber] ?? ruleAssessments?.[item.itemNumber]
         return {
           itemNumber: item.itemNumber,
+          entryCalculationEligible: !paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj),
+          ...(paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj) ? { entryCalculationExclusionReason: paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj)! } : {}),
           ...(normalized.operationDirection === '1' && normalized.recipient?.state === 'PR' && normalized.issuer.state !== 'PR'
             && companies.get(companyId ?? '')?.cnpj === normalized.recipient?.taxId
             ? { entryReviewReasons: entryReviewFindings(normalized,item,readItemFiscalAnswers(latestCalculations.get(id)?.items.find(entry=>entry.itemNumber===item.itemNumber)?.memory)).findings.map(f => f.reason) } : {}),
           calculation: (() => {
             const run = latestCalculations.get(id)
-            const saved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
+            const rawSaved = run?.items.find((entry) => entry.itemNumber === item.itemNumber)
+            const saved = rawSaved ? { ...rawSaved, memory: { ...fiscalCalculationView(rawSaved.memory), schemaVersion: 1 as const } } : undefined
             const calculation = buildItemFiscalContext(normalized, item, readItemFiscalAnswers(saved?.memory), saved?.memory, run?.id,
               fiscalBlocks.get(id), companies.get(companyId ?? '')?.cnpj).calculation
             // A situação documental controla os totais; a memória salva permanece visível para diagnóstico.
             return saved && run ? { ...saved.memory, runId: run.id, engineVersion: run.engineVersion,
-              ...(saved.memory.status !== 'CALCULATED' && calculation.status === saved.memory.status && calculation.reason
+              ...(!isAutomaticCalculation(saved.memory) && saved.memory.status !== 'CALCULATED' && calculation.status === saved.memory.status && calculation.reason
                 ? { reason: calculation.reason } : {}),
               ...(saved.memory.status === 'CALCULATED' && readItemFiscalAnswers(saved.memory).entryMethod
                 && (calculation.status !== 'CALCULATED' || calculation.reviewReason)

@@ -156,7 +156,7 @@ onUnmounted(() => unsubscribe?.())
                   <span :class="{ attention: entry.batch.counts.pendingItems + entry.batch.counts.divergentItems > 0 }" :title="`${entry.batch.counts.pendingItems} itens pendentes e ${entry.batch.counts.divergentItems} itens com divergência`"><b>{{ number(entry.batch.counts.pendingItems + entry.batch.counts.divergentItems) }}</b> itens a conferir</span>
                   <span><b>{{ number(entry.batch.totalFiles) }}</b> arquivos</span>
                   <span v-if="entry.batch.counts.reviewNotes" class="attention"><b>{{ number(entry.batch.counts.reviewNotes) }}</b> notas em revisão</span>
-                  <span v-if="entry.batch.counts.excludedNotes + entry.batch.counts.blockedNotes" class="muted" title="Notas sem itens com CFOP iniciado em 6 ou excluídas pela política documental"><b>{{ number(entry.batch.counts.excludedNotes + entry.batch.counts.blockedNotes) }}</b> fora do cálculo</span>
+                  <span v-if="entry.batch.counts.excludedNotes + entry.batch.counts.blockedNotes" class="muted" title="Notas sem itens com CFOP elegível ou excluídas pela política documental"><b>{{ number(entry.batch.counts.excludedNotes + entry.batch.counts.blockedNotes) }}</b> fora do cálculo</span>
                   <span v-if="entry.batch.totalPendencies" class="muted"><b>{{ number(entry.batch.totalPendencies) }}</b> diagnósticos</span>
                 </div>
               </div>
