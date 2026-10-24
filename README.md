@@ -12,19 +12,22 @@ divergências com rastreabilidade.
 
 O projeto está em desenvolvimento. Este repositório já contém uma implementação
 desktop anterior à revisão acadêmica. A Entrega 1 registra a concepção e o
-planejamento; a API de doações descrita na arquitetura ainda será implementada.
+planejamento. A Atividade 08 acrescenta o scaffold isolado da API de doações e
+pagamentos; as operações de negócio dessa API ainda serão implementadas.
 
 - [Protótipo público — cinco telas com dados fictícios](https://contabilinico-prototipo.balmygrove128.chatgpt.site)
 - [Kanban público — histórias vinculadas ao PRD](https://github.com/users/nicosikmoraes/projects/2)
 
 ## Stack
 
-- Electron;
-- Vue;
-- NestJS;
-- Prisma;
-- PostgreSQL;
-- SQLite.
+- **Aplicativo fiscal:** Electron 38, Vue 3, TypeScript 5.9 e SQLite local.
+- **Scaffold da API:** NestJS 12 em ESM, TypeScript 6, Prisma ORM 7 e PostgreSQL 16.
+- **Monorepo:** pnpm 10, com um único `pnpm-lock.yaml` na raiz.
+- **Qualidade:** Vitest 3 no desktop/pacotes fiscais, Vitest 4 e Oxlint na API.
+
+O desktop processa documentos e cálculos localmente, sem depender da API. O
+PostgreSQL é exclusivo da futura área de doações/pagamentos e nasce sem tabelas.
+A integração com o gateway ainda não está implementada.
 
 ## Em produção
 
@@ -33,8 +36,31 @@ fictícios; não representa uma aplicação fiscal em produção.
 
 ## Quick Start
 
-A partir da Entrega 2. As instruções técnicas da implementação desktop existente
-permanecem no [guia de desenvolvimento](docs/desenvolvimento.md).
+Use Node.js 24 LTS atualizado e pnpm 10.32.1. Na raiz:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+`pnpm dev` inicia o aplicativo desktop. Para conferir tipos, testes e os builds
+separados do desktop e da API, execute `pnpm check`.
+
+Para o ambiente opcional da API:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+pnpm db:up
+pnpm db:validate
+pnpm --filter @motor/api prisma:check-db
+pnpm test:db
+pnpm dev:api
+```
+
+A API responde `Hello World!` em `http://127.0.0.1:3000`. O PostgreSQL de
+pagamentos usa `127.0.0.1:5433`; os arquivos fiscais continuam no SQLite do app.
+Consulte o [guia de desenvolvimento](docs/desenvolvimento.md) e as
+[evidências e adaptações da Atividade 08](docs/atividade-08.md).
 
 ## Documentação de produto
 

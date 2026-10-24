@@ -1,0 +1,52 @@
+name: API - scaffold e PostgreSQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d appdb"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgresql://app:app@127.0.0.1:5432/appdb?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: pnpm test:tooling
+      - run: pnpm --filter @motor/api lint
+      - run: pnpm --filter @motor/api typecheck
+      - run: pnpm --filter @motor/api test
+      - run: pnpm db:validate
+      - name: Conectar pelo Prisma e conferir o banco vazio
+        run: pnpm --filter @motor/api prisma:check-db
+      - name: Testar a conexão externa pela DATABASE_URL
+        run: pnpm --filter @motor/api test:db
+      - run: pnpm --filter @motor/api build

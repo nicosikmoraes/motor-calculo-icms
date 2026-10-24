@@ -1,13 +1,15 @@
 # ✅ Checklist — a ficha da disciplina
 
-> **Status: evidências acadêmicas da Entrega 1 — Concepção e Planejamento.**
-> A revisão confere documentos, rastreabilidade e protótipo. Os itens de código
-> permanecem desmarcados nesta entrega. O desktop fiscal é local; a API planejada
-> NestJS, Prisma e PostgreSQL atende ao fluxo independente de doações.
+> **Status: Entrega 1 e infraestrutura da Atividade 08.**
+> O desktop fiscal continua local. O scaffold NestJS, Prisma e PostgreSQL nasce
+> separado, reservado ao futuro serviço de doações/pagamentos. O banco dessa API
+> não contém tabelas nem migrations.
 >
-> O repositório contém código desktop anterior à revisão. Sua presença não
-> comprova automaticamente os critérios acadêmicos das Entregas 2 e 3.
-> Cada item marcado deve ser explicado pelo autor no vídeo e na arguição.
+> O frontend é o aplicativo existente em `apps/desktop` e o workspace usa pnpm.
+> Essas adaptações estão registradas em [Atividade 08](atividade-08.md); não
+> constituem uma dispensa dos requisitos concedida pelo professor.
+> O código fiscal anterior não comprova automaticamente as demais exigências
+> das Entregas 2 e 3. Cada item marcado deve ser explicado pelo autor.
 
 ## 📐 Regras da disciplina
 
@@ -28,11 +30,13 @@
 
 - [x] **ID1:** Estruturou o PRD e o SDD (Diagrama Mermaid) de forma clara, utilizando a IA para modelar o negócio.
   > No ID1, "SDD" é o *Software Design Document* — neste repositório ele se chama `docs/architecture.md`, porque a sigla já significa Spec-Driven Development (o guia explica).
-- [ ] **ID2:** A aplicação foi estruturada em formato de Monorepo (Front + Back) no GitHub.
+- [x] **ID2:** A aplicação foi estruturada em formato de Monorepo (Front + Back) no GitHub.
+  > Atividade 08: frontend Electron/Vue em `apps/desktop` e scaffold backend NestJS em `apps/api`, no mesmo workspace pnpm. Adaptações ao roteiro em `atividade-08.md`.
 - [x] **ID3:** Mapeou o PRD em Histórias de Usuário no GitHub Projects, criando um backlog rastreável de Issues.
   > Evidência: [Kanban público](https://github.com/users/nicosikmoraes/projects/2), Issues #5 a #12 das oito histórias Ready; US04 permanece Draft.
 - [ ] **ID4:** Para as histórias implementadas, registrou no repositório a especificação e o plano derivados da Issue antes da codificação.
-- [ ] **ID5:** Demonstrou domínio do GitHub Flow, isolando features em branches curtas e utilizando Pull Requests para integração na main.
+- [x] **ID5:** Demonstrou domínio do GitHub Flow, isolando features em branches curtas e utilizando Pull Requests para integração na main.
+  > A infraestrutura da Atividade 08 usa branch própria e PR de manutenção; o histórico desktop anterior também registra integrações por PR.
 
 ## RA2 — Desenvolvimento Backend Assistido por IA
 
@@ -57,7 +61,9 @@
 ## RA5 — Pipeline CI/CD e Implantação Contínua
 
 - [ ] **ID17:** As credenciais e variáveis sensíveis (como a DATABASE_URL da nuvem) estão seguras, ocultas do GitHub e injetadas corretamente via ConfigModule e variáveis de ambiente da plataforma de hospedagem.
-- [ ] **ID18:** Configurou esteira de CI (Continuous Integration) via GitHub Actions para validação automática de código (testes/linting) antes do merge.
+  > Parte local preparada na Atividade 08: `.env` ignorado, `.env.example` versionado, `ConfigModule` global e dotenv na CLI Prisma. Injeção de produção continua pendente.
+- [x] **ID18:** Configurou esteira de CI (Continuous Integration) via GitHub Actions para validação automática de código (testes/linting) antes do merge.
+  > Workflows da API e do instalador Windows, com lint da API, tipagem, testes e builds. `explicacao` implementa o Portão de Entendimento.
 - [ ] **ID19:** Realizou o deploy da aplicação em domínio público (nuvem), conectada a um banco de dados relacional em produção (recomenda-se Neon.tech ou Vercel Postgres combinados com o Connection Pooling do Prisma).
 
 ## RA6 — Integração de Meios de Pagamento

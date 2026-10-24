@@ -1,3 +1,4 @@
+* text=auto eol=lf
 # Preserve exact bytes of checksummed schemas, XML fixtures and SQL migrations.
 *.xsd -text
 *.xml -text

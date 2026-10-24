@@ -1,8 +1,8 @@
 # Arquitetura do ContabiliNico
 
-**Versão:** 0.3.0 — revisão da concepção e rastreabilidade
+**Versão:** 0.4.0 — scaffold isolado da API de pagamentos
 
-**Última atualização:** 11/10/2026
+**Última atualização:** 24/10/2026
 
 Este documento liga o vocabulário do [PRD](prd.md), as [jornadas](user-flows.md)
 e o modelo de dados existente. A aplicação desktop continua processando XMLs,
@@ -29,44 +29,48 @@ por arquivo e nenhum serviço externo obrigatório para a conferência fiscal.
 ## 2. Stack
 
 - **Interface desktop — Electron 38+ e Vue 3+:** a interface existente já usa Vue; a escolha reduz a troca de contexto e mantém o app instalável.
-- **Linguagem — TypeScript 5.9+:** compartilha tipos entre interface, pacotes locais e API.
-- **Backend — NestJS 12+:** API REST apenas para o fluxo independente de doações e pagamentos.
-- **Persistência da API — Prisma ORM 7+ e PostgreSQL 18+:** registra pedidos de doação e eventos de pagamento no serviço da API.
+- **Linguagem — TypeScript 5.9 no desktop/pacotes e 6 na API:** ferramentas fixadas por aplicação; a adição da API não atualiza o compilador fiscal.
+- **Backend — NestJS 12.2, ESM:** scaffold REST em `apps/api`, reservado ao fluxo independente de doações e pagamentos; atualmente expõe somente a demonstração do gerador.
+- **Persistência da API — Prisma ORM 7.10 e PostgreSQL 16:** infraestrutura instalada; schema sem modelos e banco vazio na Atividade 08. Os dados de pagamento serão acrescentados por histórias com spec aprovada.
 - **Persistência fiscal local — SQLite:** mantém empresas, lotes, XMLs normalizados, regras, cálculos e histórico na instalação.
-- **Integração de pagamento — Stripe API e webhooks:** processa a doação sem guardar dados de cartão e sem enviar dados fiscais.
+- **Integração de pagamento planejada — Stripe API e webhooks:** processará a doação sem guardar dados de cartão e sem enviar dados fiscais; ainda não instalada.
 - **Gerenciador de pacotes — pnpm 10+:** já organiza o monorepo e seus pacotes de domínio.
-- **Testes — Vitest 3+:** já é o executor de testes do projeto.
-- **Lint — Oxlint 1+:** comando planejado para validar os pacotes da API e da interface.
+- **Testes — Vitest 3 no desktop/pacotes e Vitest 4.1 na API:** suítes separadas, orquestradas pela raiz; e2e da API usam Supertest.
+- **Lint — Oxlint 1.89:** instalado na API; `pnpm lint` chama esse workspace sem ampliar o lint aos pacotes fiscais.
 
-As linhas foram conferidas nas documentações oficiais em 11/10/2026. Prisma ORM
-8 ainda estava em release candidate na data da consulta, então a linha estável
-7 foi escolhida. Referências: [NestJS](https://docs.nestjs.com/migration-guide),
-[Prisma](https://www.prisma.io/docs/orm/release-status),
-[Vue](https://vuejs.org/guide/introduction),
-[PostgreSQL](https://www.postgresql.org/about/news/postgresql-18-released-3142/).
+Decisões ratificadas na Atividade 08:
 
-Dependências de aplicação previstas para a API: `@nestjs/config`,
-`@nestjs/swagger`, `class-validator`, `class-transformer`, `prisma`,
-`@prisma/client`, `@prisma/adapter-pg`, `pg` e `stripe`. O validador global usa
-`ValidationPipe`; os DTOs usam `class-validator` e `class-transformer`. Não há
-autenticação de usuário no MVP: a instalação local não possui contas ou papéis,
-e o fluxo de doação não cria uma conta. O endpoint de webhook valida a assinatura
-do Stripe. Nenhuma biblioteca de UI, cliente HTTP ou autenticação adicional foi
-escolhida.
+- Gerador oficial `@nestjs/cli` 12.0.10, com `--skip-git --skip-install --package-manager pnpm --no-observe`.
+- ESM e Vitest vieram do template oficial; o TypeScript 6 da API permanece isolado do TypeScript 5.9 do desktop.
+- SWC preserva os metadados de decorators nos testes NestJS; o transformador padrão do Vitest não preservava a injeção no próprio teste do gerador.
+- O plugin de aliases do template foi removido: não há aliases na API e seu peer de TypeScript 5 era incompatível com o template TypeScript 6.
+- `@nestjs/observe` não foi instalado; o comando e a dependência de deploy `@nestjs/mau` do template foram removidos, pois o deploy não faz parte desta etapa.
+- O pnpm 10.32.1 e o frontend existente em `apps/desktop` são adaptações explícitas do roteiro npm + `apps/web`; não foi criado outro frontend.
+- Node.js 24 LTS atualizado é a referência de desenvolvimento e dos workflows; o runtime embarcado do Electron permanece o da versão instalada do aplicativo.
+- PostgreSQL 16 usa a porta local 5433 para evitar o PostgreSQL já existente na 5432; somente loopback é publicado.
+
+Dependências presentes na API: NestJS, `@nestjs/config`, Prisma CLI,
+`@prisma/client`, `@prisma/adapter-pg`, `pg` e `dotenv`. O cliente Prisma será
+produzido quando existir o primeiro modelo aprovado. Swagger, DTOs de negócio,
+`class-validator`, `class-transformer` e Stripe permanecem planejados.
+
+Não há autenticação de usuário no MVP fiscal: a instalação local não possui
+contas ou papéis, e a futura doação não criará uma conta. O futuro webhook
+validará a assinatura do gateway.
 
 ## 3. Organização do repositório e camadas
 
-O monorepo pnpm existente é estendido com a API. A API não importa diretamente
-pacotes de persistência do desktop.
+O monorepo pnpm existente contém o aplicativo fiscal e o scaffold da API como
+workspaces independentes. A API não importa os pacotes fiscais. Testes de
+arquitetura verificam os imports e as dependências declaradas dessa fronteira.
 
-Esta é a estrutura alvo. `apps/api` e `packages/payments` estão planejados;
-a revisão da Entrega 1 não os gera. O código desktop já existente tem seu
-próprio histórico anterior à revisão.
+A estrutura abaixo distingue a API já gerada do pacote de contratos ainda
+planejado. O desktop existente mantém seu histórico anterior à revisão acadêmica.
 
 ```text
 apps/
   desktop/            Electron, Vue, preload e processo principal
-  api/                NestJS; módulos de doação e pagamentos
+  api/                scaffold NestJS; futuro serviço de doações/pagamentos
 packages/
   contracts/          contratos IPC existentes e tipos compartilhados seguros
   domain/             conceitos fiscais e estados independentes da interface
@@ -75,7 +79,7 @@ packages/
   database/           persistência fiscal local em SQLite
   reporting/          modelo e exportação XLSX
   interchange/        importação e exportação de configurações
-  payments/           contratos do fluxo de doação, sem dados fiscais
+  payments/           PLANEJADO: contratos do fluxo de doação, sem dados fiscais
 docs/                 PRD, jornadas, arquitetura e decisões
 ```
 
@@ -84,25 +88,34 @@ processo principal/workers → parser e domínio → motor fiscal → repositór
 local → serviço de relatório. Componentes de interface não acessam o banco e não
 falam diretamente com o servidor.
 
-Fluxo de doação: componente Vue → serviço de doações → API REST NestJS → módulo
+Fluxo de doação planejado: componente Vue → serviço de doações → API REST NestJS → módulo
 de doações/pagamentos → serviço Stripe e repositório Prisma → PostgreSQL. O
 webhook Stripe entra pelo módulo de pagamentos, valida a assinatura e registra o
 evento de forma idempotente. A API recebe somente identificador do pedido, valor,
 moeda, estado e identificadores do gateway.
 
-Na API, controllers traduzem HTTP para chamadas de serviço; services aplicam as
-regras do fluxo; repositórios encapsulam Prisma. DTOs validam toda entrada. O
-`ValidationPipe` global rejeita campos inválidos e desconhecidos. Um filtro global
-converte erros não tratados para resposta HTTP estável, sem expor stack trace ou
-segredos; erros de negócio usam códigos e mensagens acionáveis. Um interceptor
-global padroniza o envelope das respostas de sucesso. Swagger documenta os
-endpoints REST. O NestJS organiza essas responsabilidades em módulos por domínio.
-No frontend, toda chamada remota passa pela camada de serviço.
+A evolução da API seguirá portas e adaptadores: domínio e casos de uso
+independentes de NestJS/Prisma/Stripe; portas para persistência e gateway;
+adaptadores HTTP em controllers NestJS, persistência via Prisma e gateway Stripe.
+Essas camadas de negócio só serão criadas com as primeiras specs aprovadas. No
+scaffold atual, `AppController` e `AppService` são a demonstração `Hello World!`
+do gerador; não há módulo, DTO, tabela ou operação de pagamento.
 
-Comandos registrados da raiz: `pnpm test` executa a suíte atual e `pnpm check`
-agrega tipagem, testes e build desktop. `pnpm lint`, com Oxlint, é o comando alvo
-da estrutura acadêmica e será acrescentado junto à API; não está disponível no
-workspace atual. Nenhum desses comandos comprova a API ainda planejada.
+Os futuros DTOs validarão a entrada. `ValidationPipe`, filtro global,
+interceptor e Swagger serão adicionados com as histórias correspondentes. O
+servidor confirmará pagamentos por webhook; o desktop consultará o estado.
+Indisponibilidade desse serviço não bloqueará o uso fiscal local.
+
+Comandos da raiz: `pnpm dev` inicia o desktop; `pnpm dev:api` inicia apenas a API;
+`pnpm test` executa os testes de ferramentas e todos os workspaces; `pnpm check`
+agrega lint da API, tipagem, testes e os builds separados de API e desktop.
+`pnpm db:up`, `pnpm db:validate` e `pnpm test:db` verificam o banco opcional da API.
+
+Arquivos adicionados: `docker-compose.yml`, `apps/api/prisma.config.ts`,
+`apps/api/prisma/schema.prisma`, testes de infraestrutura/fronteiras e workflows
+`api.yml`/`explicacao.yml`. O Prisma 7.10 gerou `prisma7.config.ts`; ele foi
+renomeado para o nome convencional `prisma.config.ts`, aceito pela CLI e usado
+no roteiro. O cliente terá saída em `apps/api/generated/prisma`, ignorada pelo Git.
 
 ## 4. Frontend
 
@@ -113,27 +126,29 @@ compartilhado entre telas. Regras fiscais, cálculos e acesso a persistência
 continuam fora de componentes e stores.
 
 Electron mantém `contextIsolation` habilitado e Node.js indisponível no renderer.
-O preload expõe apenas operações IPC explicitamente tipadas. Para a doação, a
-interface usa um serviço Vue dedicado que conversa com a API; telas fiscais não
-recebem cliente ou credenciais do Stripe.
+O preload expõe apenas operações IPC explicitamente tipadas. Para a futura doação, a
+interface usará um serviço Vue dedicado que conversará com a API; telas fiscais
+não receberão cliente ou credenciais do Stripe.
 
 ## 5. Dados e ambientes
 
 Os dados fiscais e o histórico pertencem ao SQLite de cada instalação. O
-PostgreSQL guarda apenas pedidos de doação e pagamentos. Os dois armazenamentos
-não são mesclados nem sincronizados. Valores monetários são decimais exatos; o
+PostgreSQL é reservado a pedidos de doação e pagamentos e permanece vazio nesta
+etapa. Os dois armazenamentos não são mesclados nem sincronizados. Valores monetários são decimais exatos; o
 estado `pago` só é confirmado por webhook válido. Uma repetição do evento não
 cria uma segunda confirmação.
 
-Ambientes planejados para a API; sua infraestrutura nasce nas entregas seguintes:
+Ambientes da API:
 
-- **Local:** PostgreSQL em Docker na máquina de desenvolvimento; `DATABASE_URL` em `.env` fora do Git. O SQLite fiscal continua no diretório de dados da aplicação.
-- **CI:** PostgreSQL em container no GitHub Actions; `DATABASE_URL` será definida pelo workflow para o serviço de teste.
-- **Produção:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma.
+- **Local:** PostgreSQL 16 no Compose exclusivo `contabilinico-payments-dev`, em `127.0.0.1:5433`; `DATABASE_URL` em `apps/api/.env` fora do Git. Volume próprio, sem acesso ao SQLite fiscal do aplicativo.
+- **CI:** PostgreSQL 16 descartável no GitHub Actions; `DATABASE_URL` de teste é definida pelo workflow. Testes fazem conexão TCP e verificam a ausência de tabelas; a CLI Prisma também executa uma verificação sem alterar o banco.
+- **Produção planejada:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma. Sem deploy ou credencial de produção nesta atividade.
 
-O repositório contém somente o nome da variável. Valores de conexão e chaves do
-Stripe vivem fora do Git. XMLs, CNPJ, regras, memória de cálculo e relatórios
-fiscais nunca são enviados à API.
+O `.env.example` documenta a conexão descartável do Compose local. Credenciais
+reais e futuras chaves do Stripe vivem fora do Git. `ConfigModule.forRoot({
+isGlobal: true })` carrega o ambiente da API; `dotenv` carrega o ambiente da CLI
+Prisma. Não existe migration nem `model` no schema desta etapa. XMLs, CNPJ,
+regras, memória de cálculo e relatórios fiscais nunca são enviados à API.
 
 ### Glossário técnico e modelo conceitual
 

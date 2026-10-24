@@ -2,8 +2,9 @@
 
 ## Pré-requisitos
 
-- Node.js 22 ou superior;
-- pnpm 10.
+- Node.js 24 LTS atualizado (os workflows usam a linha 24);
+- pnpm 10.32.1;
+- Docker com Compose, somente para o ambiente opcional da API de pagamentos.
 
 ## Comandos
 
@@ -14,7 +15,37 @@ pnpm check
 ```
 
 `pnpm dev` abre o aplicativo Electron em modo de desenvolvimento. `pnpm check`
-executa verificação de tipos, testes e build de produção.
+executa lint da API, verificação de tipos, testes e builds separados de API e desktop.
+
+## API de pagamentos — scaffold da Atividade 08
+
+O aplicativo fiscal funciona sem a API ou o PostgreSQL. A API ainda oferece
+somente o `GET /` de demonstração, sem operações de doação ou pagamento.
+
+```bash
+cp apps/api/.env.example apps/api/.env
+pnpm db:up
+pnpm db:validate
+pnpm --filter @motor/api prisma:check-db
+pnpm test:db
+pnpm dev:api
+```
+
+`pnpm db:up` espera o healthcheck do PostgreSQL 16. A porta publicada é
+`127.0.0.1:5433`; `PAYMENTS_DB_PORT` permite escolher outra porta, desde que a
+`DATABASE_URL` em `apps/api/.env` seja ajustada também. A API responde
+`Hello World!` em `http://127.0.0.1:3000`.
+
+`pnpm test:api` roda os testes unitários, de fronteiras e HTTP sem depender do
+banco. `pnpm test:db` é separado e exige o Compose ativo; ele testa a URL externa
+real e comprova que o schema público está vazio. A verificação `prisma:check-db`
+executa SQL de leitura pela própria CLI Prisma. Não execute migrations nem crie
+modelos antes da primeira spec aprovada da área de pagamentos.
+
+`pnpm db:down` remove o container exclusivo da API e conserva o volume. O banco
+SQLite do aplicativo não é montado nem acessado por esse container.
+
+Detalhes e adaptações acadêmicas: [Atividade 08](atividade-08.md).
 
 ## Exportação Excel
 
@@ -46,6 +77,7 @@ são preservadas. Pendências antigas exibem o motivo atual, sem alterar o hist�
 
 ```text
 apps/desktop/       Electron + preload seguro + interface Vue
+apps/api/           scaffold NestJS isolado para futuros pagamentos
 packages/contracts/ contratos IPC compartilhados
 packages/domain/    estados e conceitos de negócio
 packages/tax-engine seleção de regras e, futuramente, cálculo fiscal
