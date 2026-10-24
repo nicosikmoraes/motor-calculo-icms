@@ -3,5 +3,8 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@swc/core'
+  - prisma
   - electron
   - esbuild

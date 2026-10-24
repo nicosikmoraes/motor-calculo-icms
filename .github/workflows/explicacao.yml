@@ -1,0 +1,21 @@
+name: Portão de Entendimento
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  explicacao:
+    name: explicacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Conferir a explicação do PR
+        run: node scripts/check-pr-explanation.mjs
