@@ -1,6 +1,6 @@
 ---
 issue: 12
-status: rascunho
+status: aprovada
 ---
 
 # US09 — Fazer doação pelo Stripe

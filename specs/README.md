@@ -2,7 +2,7 @@
 
 | Issue | História | Spec | Plano | Estado |
 | --- | --- | --- | --- | --- |
-| [#12](https://github.com/nicosikmoraes/motor-calculo-icms/issues/12) | US09 — Fazer doação pelo Stripe | [spec](012-fazer-doacao-stripe/spec.md) | A criar depois da aprovação | rascunho |
+| [#12](https://github.com/nicosikmoraes/motor-calculo-icms/issues/12) | US09 — Fazer doação pelo Stripe | [spec](012-fazer-doacao-stripe/spec.md) | A criar depois da aprovação | aprovada |
 
 ## Atividade 09 — recorte e origem
 
