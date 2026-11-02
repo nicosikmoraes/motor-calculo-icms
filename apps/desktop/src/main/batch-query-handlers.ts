@@ -13,6 +13,7 @@ import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, calcul
 import { entryReviewFindings } from './entry-review-findings'
 import { isAutomaticCalculation } from './automatic-xml-calculation'
 import { queryDashboard } from './dashboard-query'
+import { entryAutomationReview } from './entry-automation-review'
 
 /** Lista os lotes da organização e monta detalhes para a interface. */
 export function registerBatchQueryHandlers(): void {
@@ -153,8 +154,10 @@ export function queryBatchDetail(connection: SqliteDatabase, batchId: string, ru
       ...(normalized.recipient?.taxId ? { recipientTaxId: normalized.recipient.taxId } : {}),
       items: normalized.items.map((item) => {
         const selectedAssessment = selectedAssessments?.get(id)?.[item.itemNumber] ?? ruleAssessments?.[item.itemNumber]
+        const automationReview = !fiscalBlocks.get(id) ? entryAutomationReview(normalized, item, companies.get(companyId ?? '')?.cnpj) : undefined
         return {
           itemNumber: item.itemNumber,
+          ...(automationReview ? { entryAutomationReview: automationReview } : {}),
           entryCalculationEligible: !paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj),
           ...(paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj) ? { entryCalculationExclusionReason: paranaInterstateEntryExclusionReason(normalized, item.cfop, companies.get(companyId ?? '')?.cnpj)! } : {}),
           ...(normalized.operationDirection === '1' && normalized.recipient?.state === 'PR' && normalized.issuer.state !== 'PR'

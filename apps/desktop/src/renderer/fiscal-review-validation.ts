@@ -1,6 +1,19 @@
 import type { ItemFiscalAnswers, ItemFiscalQuestion } from '@motor/contracts'
 
 export type FiscalSelections = Partial<Record<keyof ItemFiscalAnswers, string>>
+const declinedConfirmations: Partial<Record<keyof ItemFiscalAnswers, string>> = {
+  stApplicableConfirmed: 'A aplicação da ST foi recusada. Revise o tratamento da entrada ou guarde para revisão.',
+  stBuyerLiabilityConfirmed: 'A responsabilidade pelo recolhimento não foi confirmada. Confira retenções e pagamentos antes de concluir.',
+  stClassificationConfirmed: 'A classificação selecionada foi recusada. Revise a referência do produto ou guarde para revisão.',
+  stMvaFallbackConfirmed: 'As condições para usar esta MVA não foram confirmadas. Este tratamento precisa de revisão.',
+  stSimpleDeductionConfirmed: 'A base de dedução do fornecedor do Simples não foi confirmada.',
+  stSupplierNormalConfirmed: 'O regime exigido para este cálculo não foi confirmado.',
+  stSpecificRuleConfirmed: 'As condições da regra específica não foram confirmadas.',
+  ordinaryTaxTreatmentConfirmed: 'O enquadramento na tributação comum foi recusado. Confira outro tratamento.',
+  entryApplicationConfirmed: 'A aplicação deste imposto não foi confirmada. Revise o tratamento ou guarde para revisão.',
+  entryBaseConfirmed: 'A composição da base não foi confirmada. Confira os valores antes de calcular.',
+  entryNoDebitConfirmed: 'A ausência de novo débito não foi confirmada. Esta decisão não pode ser concluída.',
+}
 export function fiscalReviewErrors(questions: readonly ItemFiscalQuestion[], selections: FiscalSelections): Partial<Record<keyof ItemFiscalAnswers, string>> {
   const errors: Partial<Record<keyof ItemFiscalAnswers, string>> = {}
   const labels: Partial<Record<keyof ItemFiscalAnswers, string>> = {
@@ -15,6 +28,10 @@ export function fiscalReviewErrors(questions: readonly ItemFiscalQuestion[], sel
       errors[question.field] = question.inputType === 'text' ? 'Registre a justificativa e o fundamento desta decisão.' : question.inputType === 'decimal'
         ? `Informe ${labels[question.field] ?? question.label}.${question.suggestedValue !== undefined ? ` Valor lido do XML: ${question.suggestedValue.replace('.', ',')}${question.field === 'entryBaseAmount' ? ' reais' : '%' }.` : ''}`
         : `Escolha uma resposta: ${question.label}`
+    } else if (question.blockedAnswer?.value === value) {
+      errors[question.field] = question.blockedAnswer.reason
+    } else if (value === 'false' && declinedConfirmations[question.field]) {
+      errors[question.field] = declinedConfirmations[question.field]!
     } else if (question.inputType === 'decimal') {
       const normalized = value.replace(',', '.')
       if (question.field === 'entryBaseAmount') {

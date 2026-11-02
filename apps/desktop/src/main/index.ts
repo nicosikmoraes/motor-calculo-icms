@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import appIcon from '../../build/icon.png?asset'
 import { IPC_CHANNELS } from '@motor/contracts'
 import { AppErrorMessage } from '@motor/domain'
 import { registerInterchangeHandlers } from './interchange-handlers'
@@ -37,6 +38,7 @@ function createWindow(): void {
     return
   }
   const window = new BrowserWindow({
+    icon: appIcon,
     width: 1280,
     height: 800,
     minWidth: 960,

@@ -4,6 +4,23 @@ import { fiscalReviewErrors } from '../src/renderer/fiscal-review-validation'
 
 const rate: ItemFiscalQuestion = { field: 'stInternalRate', label: 'Alíquota interna', inputType: 'decimal', suggestedValue: '19.5' }
 describe('erros por campo na revisão fiscal', () => {
+  it('trata confirmações recusadas como impedimentos, sem transformar Não em aprovação', () => {
+    const fields = ['stApplicableConfirmed', 'stBuyerLiabilityConfirmed', 'stClassificationConfirmed', 'stSimpleDeductionConfirmed', 'entryBaseConfirmed'] as const
+    const questions = fields.map(field => ({ field, label: field, options: [{ value: 'true', label: 'Sim' }, { value: 'false', label: 'Não' }] }))
+    const selections = Object.fromEntries(fields.map(field => [field, 'false']))
+    expect(Object.keys(fiscalReviewErrors(questions, selections))).toEqual([...fields])
+    expect(selections.stBuyerLiabilityConfirmed).toBe('false')
+    expect(fiscalReviewErrors(questions, Object.fromEntries(fields.map(field => [field, 'true'])))).toEqual({})
+  })
+  it('permite respostas Não que representam opções válidas, como alíquota sem FCP', () => {
+    expect(fiscalReviewErrors([{ field: 'stInternalRateIncludesFcp', label: 'Inclui adicional?' }, { field: 'constructionCompany', label: 'Construção?' }, { field: 'fcpStApplicableConfirmed', label: 'Aplica FCP?' }], { stInternalRateIncludesFcp: 'false', constructionCompany: 'false', fcpStApplicableConfirmed: 'false' })).toEqual({})
+  })
+  it('mostra o conflito apontado pela regra tanto em respostas Sim quanto Não', () => {
+    const question: ItemFiscalQuestion = { field: 'fcpStApplicableConfirmed', label: 'Incidência', blockedAnswer: { value: 'false', reason: 'Resposta em conflito com a regra consultada.' } }
+    expect(fiscalReviewErrors([question], { fcpStApplicableConfirmed: 'false' }).fcpStApplicableConfirmed).toContain('conflito')
+    expect(fiscalReviewErrors([question], { fcpStApplicableConfirmed: 'true' })).toEqual({})
+    expect(fiscalReviewErrors([{ ...question, blockedAnswer: { value: 'true', reason: 'Não coberto.' } }], { fcpStApplicableConfirmed: 'true' }).fcpStApplicableConfirmed).toBe('Não coberto.')
+  })
   it('identifica somente a alíquota ausente e informa o valor disponível no XML', () => {
     expect(fiscalReviewErrors([rate], { stInternalRate: '' })).toEqual({ stInternalRate: 'Informe a alíquota interna de ICMS. Valor lido do XML: 19,5%.' })
   })

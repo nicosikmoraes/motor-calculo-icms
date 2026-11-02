@@ -1,4 +1,4 @@
-import { documentaryTaxReview, fiscalCalculationView, itemCalculationStatus, type ItemCalculationSummary, type ItemFiscalAnswers, type ItemFiscalContext, type ItemFiscalQuestion, type SaveItemFiscalAnswersInput } from '@motor/contracts'
+import { CALCULATION_INCOMPLETE_PREFIX, documentaryTaxReview, fiscalCalculationView, itemCalculationComponents, itemCalculationStatus, type ItemCalculationSummary, type ItemFiscalAnswers, type ItemFiscalContext, type ItemFiscalQuestion, type SaveItemFiscalAnswersInput } from '@motor/contracts'
 import { paranaInterstateEntryExclusionReason, isCalculationEligibleCfop, calculationCfopExclusionReason, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
 import { SqliteBatchRepository, SqliteCalculationRepository, SqliteOrganizationRepository, type SqliteDatabase,
   type NormalizedFiscalDocumentRecord, type DocumentArtifactRecord, SqliteFiscalAnswerDefinitionRepository,
@@ -14,14 +14,18 @@ import { buildEntryNoDebitContext, buildEntryRateContext, entryRateDifferenceAva
 import { classificationProductFamily } from './product-classification-review'
 import { buildConsumerDifalContext } from './consumer-difal-context'
 import { entryReviewFindings } from './entry-review-findings'
+import { entryAutomationReview } from './entry-automation-review'
+import { calculateAutomaticInterstateEntry } from './automatic-interstate-entry'
 import { purchaseDestinationAnswers, RESALE_DEFAULT_NOTICE } from './purchase-destination-policy'
 import { AUTOMATIC_XML_VERSION, AUTOMATIC_CATALOG_VERSION, automaticCalculationDescription, calculateAutomaticItem, calculateAutomaticXmlItem, isAutomaticCalculation, isAutomaticXmlCalculation } from './automatic-xml-calculation'
 
 const answersInputName = 'fiscalAnswers'
-const version = 'PR_FISCAL_10'
+const version = 'PR_FISCAL_11'
 const boolFields = ['recipientIsIcmsTaxpayer', 'constructionCompany', 'petroleumOrFuel', 'ordinaryTaxTreatmentConfirmed', 'stApplicableConfirmed', 'stSupplierNormalConfirmed', 'fcpStApplicableConfirmed', 'stInternalRateIncludesFcp', 'stSpecificRuleConfirmed', 'stFuelArt50OperationBaseConfirmed', 'stFuelMonophaseConfirmed', 'stVehicleNewForResaleConfirmed', 'stVehicleMvaFallbackConfirmed', 'stVehicleImportedConfirmed', 'stVehicleImportPriceFloorConfirmed'] as const
 const decimalFields = ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate', 'entryInternalRate', 'entryInterstateRate'] as const
 const enums = {
+  purchaseProductConfirmation: ['MATCHES', 'DIFFERENT', 'UNKNOWN'],
+  purchasePaymentStatus: ['HAS_EVIDENCE', 'UNKNOWN'],
   entryMethod: ['RATE_DIFFERENCE', 'ICMS_ST', 'NO_DEBIT', 'CONSUMER_DIFAL'],
   stMvaMode: ['MANUAL_APPLIED', 'CATALOG_ORIGINAL', 'CATALOG_IMPORT_4', 'CATALOG_INTERSTATE', 'SPECIFIC_RULE'],
   stFuelCategory: ['PETROLEUM_NONINCIDENCE', 'SHALE_OIL', 'OTHER'],
@@ -29,6 +33,19 @@ const enums = {
   destinationBasis: ['ASSUMED_RESALE', 'CONFIRMED'],
   discountTreatment: ['UNCONDITIONAL', 'CONDITIONAL'], ipiTreatment: ['INCLUDED', 'EXCLUDED'],
 } as const
+
+function purchaseReviewRequired(answers: ItemFiscalAnswers): boolean {
+  return answers.purchaseReviewPending === true || answers.purchaseDestinationUnknown === true
+    || answers.purchasePaymentStatus === 'UNKNOWN' || answers.purchasePaymentStatus === 'HAS_EVIDENCE' && !answers.purchasePaymentReference?.trim()
+    || ['DIFFERENT', 'UNKNOWN'].includes(answers.purchaseProductConfirmation ?? '')
+}
+
+function assertCompletedCalculation(calculation: ItemCalculationSummary, input: SaveItemFiscalAnswersInput, itemNumber = input.itemNumber): void {
+  if (!input.requireCalculated || itemCalculationStatus(calculation) === 'CALCULATED') return
+  const reasons = [...new Set(itemCalculationComponents(calculation).filter(component => component.status !== 'CALCULATED' || component.reviewReason)
+    .map(component => component.reviewReason ?? component.reason).filter(Boolean))]
+  throw new Error(`${CALCULATION_INCOMPLETE_PREFIX} item ${itemNumber}. ${reasons.join(' ') || 'Há dados ou regras pendentes.'} Confira a revisão avançada ou use Guardar para revisão.`)
+}
 
 /** A ponte aceita somente respostas; valores fiscais e identidade vêm do banco. */
 export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
@@ -45,7 +62,7 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
       if (compareDecimals(normalized, '0') < 0) throw new Error('A base de antecipação não pode ser negativa.')
       result[key] = normalized; continue
     }
-    if (key === 'entryNoDebitReason' || key === 'stClassificationReason' || key === 'destinationReviewReason') {
+    if (key === 'entryNoDebitReason' || key === 'stClassificationReason' || key === 'destinationReviewReason' || key === 'purchaseReviewReason' || key === 'purchasePaymentReference') {
       if (typeof value !== 'string' || !value.trim() || value.trim().length > 1000) throw new Error('Informe uma justificativa de até 1000 caracteres para a decisão fiscal.')
       result[key] = value.trim(); continue
     }
@@ -53,7 +70,7 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
       if (typeof value !== 'string' || !/^[A-Za-z0-9_.:/-]{1,150}$/.test(value)) throw new Error('Selecione uma referência válida do catálogo.')
       result[key] = value; continue
     }
-    if ((boolFields as readonly string[]).includes(key) || ['entryApplicationConfirmed', 'entryBaseConfirmed', 'entryNoDebitConfirmed', 'stBuyerLiabilityConfirmed', 'stMvaFallbackConfirmed', 'stSimpleDeductionConfirmed', 'stClassificationConfirmed'].includes(key)) {
+    if ((boolFields as readonly string[]).includes(key) || ['purchaseReviewPending', 'purchaseDestinationUnknown', 'entryApplicationConfirmed', 'entryBaseConfirmed', 'entryNoDebitConfirmed', 'stBuyerLiabilityConfirmed', 'stMvaFallbackConfirmed', 'stSimpleDeductionConfirmed', 'stClassificationConfirmed'].includes(key)) {
       if (typeof value !== 'boolean') throw new Error('Escolha uma resposta válida.')
     } else if ((decimalFields as readonly string[]).includes(key)) {
       if (typeof value !== 'string') throw new Error('Informe um percentual válido.')
@@ -70,6 +87,7 @@ export function validateItemFiscalAnswers(raw: unknown): ItemFiscalAnswers {
     result[key] = value
   }
   if (result.destinationBasis === 'ASSUMED_RESALE' && result.destination !== 'RESALE') throw new Error('A premissa de revenda exige destinação RESALE.')
+  if (result.purchaseDestinationUnknown === true && result.destination !== undefined) throw new Error('A destinação desconhecida não pode conter uma destinação confirmada.')
   return result as ItemFiscalAnswers
 }
 
@@ -212,6 +230,14 @@ export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeIt
   const xmlData = reviewXmlData(nfe, item)
   let block = externalBlock ?? (companyCnpj ? paranaInterstateEntryExclusionReason(nfe,item.cfop,companyCnpj) : undefined) ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
   const entryAvailable = !block && entryRateDifferenceAvailable(nfe, companyCnpj)
+  if (purchaseReviewRequired(answers)) {
+    const { purchaseProductConfirmation: _product, purchaseDestinationUnknown: _unknown, purchasePaymentStatus: _payment, ...knownAnswers } = answers
+    const draft = buildItemFiscalContext(nfe, item, { ...knownAnswers, purchaseReviewPending: false }, undefined, undefined, externalBlock, companyCnpj)
+    const { blockedReason: _fiscalBlock, destinationAssumption: _assumption, ...available } = draft
+    return finishContext({ ...available, answers, ...(block ? { blockedReason: block } : {}),
+      calculation: { ...pendingCalculation('PENDING_DATA', answers.purchaseReviewReason ?? 'Compra guardada para revisão. Confirme as informações e o enquadramento antes de calcular.'), component: draft.calculation.component ?? 'ICMS_ST' },
+    }, originalItem, answers, [], undefined, runId)
+  }
   if (answers.entryMethod === 'RATE_DIFFERENCE' || answers.entryMethod === 'NO_DEBIT' || answers.entryMethod === 'CONSUMER_DIFAL') {
     const entryBlock = block ?? (!entryAvailable ? 'A empresa e a operação não correspondem à aquisição interestadual destinada ao Paraná.' : undefined)
     const context = answers.entryMethod === 'CONSUMER_DIFAL' ? buildConsumerDifalContext(nfe,item,answers,companyCnpj,entryBlock) : answers.entryMethod === 'NO_DEBIT' ? buildEntryNoDebitContext(item, answers, entryBlock) : buildEntryRateContext(nfe, item, answers, entryBlock)
@@ -397,7 +423,8 @@ function reuseState(database: SqliteDatabase, document: NormalizedFiscalDocument
 function noteAnswerSharingAvailable(context: ItemFiscalContext): boolean {
   const { answers } = context
   // Base revisada, fundamento individual e regras setoriais exigem conferência do próprio produto.
-  if (context.blockedReason || context.stSpecificMva || answers.entryBaseAmount !== undefined
+  // As listas são candidatas para uma revisão futura; respostas pendentes não podem ser compartilhadas ao salvar.
+  if (context.blockedReason || answers.purchasePaymentStatus !== undefined || answers.purchasePaymentReference !== undefined || context.stSpecificMva || answers.entryBaseAmount !== undefined
     || answers.entryMethod && answers.entryMethod !== 'ICMS_ST') return false
   return Boolean(context.commonScenario) || context.calculation.component === 'ICMS_ST'
 }
@@ -473,11 +500,14 @@ function saveBatchFiscalAnswers(database: SqliteDatabase,input: SaveItemFiscalAn
       || memory.inputs.find(entry=>entry.name==='answerGroupSourceDocumentId')?.value!==input.documentId
       || memory.inputs.find(entry=>entry.name==='answerGroupSourceItemNumber')?.value!==input.itemNumber
       || existing.previousRunId!==input.expectedRunId || JSON.stringify(readItemFiscalAnswers(memory))!==JSON.stringify(answers)) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
+    assertCompletedCalculation(memory, input)
     return getItemFiscalContext(database,input.batchId,input.documentId,input.itemNumber)
   }
   if (repository.latestByDocument(input.documentId)?.id!==input.expectedRunId) throw new Error('As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.')
   const context=buildItemFiscalContext(document.normalized,item,answers,undefined,undefined,externalBlock,companyCnpj)
+  assertCompletedCalculation(context.calculation, input)
   if (!noteAnswerSharingAvailable(context)) throw new Error(context.blockedReason ?? 'Este tratamento exige revisão individual da base ou das condições do produto.')
+  if (purchaseReviewRequired(answers)) throw new Error('Informações pendentes devem ser guardadas somente neste item. Confirme a compra antes de aplicar aos equivalentes.')
   const targets=matchingBatchTargets(database,input.batchId,document,item,answers)
   if (targets.length<2) throw new Error('Não há dois itens equivalentes disponíveis no lote. Salve somente neste item.')
   const documents=[...new Set(targets.map(entry=>entry.document.id))]
@@ -490,6 +520,7 @@ function saveBatchFiscalAnswers(database: SqliteDatabase,input: SaveItemFiscalAn
         const affected=selected.find(target=>target.item.itemNumber===entry.itemNumber)
         if (!affected) return {itemNumber:entry.itemNumber,memory:latest?.items.find(saved=>saved.itemNumber===entry.itemNumber)?.memory ?? memorySnapshot(buildItemFiscalContext(current.document.normalized,entry,{},undefined,undefined,undefined,current.companyCnpj).calculation)}
         const calculation=buildItemFiscalContext(current.document.normalized,entry,answers,undefined,undefined,undefined,current.companyCnpj).calculation
+        assertCompletedCalculation(calculation, input, entry.itemNumber)
         return {itemNumber:entry.itemNumber,memory:{...memorySnapshot(calculation),inputs:[...calculation.inputs,
           {name:'answerRequestId',value:input.requestId,source:'USER/current_item',treatment:'UNDECIDED' as const},
           {name:'answerReuseScope',value:'MATCHING_BATCH_ITEMS',source:'USER/current_item',treatment:'UNDECIDED' as const},
@@ -511,6 +542,30 @@ export function getItemFiscalContext(database: SqliteDatabase, batchId: string, 
   const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock, companyCnpj)
   const tax = item.declaredIcms
   if (document.normalized.finalConsumerIndicator !== undefined) context.xmlFinalConsumerIndicator = document.normalized.finalConsumerIndicator
+  if (!externalBlock) {
+    const proposal = entryAutomationReview(document.normalized, item, companyCnpj)
+    if (proposal) context.entryAutomationReview = proposal
+    if (proposal?.proposedCest && !saved?.result) {
+      try {
+        const allocated = allocatedDocument(document.normalized).get(item.itemNumber)!
+        const preview = calculateAutomaticInterstateEntry(document.normalized, { ...allocated.item, cest: proposal.proposedCest }, companyCnpj)
+        const simulationInputs = (inputs: CalculationMemory['inputs']) => [...inputs.filter(input => !['automaticCatalogCalculation', 'calculationPurpose'].includes(input.name)).map(input => ({ ...input,
+          ...(allocated.steps.some(step => step.inputs.field === input.name) ? { source: 'ALLOCATION/document_total' } : {}),
+          ...(input.name === 'cest' ? { source: 'SUGGESTION/PRODUCT_DESCRIPTION' } : {}),
+          ...(input.name === 'entryCalculationAssumptions' ? { value: JSON.stringify({ ...JSON.parse(input.value ?? '{}'), legalDescription: 'UNCONFIRMED_CLASSIFICATION_SUGGESTION' }) } : {}),
+        })),
+          { name: 'calculationPurpose', value: 'UNCONFIRMED_CLASSIFICATION_SIMULATION', source: 'DERIVED/CLASSIFICATION_SUGGESTION', treatment: 'UNDECIDED' as const },
+          { name: 'originalXmlCest', value: item.cest ?? 'ABSENT', source: 'XML/CEST', treatment: 'UNDECIDED' as const },
+          { name: 'proposedCest', value: proposal.proposedCest!, source: 'SUGGESTION/PRODUCT_DESCRIPTION', treatment: 'UNDECIDED' as const }]
+        if (preview?.status === 'CALCULATED') context.entryClassificationPreview = {
+          ...preview, reason: 'Simulação com classificação sugerida e premissas de revenda por MVA. Não confirma enquadramento, responsabilidade ou ausência de pagamento anterior; não integra os totais.',
+          inputs: simulationInputs(preview.inputs),
+          ...(preview.additionalComponents ? { additionalComponents: preview.additionalComponents.map(component => ({ ...component, inputs: simulationInputs(component.inputs) })) } : {}),
+          steps: [...allocated.steps, ...preview.steps],
+        }
+      } catch { /* Composição inválida não permite simular nem substitui o bloqueio fiscal. */ }
+    }
+  }
   try {
     const allocated = allocatedDocument(document.normalized).get(item.itemNumber)?.item ?? item
     context.consumerDifalSuggestions = { ...(allocated.productAmount !== undefined ? {operationAmount:subtractDecimals(addDecimals(allocated.productAmount,allocated.ipiAmount ?? '0',allocated.freightAmount ?? '0',allocated.insuranceAmount ?? '0',allocated.otherAmount ?? '0'),allocated.discountAmount ?? '0')} : {}), internalRate:'19.5', ...(tax?.rate !== undefined ? {interstateRate:tax.rate} : {}) }
@@ -576,6 +631,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
       || (saved.inputs.find(entry => entry.name === 'answerReuseScope')?.value ?? 'CURRENT_ITEM') !== scope
       || (scope === 'MATCHING_NOTE_ITEMS' && saved.inputs.find(entry => entry.name === 'answerGroupSourceItemNumber')?.value !== input.itemNumber)
       || (saved.inputs.find(entry => entry.name === 'definitionAtSave')?.value ?? '') !== (input.expectedDefinitionId ?? '')) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
+    assertCompletedCalculation(saved, input)
     return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
   }
   const latest = repository.latestByDocument(input.documentId)
@@ -585,13 +641,14 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
   }
   const context = buildItemFiscalContext(document.normalized, item, answers, undefined, undefined, externalBlock, companyCnpj)
   if (context.blockedReason) throw new Error(context.blockedReason)
+  assertCompletedCalculation(context.calculation, input)
   const key = reuseKey(database, document, item)
   if (scope === 'FUTURE_NOTES' && (!key || context.calculation.status !== 'CALCULATED' || context.calculation.component === 'ICMS_ST' || context.calculation.component === 'ICMS_ENTRY')) {
     throw new Error('Para reutilizar nas próximas notas, identifique a empresa e o produto do fornecedor e conclua este cálculo. Você pode salvar respostas parciais somente neste item.')
   }
   const affected = scope === 'MATCHING_NOTE_ITEMS'
     ? matchingNoteItems(document.normalized, item, latest?.items, externalBlock, companyCnpj, answers) : [item]
-  if (scope === 'MATCHING_NOTE_ITEMS' && !noteAnswerSharingAvailable(context)) {
+  if (scope === 'MATCHING_NOTE_ITEMS' && (!noteAnswerSharingAvailable(context) || purchaseReviewRequired(answers))) {
     throw new Error('Este tratamento exige revisão individual da base, da classificação ou das condições do produto. Escolha Somente neste item para salvar.')
   }
   if (scope === 'MATCHING_NOTE_ITEMS' && affected.length < 2) {
@@ -603,6 +660,7 @@ export function saveItemFiscalAnswers(database: SqliteDatabase, input: SaveItemF
     const itemAnswers = entry.itemNumber === input.itemNumber ? answers : { ...previousAnswers, ...answers }
     const calculation = entry.itemNumber === input.itemNumber ? context.calculation
       : buildItemFiscalContext(document.normalized, entry, itemAnswers, undefined, undefined, externalBlock, companyCnpj).calculation
+    assertCompletedCalculation(calculation, input, entry.itemNumber)
     updated.set(entry.itemNumber, { ...memorySnapshot(calculation), inputs: [
       ...calculation.inputs,
       { name: 'answerRequestId', value: input.requestId, source: 'USER/current_item', treatment: 'UNDECIDED' },
@@ -644,6 +702,7 @@ function saveItemXmlCalculation(database: SqliteDatabase, input: SaveItemFiscalA
     if (!saved || !isAutomaticCalculation(saved) || existing.previousRunId !== input.expectedRunId
       || (saved.inputs.find(entry => entry.name === 'answerCalculationMode')?.value ?? 'XML') !== input.calculationMode
       || saved.inputs.find(entry => entry.name === 'answerRequestId')?.value !== input.requestId) throw new Error('Esta solicitação já foi usada com respostas diferentes.')
+    assertCompletedCalculation(saved, input)
     return getItemFiscalContext(database, input.batchId, input.documentId, input.itemNumber)
   }
   const latest = repository.latestByDocument(input.documentId)
@@ -652,6 +711,7 @@ function saveItemXmlCalculation(database: SqliteDatabase, input: SaveItemFiscalA
   const calculation = input.calculationMode === 'AUTOMATIC' ? calculateAutomaticItem(document.normalized, allocated.item, companyCnpj)
     : calculateAutomaticXmlItem(document.normalized, allocated.item)
   if (!calculation) throw new Error('Os dados do XML não permitem calcular automaticamente este item.')
+  assertCompletedCalculation(calculation, input)
   repository.save({ requestId: input.requestId, batchId: input.batchId, documentId: input.documentId,
     ...(latest ? { previousRunId: latest.id } : {}), engineVersion: isAutomaticXmlCalculation(calculation) ? AUTOMATIC_XML_VERSION : AUTOMATIC_CATALOG_VERSION,
     items: document.normalized.items.map(entry => ({ itemNumber: entry.itemNumber,

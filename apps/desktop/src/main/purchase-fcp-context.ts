@@ -16,6 +16,8 @@ export function preparePurchaseFcpContext(nfe: NormalizedNfe, item: NormalizedNf
   }
   const questions: ItemFiscalQuestion[] = [
     { field: 'fcpStApplicableConfirmed', label: 'Confirma que esta mercadoria e operação estão sujeitas ao adicional de 2% do FECOP por ST, conforme a vigência e as exceções do art. 14A?',
+      ...(coverage.status === 'COVERED' ? { blockedAnswer: { value: 'false', reason: 'A resposta de não incidência conflita com a regra de FECOP consultada para este produto. Confira a classificação e o enquadramento.' } }
+        : ['UNLISTED', 'EXCLUDED'].includes(coverage.status) ? { blockedAnswer: { value: 'true', reason: 'A regra consultada não permite este FCP-ST para o produto. Confira a classificação e o enquadramento.' } } : {}),
       options: [{ value: 'true', label: 'Sim — calcular FCP-ST de 2%' }, { value: 'false', label: 'Não — confirmar não incidência' }] },
     { field: 'stInternalRateIncludesFcp', label: 'A alíquota interna que você informou já inclui os 2 pontos do FECOP? Exemplo: 25% total = 23% ICMS + 2% FECOP.',
       options: [{ value: 'true', label: 'Sim — separar 2 pontos da alíquota informada' }, { value: 'false', label: 'Não — a alíquota informada é apenas do ICMS' }] },
