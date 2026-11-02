@@ -3,11 +3,22 @@
 ## O que mudou
 
 - A conferência de ST já declarada é encaminhada antes dos filtros de revenda e CFOP da estimativa de novo débito. CFOP 6403 não é tratado como remessa genérica sem cálculo.
-- As versões automáticas passaram a XML_ARITHMETIC_6 e XML_CATALOG_3 para reavaliar os resultados automáticos antigos, preservando respostas manuais e o histórico.
+- As versões automáticas são XML_ARITHMETIC_7 e XML_CATALOG_3. A versão 7 reconhece também ST anterior em entradas interestaduais para o PR, preservando respostas manuais e o histórico.
 - A busca de MVA apresenta candidatas pelo NCM e destaca maquiagem para lábios quando a descrição é gloss/batom/lip. A sugestão não altera CEST nem confirma incidência: a revisão exige confirmação e fundamento.
 - Uma classificação revisada pode ser compartilhada. No lote, exige mesma empresa, fornecedor, mês e características fiscais; a descrição deve ser idêntica, exceto a família estreita de maquiagem dos lábios. Cada produto conserva seus próprios valores. Itens calculados ou já revisados são preservados. Todas as notas afetadas são gravadas em uma transação.
 - O compartilhamento não copia bases em reais, ausência de débito ou regras setoriais individuais. O formulário mostra as notas e itens afetados.
 - Notas de consumidor final deixam de receber a premissa de revenda. A escolha explícita encaminha para ST ou DIFAL de uso/ativo. Uma destinação diferente do XML exige justificativa, sem modificar o documento.
+
+## Preparação automática das pendências
+
+A conferência agrupa itens por destinação, ST anterior, seção revogada, CEST ausente, classificação sugerida ou enquadramento fora do catálogo. Cada item informa a próxima decisão necessária. A regra de revogação fica limitada às datas verificadas, de 01/08/2024 a 12/10/2026.
+
+Para maquiagem de lábios com descrição compatível e classificação divergente, a tela calcula uma simulação com o CEST sugerido. A simulação usa o rateio próprio do produto e as premissas da estimativa de entrada por MVA. Ela registra o CEST original, o sugerido e o caráter não confirmado da classificação, sem gravar respostas ou entrar nos totais. O botão de preparação seleciona a referência no formulário; as confirmações fiscais continuam explícitas. Ao confirmar uma revisão válida, os equivalentes escolhidos no lote são calculados individualmente.
+
+A ST anterior (CST 60/CSOSN 500) permanece como tratamento documental sem apuração. Mesmo sem valores de retenção no XML, não é convertida em imposto zero nem em nova cobrança. O reconhecimento interestadual não amplia as regras de isenção, Simples sem destaque ou diferimento interno.
+
+Referência de classificação, Convênio ICMS 142/18, cláusula sétima e CEST 20.009.00:
+https://www.confaz.fazenda.gov.br/legislacao/convenios/2018/CV142_18
 
 ## DIFAL de uso/ativo
 

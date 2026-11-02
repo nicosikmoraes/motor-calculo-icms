@@ -8,13 +8,14 @@ import {applyAutomaticXmlCalculations,getItemFiscalContext,saveItemFiscalAnswers
 import {buildConsumerDifalContext} from '../src/main/consumer-difal-context'
 import {calculateAutomaticItem} from '../src/main/automatic-xml-calculation'
 import {getBatchConsolidation} from '../src/main/batch-consolidation'
+import {queryBatchDetail} from '../src/main/batch-query-handlers'
 const original=normalizeNfeXml(readFileSync(new URL('./fixtures/revisao-interestadual-1245.xml',import.meta.url),'utf8'))
 const time='2026-09-15T15:00:00.000Z',batchId='00000000-0000-4000-8000-000000000101',companyId='00000000-0000-4000-8000-000000000102'
 const buyer=original.recipient!.taxId!
 function product(itemNumber:string,description:string,amount:string,ncm='33041000',cest:string|undefined='2800900') {
  return {...original.items[0]!,itemNumber,description,cfop:'6102',ncm,cest,productAmount:amount,declaredIcms:{group:'ICMS00',cst:'00',baseMode:'3',originCode:'0',baseAmount:amount,rate:'12',amount:String(Number(amount)*0.12)}}
 }
-const notes=[{...original,number:'100',accessKey:'1'.repeat(44),declaredTotals:{},items:[product('1','GLOSS LABIAL MEL 4ML','100.00'),product('2','GLOSS LABIAL MORANGO 4ML','200.00'),product('3','GOLA HIG DESC','30.00','48189090',undefined)]},
+const notes=[{...original,number:'100',accessKey:'1'.repeat(44),declaredTotals:{},items:[product('1','GLOSS LABIAL MEL 4ML','100.00'),product('2','GLOSS LABIAL MORANGO 4ML','200.00'),{...product('3','GOLA HIG DESC','30.00','48189090'),cest:undefined}]},
  {...original,number:'101',accessKey:'2'.repeat(44),declaredTotals:{},items:[product('1','GLOSS LABIAL TUTTIFRUTI 4ML','50.00'),product('2','CURVADOR DE CILIOS','15.00','82032090','0800800')]}]
 const reviewed:ItemFiscalAnswers={entryMethod:'ICMS_ST',stCatalogRowId:PARANA_ST_MVA_CATALOG.rows.find(r=>r.cest==='2000900')!.id,stClassificationConfirmed:true,stClassificationReason:'Produto sintético para revenda convencional, descrição de maquiagem para os lábios conferida.',stApplicableConfirmed:true,stBuyerLiabilityConfirmed:true,stMvaFallbackConfirmed:true,stMvaMode:'CATALOG_INTERSTATE',stInternalRate:'23',stOwnOperationRate:'12',fcpStApplicableConfirmed:true,stInternalRateIncludesFcp:false}
 let db:SqliteDatabase
@@ -27,6 +28,24 @@ beforeEach(()=>{
 })
 afterEach(()=>db.close())
 describe('pendências de entradas interestaduais',()=>{
+ it('prepara simulações por produto sem aprovar a classificação, gravar respostas ou alterar totais',()=>{
+  const repo=new SqliteCalculationRepository(db)
+  const before=repo.latestByDocument('00000000-0000-4000-8000-000000000104')!
+  const context=getItemFiscalContext(db,batchId,'00000000-0000-4000-8000-000000000104','1')
+  expect(context.entryAutomationReview).toMatchObject({category:'CLASSIFICATION_SUGGESTION',proposedCest:'2000900'})
+  expect(context.entryClassificationPreview?.result?.amount).toBe('33.56')
+  expect(context.entryClassificationPreview?.inputs.find(i=>i.name==='originalXmlCest')?.value).toBe('2800900')
+  expect(context.entryClassificationPreview?.inputs.find(i=>i.name==='entryCalculationAssumptions')?.value).toContain('UNCONFIRMED_CLASSIFICATION_SUGGESTION')
+  expect(context.entryClassificationPreview?.inputs.some(i=>i.name==='automaticCatalogCalculation')).toBe(false)
+  expect(context.entryClassificationPreview?.additionalComponents?.[0]?.inputs.some(i=>i.name==='automaticCatalogCalculation')).toBe(false)
+  expect(context.calculation.result).toBeUndefined()
+  expect(context.answers.stClassificationConfirmed).toBeUndefined()
+  expect(repo.latestByDocument('00000000-0000-4000-8000-000000000104')?.id).toBe(before.id)
+  expect(getBatchConsolidation(db,batchId).counts.calculated).toBe(0)
+  const detail=queryBatchDetail(db,batchId)
+  expect(detail.documents.flatMap(d=>d.items).map(i=>i.entryAutomationReview?.category)).toEqual(['CLASSIFICATION_SUGGESTION','CLASSIFICATION_SUGGESTION','MISSING_CEST','CLASSIFICATION_SUGGESTION','OUTSIDE_CATALOG'])
+  expect(getItemFiscalContext(db,batchId,'00000000-0000-4000-8000-000000000105','2').entryClassificationPreview).toBeUndefined()
+ })
  it('confirma uma classificação e calcula equivalentes em duas notas, com valores próprios e idempotência',()=>{
   const before=getItemFiscalContext(db,batchId,'00000000-0000-4000-8000-000000000104','1')
   expect(before.stMvaCandidates?.find(r=>r.suggested)?.cest).toBe('2000900')

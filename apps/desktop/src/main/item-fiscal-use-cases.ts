@@ -14,6 +14,8 @@ import { buildEntryNoDebitContext, buildEntryRateContext, entryRateDifferenceAva
 import { classificationProductFamily } from './product-classification-review'
 import { buildConsumerDifalContext } from './consumer-difal-context'
 import { entryReviewFindings } from './entry-review-findings'
+import { entryAutomationReview } from './entry-automation-review'
+import { calculateAutomaticInterstateEntry } from './automatic-interstate-entry'
 import { purchaseDestinationAnswers, RESALE_DEFAULT_NOTICE } from './purchase-destination-policy'
 import { AUTOMATIC_XML_VERSION, AUTOMATIC_CATALOG_VERSION, automaticCalculationDescription, calculateAutomaticItem, calculateAutomaticXmlItem, isAutomaticCalculation, isAutomaticXmlCalculation } from './automatic-xml-calculation'
 
@@ -511,6 +513,30 @@ export function getItemFiscalContext(database: SqliteDatabase, batchId: string, 
   const context = buildItemFiscalContext(document.normalized, item, readItemFiscalAnswers(saved), saved, run?.id, externalBlock, companyCnpj)
   const tax = item.declaredIcms
   if (document.normalized.finalConsumerIndicator !== undefined) context.xmlFinalConsumerIndicator = document.normalized.finalConsumerIndicator
+  if (!externalBlock) {
+    const proposal = entryAutomationReview(document.normalized, item, companyCnpj)
+    if (proposal) context.entryAutomationReview = proposal
+    if (proposal?.proposedCest && !saved?.result) {
+      try {
+        const allocated = allocatedDocument(document.normalized).get(item.itemNumber)!
+        const preview = calculateAutomaticInterstateEntry(document.normalized, { ...allocated.item, cest: proposal.proposedCest }, companyCnpj)
+        const simulationInputs = (inputs: CalculationMemory['inputs']) => [...inputs.filter(input => !['automaticCatalogCalculation', 'calculationPurpose'].includes(input.name)).map(input => ({ ...input,
+          ...(allocated.steps.some(step => step.inputs.field === input.name) ? { source: 'ALLOCATION/document_total' } : {}),
+          ...(input.name === 'cest' ? { source: 'SUGGESTION/PRODUCT_DESCRIPTION' } : {}),
+          ...(input.name === 'entryCalculationAssumptions' ? { value: JSON.stringify({ ...JSON.parse(input.value ?? '{}'), legalDescription: 'UNCONFIRMED_CLASSIFICATION_SUGGESTION' }) } : {}),
+        })),
+          { name: 'calculationPurpose', value: 'UNCONFIRMED_CLASSIFICATION_SIMULATION', source: 'DERIVED/CLASSIFICATION_SUGGESTION', treatment: 'UNDECIDED' as const },
+          { name: 'originalXmlCest', value: item.cest ?? 'ABSENT', source: 'XML/CEST', treatment: 'UNDECIDED' as const },
+          { name: 'proposedCest', value: proposal.proposedCest!, source: 'SUGGESTION/PRODUCT_DESCRIPTION', treatment: 'UNDECIDED' as const }]
+        if (preview?.status === 'CALCULATED') context.entryClassificationPreview = {
+          ...preview, reason: 'Simulação com classificação sugerida e premissas de revenda por MVA. Não confirma enquadramento, responsabilidade ou ausência de pagamento anterior; não integra os totais.',
+          inputs: simulationInputs(preview.inputs),
+          ...(preview.additionalComponents ? { additionalComponents: preview.additionalComponents.map(component => ({ ...component, inputs: simulationInputs(component.inputs) })) } : {}),
+          steps: [...allocated.steps, ...preview.steps],
+        }
+      } catch { /* Composição inválida não permite simular nem substitui o bloqueio fiscal. */ }
+    }
+  }
   try {
     const allocated = allocatedDocument(document.normalized).get(item.itemNumber)?.item ?? item
     context.consumerDifalSuggestions = { ...(allocated.productAmount !== undefined ? {operationAmount:subtractDecimals(addDecimals(allocated.productAmount,allocated.ipiAmount ?? '0',allocated.freightAmount ?? '0',allocated.insuranceAmount ?? '0',allocated.otherAmount ?? '0'),allocated.discountAmount ?? '0')} : {}), internalRate:'19.5', ...(tax?.rate !== undefined ? {interstateRate:tax.rate} : {}) }

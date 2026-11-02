@@ -487,6 +487,7 @@ export interface ItemRuleAssessment {
 }
 
 export interface FiscalItemSummary {
+  entryAutomationReview?: EntryAutomationReview
   entryCalculationEligible?: boolean
   entryCalculationExclusionReason?: string
   entryReviewReasons?: readonly string[]
@@ -660,6 +661,9 @@ export interface SpecificStMvaSummary {
   legalBasis: string; sourceUrl: string
 }
 export interface ItemFiscalContext {
+  entryAutomationReview?: EntryAutomationReview
+  /** Simulação isolada: não integra os totais nem confirma classificação ou obrigação fiscal. */
+  entryClassificationPreview?: ItemCalculationSummary
   xmlFinalConsumerIndicator?: string
   entryLegislationHint?: { reason: string; sourceUrl: string }
   consumerDifalSuggestions?: { operationAmount?: string; internalRate?: string; interstateRate?: string }
@@ -691,6 +695,16 @@ export interface ItemFiscalContext {
   runId?: string
   xmlFacts: readonly string[]
   calculation: ItemCalculationSummary
+}
+
+export interface EntryAutomationReview {
+  category: 'PREVIOUS_ST' | 'DESTINATION' | 'REVOKED_ST' | 'CLASSIFICATION_SUGGESTION' | 'MISSING_CEST' | 'OUTSIDE_CATALOG'
+  title: string
+  reason: string
+  nextAction: string
+  sourceUrl?: string
+  proposedCatalogRowId?: string
+  proposedCest?: string
 }
 
 export interface SaveItemFiscalAnswersInput {

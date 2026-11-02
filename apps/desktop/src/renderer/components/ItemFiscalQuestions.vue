@@ -141,6 +141,16 @@ function setSelections(value: ItemFiscalContext): void {
   if (!value.answers.stCatalogRowId && selectedClassification.value) classificationChanged('stCatalogRowId')
 }
 
+function prepareClassificationReview(): void {
+  const proposal = context.value?.entryAutomationReview
+  if (!proposal?.proposedCatalogRowId) return
+  selections.value.entryMethod = 'ICMS_ST'
+  selections.value.stCatalogRowId = proposal.proposedCatalogRowId
+  classificationChanged('stCatalogRowId')
+  showManualReview.value = true
+  showAllFields.value = true
+}
+
 async function load(): Promise<void> {
   if (loading.value || saving.value) return
   loading.value = true
@@ -285,6 +295,20 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
     <div v-if="loading" class="review-loading" role="status">Carregando as perguntas e os dados deste item…</div>
     <div v-if="!context && !loading && error" class="review-message is-error" role="alert"><p>{{ error }}</p><button type="button" class="button secondary" @click="load">Carregar novamente</button></div>
     <div v-if="context && !loading" class="review-layout">
+      <section v-if="context.entryAutomationReview && itemCalculationStatus(context.calculation) !== 'CALCULATED'" class="classification-suggestion" aria-label="Diagnóstico automático da pendência">
+        <strong>{{ context.entryAutomationReview.title }}</strong>
+        <p>{{ context.entryAutomationReview.reason }}</p>
+        <p>{{ context.entryAutomationReview.nextAction }}</p>
+        <a v-if="context.entryAutomationReview.sourceUrl" :href="context.entryAutomationReview.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar referência oficial</a>
+        <template v-if="context.entryClassificationPreview">
+          <h4>Simulação automática para conferência</h4>
+          <p>CEST sugerido: {{ context.entryAutomationReview.proposedCest }}. O CEST original do XML foi preservado.</p>
+          <p v-for="component in itemCalculationComponents(context.entryClassificationPreview)" :key="component.component">{{ component.component }} estimado: <strong>R$ {{ component.result?.amount?.replace('.', ',') }}</strong></p>
+          <small>{{ context.entryClassificationPreview.reason }}</small>
+          <CalculationMemoryDetails :calculation="context.entryClassificationPreview" />
+          <button type="button" class="button secondary" :disabled="saving" @click="prepareClassificationReview">Preparar revisão com esta sugestão</button>
+        </template>
+      </section>
       <section v-if="documentary && !showManualReview" class="review-main documentary-assessment">
         <header class="review-heading"><span class="review-eyebrow">Tratamento informado no XML</span><h4>{{ documentary.title }}</h4><p>{{ documentary.reason }}</p></header>
         <div class="unassessed-result"><span>Imposto devido nesta operação</span><strong>Não apurado</strong><p>A ausência de destaque não foi transformada em um cálculo de R$ 0,00.</p></div>

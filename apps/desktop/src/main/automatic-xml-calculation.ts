@@ -6,11 +6,11 @@ import { calculateAutomaticInterstateEntry } from './automatic-interstate-entry'
 import { calculateDeclaredTreatment } from './automatic-declared-treatment'
 import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
 
-export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_6'
+export const AUTOMATIC_XML_VERSION = 'XML_ARITHMETIC_7'
 export const AUTOMATIC_CATALOG_VERSION = 'XML_CATALOG_3'
 export const automaticXmlNotice = 'Calculado automaticamente com os parâmetros declarados no XML. As diferenças aparecem na conferência. A incidência e o enquadramento fiscal podem ser revisados separadamente.'
 export function isAutomaticXmlCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
-  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && (input.value === AUTOMATIC_XML_VERSION || input.value === 'XML_ARITHMETIC_5' || input.value === 'XML_ARITHMETIC_4' || input.value === 'XML_ARITHMETIC_3' || input.value === 'XML_ARITHMETIC_2' || input.value === 'XML_ARITHMETIC_1'))
+  return memory.inputs.some(input => input.name === 'automaticXmlCalculation' && (input.value === AUTOMATIC_XML_VERSION || input.value === 'XML_ARITHMETIC_6' || input.value === 'XML_ARITHMETIC_5' || input.value === 'XML_ARITHMETIC_4' || input.value === 'XML_ARITHMETIC_3' || input.value === 'XML_ARITHMETIC_2' || input.value === 'XML_ARITHMETIC_1'))
 }
 export function isAutomaticCalculation(memory: { inputs: readonly { name: string; value?: string }[] }): boolean {
   return isAutomaticXmlCalculation(memory) || memory.inputs.some(input => input.name === 'automaticCatalogCalculation' && (input.value === AUTOMATIC_CATALOG_VERSION || input.value === 'XML_CATALOG_2' || input.value === 'XML_CATALOG_1'))
