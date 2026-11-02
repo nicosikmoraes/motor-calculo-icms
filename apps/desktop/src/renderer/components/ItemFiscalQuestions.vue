@@ -170,6 +170,13 @@ const holdReason = computed(() => purchaseHoldReason(selections.value)
   ?? (needsPaymentReview.value && !selections.value.purchasePaymentStatus ? 'Falta informar se há comprovante para conferir o imposto anterior.' : undefined))
 const technicalMissingCount = computed(() => Object.keys(fieldErrors.value).filter(field => !isPurchaseQuestion(field as keyof ItemFiscalAnswers)).length)
 const methodLabel = computed(() => ({ ICMS_ST: 'Substituição tributária na entrada', CONSUMER_DIFAL: 'Diferença de imposto para uso ou bem da empresa', RATE_DIFFERENCE: 'Antecipação do imposto na entrada', NO_DEBIT: 'Entrada sem novo débito, mediante fundamento' } as Record<string,string>)[selections.value.entryMethod ?? ''] ?? 'Enquadramento ainda precisa de revisão fiscal')
+const individualReviewReason = computed(() => selections.value.entryMethod === 'NO_DEBIT'
+  ? 'A decisão de não gerar novo débito exige fundamento para este produto e esta operação. Ela não é aplicada aos demais produtos apenas porque apresentam o mesmo alerta.'
+  : ['CONSUMER_DIFAL', 'RATE_DIFFERENCE'].includes(selections.value.entryMethod ?? '')
+    ? 'Este tratamento usa uma base em reais conferida para o próprio produto. As respostas são aplicadas somente neste item.'
+    : selections.value.purchasePaymentStatus || selections.value.purchasePaymentReference
+      ? 'A referência do comprovante pertence a esta compra e exige revisão individual.'
+      : 'Não há outros produtos compatíveis disponíveis para esta revisão. Ter o mesmo motivo de pendência não garante a mesma classificação ou regra fiscal.')
 const analysisMessage = computed(() => ({
   CLASSIFICATION_SUGGESTION: 'Encontramos uma referência para este tipo de produto. Confira a descrição e as condições da compra antes de usar a simulação.',
   DESTINATION: 'O uso do produto determina o caminho da análise. Informar a destinação ajuda a avaliar o imposto correto.',
@@ -419,10 +426,13 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           <div v-if="holdReason || technicalMissingCount" class="review-message is-warning"><strong>{{ holdReason ? 'Informação da compra pendente' : 'Revisão fiscal pendente' }}</strong><p>{{ holdReason || `Ainda há ${technicalMissingCount} ponto(s) para conferir. Você pode guardar suas respostas sem concluir o imposto.` }}</p><button type="button" class="text-button" @click="reviewStep = holdReason ? 'purchase' : 'analysis'; advancedOpen = !holdReason">{{ holdReason ? 'Rever informações da compra' : 'Abrir revisão avançada' }}</button></div>
         <section v-if="!holdReason && (context.reuseAvailable || matchingItems.length || matchingBatchItems.length)" class="answer-scope">
           <h5>Aplicação das respostas</h5>
+          <p class="field-help">O filtro pelo motivo do alerta não define onde aplicar a resposta. Para revisar vários produtos, selecione abaixo os equivalentes e confira a lista.</p>
           <label>Onde aplicar esta confirmação?<select v-model="reuseScope" :disabled="saving"><option value="CURRENT_ITEM">Somente neste item</option><option v-if="matchingBatchItems.length" value="MATCHING_BATCH_ITEMS">Automaticamente nos {{ matchingBatchItems.length }} itens equivalentes do lote</option><option v-if="matchingItems.length" value="MATCHING_NOTE_ITEMS">Automaticamente nos {{ matchingItems.length }} itens compatíveis desta nota</option><option v-if="context.reuseAvailable" value="FUTURE_NOTES">Também nas próximas notas deste mesmo produto</option></select></label>
           <div v-if="reuseScope === 'MATCHING_BATCH_ITEMS'" class="scope-products"><p>Produtos que receberão esta revisão:</p><ul><li v-for="item in matchingBatchItems" :key="`${item.documentId}-${item.itemNumber}`"><strong>Nota {{ item.documentNumber }} · item {{ item.itemNumber }}</strong><span>{{ item.description }}</span></li></ul><small>Mesmo fornecedor, período e perfil fiscal. Revisões anteriores são preservadas.</small></div><div v-else-if="reuseScope === 'MATCHING_NOTE_ITEMS'" class="scope-products"><p>Confira os produtos que receberão estas respostas:</p><ul><li v-for="item in matchingItems" :key="item.itemNumber"><strong>Item {{ item.itemNumber }}</strong><span>{{ item.productCode || item.description || 'Produto sem código' }}</span></li></ul><small>O valor, a base e o rateio são calculados separadamente para cada produto.</small></div>
           <p v-else-if="reuseScope === 'FUTURE_NOTES'" class="field-help">A definição será reaproveitada nas próximas notas deste produto quando o contexto fiscal corresponder ao que foi confirmado.</p>
         </section>
+          <section v-else-if="!holdReason" class="answer-scope"><h5>Aplicação desta revisão: somente neste item</h5><p class="field-help">{{ individualReviewReason }}</p></section>
+          <div v-if="selections.entryMethod === 'NO_DEBIT'" class="review-message is-warning"><strong>Decisão de entrada sem novo débito</strong><p>Você está registrando R$ 0,00 para este item, com o fundamento informado. Essa decisão não corrige o CEST ausente nem apura o imposto dos demais produtos.</p></div>
 
           <section v-if="commonReview" class="treatment-summary"><h5>Condições que você confirma ao calcular</h5><p>Destinatário fora da construção civil, produto que não é petróleo ou combustível e tributação comum de 19,5%, com diferimento quando aplicável, sem ST, FCP, redução de base ou tratamento específico. Se não puder confirmar, volte à revisão avançada ou guarde para revisão.</p></section>
           <p v-if="!holdReason && !technicalMissingCount" class="field-help">Ao confirmar, as respostas fiscais serão registradas e o cálculo será validado. Nenhuma informação do XML original será alterada.</p>
@@ -432,7 +442,7 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           <button v-if="reviewStep !== 'purchase'" type="button" class="button secondary" :disabled="saving" @click="reviewStep = reviewStep === 'apply' ? 'analysis' : 'purchase'; error = ''">Voltar</button>
           <button type="button" class="button secondary" :disabled="saving" @click="save(true)">{{ saving ? 'Salvando…' : 'Guardar para revisão' }}</button>
           <button v-if="reviewStep !== 'apply'" type="button" class="button primary" :disabled="saving" @click="continueReview">{{ reviewStep === 'purchase' ? 'Conferir análise' : 'Escolher onde aplicar' }}</button>
-          <button v-else type="submit" class="button primary" :disabled="saving || Boolean(holdReason) || technicalMissingCount > 0">{{ saving ? 'Calculando…' : 'Confirmar e calcular' }}</button>
+          <button v-else type="submit" class="button primary" :disabled="saving || Boolean(holdReason) || technicalMissingCount > 0">{{ saving ? 'Salvando…' : selections.entryMethod === 'NO_DEBIT' ? 'Registrar decisão sem novo débito' : 'Confirmar e calcular' }}</button>
         </footer>
       </form>
       <section v-else class="review-main">
