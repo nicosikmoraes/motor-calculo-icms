@@ -28,6 +28,12 @@ https://www.confaz.fazenda.gov.br/legislacao/convenios/2018/CV142_18
 
 Os fatos da compra e a solicitação de revisão são gravados no histórico das respostas. O processo principal mantém a pendência mesmo se receber confirmações fiscais antigas junto com informação desconhecida. Mudar destinação, descrição ou informação de pagamento invalida as confirmações relacionadas na tela. Referências de comprovantes não são compartilhadas com outras notas. A rotina automática preserva essas revisões.
 
+### Confirmação final e pendências
+
+**Confirmar e calcular** envia `requireCalculated: true` pela ponte Electron. O serviço só grava a confirmação se todos os componentes dos itens selecionados estiverem calculados; em grupos, verifica todos os resultados antes de gravar qualquer nota. Uma pendência retorna o motivo sem criar outra execução. **Guardar para revisão** continua permitindo respostas parciais.
+
+Uma resposta “Não” que recusa uma condição necessária ao tratamento não conta como confirmação válida. A tela lista os impedimentos e destaca conflitos de FCP informados pela regra consultada. Opções negativas válidas, como alíquota sem FCP incluído, continuam aceitas. Aplicar respostas a vários produtos não é anunciado como cálculo concluído enquanto houver pendências.
+
 ## DIFAL de uso/ativo
 
 Recorte para contribuinte PR, aquisição interestadual normal, CRT 1/3, CST 00 ou CSOSN 101/102, sem ST anterior, redução, isenção, regra setorial ou FECOP. Exige confirmação de incidência, ausência de pagamentos anteriores, composição do valor da operação e alíquotas efetivas. Não utiliza o diferimento de revenda.

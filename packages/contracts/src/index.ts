@@ -653,6 +653,7 @@ export interface ItemFiscalAnswers {
 }
 
 export interface ItemFiscalQuestion {
+  blockedAnswer?: { value: string; reason: string }
   field: keyof ItemFiscalAnswers
   label: string
   options?: readonly { value: string; label: string }[]
@@ -714,6 +715,8 @@ export interface EntryAutomationReview {
 }
 
 export interface SaveItemFiscalAnswersInput {
+  /** A confirmação final só pode gravar se todos os componentes dos itens escolhidos estiverem calculados. */
+  requireCalculated?: boolean
   calculationMode?: 'FISCAL_RULE' | 'XML' | 'AUTOMATIC'
   reuseScope?: 'CURRENT_ITEM' | 'MATCHING_NOTE_ITEMS' | 'MATCHING_BATCH_ITEMS' | 'FUTURE_NOTES'
   expectedDefinitionId?: string
@@ -724,6 +727,8 @@ export interface SaveItemFiscalAnswersInput {
   expectedRunId?: string
   answers: ItemFiscalAnswers
 }
+
+export const CALCULATION_INCOMPLETE_PREFIX = 'Cálculo não concluído:'
 
 export type DocumentReviewAction = 'ASSOCIATE' | 'APPROVE_CCE' | 'REOPEN_CCE'
 export interface DocumentReviewAudit {

@@ -10,9 +10,9 @@ import '../src/preload/index'
 
 it.each(['XML', 'AUTOMATIC'] as const)('envia o modo %s pelo preload real, com os dados e a execução anterior preservados', async calculationMode => {
   await bridge.api!.saveItemFiscalAnswers({ batchId: 'batch', documentId: 'document', itemNumber: '1',
-    requestId: 'request', expectedRunId: 'previous', calculationMode, answers: {} })
+    requestId: 'request', expectedRunId: 'previous', calculationMode, requireCalculated: true, answers: {} })
   expect(bridge.invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.SAVE_ITEM_FISCAL_ANSWERS,
     expect.objectContaining({ batchId: 'batch', documentId: 'document', itemNumber: '1', requestId: 'request',
-      expectedRunId: 'previous', calculationMode, answers: {} }))
+      expectedRunId: 'previous', calculationMode, requireCalculated: true, answers: {} }))
   expect(() => structuredClone(bridge.invoke.mock.lastCall![1])).not.toThrow()
 })

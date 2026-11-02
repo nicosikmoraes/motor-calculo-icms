@@ -28,6 +28,42 @@ beforeEach(()=>{
 })
 afterEach(()=>db.close())
 describe('pendências de entradas interestaduais',()=>{
+ it.each(['CURRENT_ITEM','MATCHING_NOTE_ITEMS','MATCHING_BATCH_ITEMS'] as const)('não grava confirmação incompleta nem anuncia cálculo no alcance %s',reuseScope=>{
+  const documentId='00000000-0000-4000-8000-000000000104'
+  const repository=new SqliteCalculationRepository(db)
+  const ids=['00000000-0000-4000-8000-000000000104','00000000-0000-4000-8000-000000000105']
+  const before=ids.map(id=>repository.latestByDocument(id)?.id)
+  const answers={...reviewed,stBuyerLiabilityConfirmed:false,fcpStApplicableConfirmed:false}
+  expect(()=>saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'must-calculate-'+reuseScope,expectedRunId:before[0]!,reuseScope,requireCalculated:true,answers})).toThrow(/Cálculo não concluído:.*responsabilidade.*FECOP/)
+  expect(ids.map(id=>repository.latestByDocument(id)?.id)).toEqual(before)
+  expect(getBatchConsolidation(db,batchId).counts.calculated).toBe(0)
+ })
+ it('calcula e diminui as pendências com a confirmação final válida do grupo',()=>{
+  const documentId='00000000-0000-4000-8000-000000000104'
+  const before=getItemFiscalContext(db,batchId,documentId,'1')
+  const saved=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'require-completed-group',expectedRunId:before.runId!,reuseScope:'MATCHING_BATCH_ITEMS',requireCalculated:true,answers:reviewed})
+  expect(saved.appliedBatchItems).toBe(3)
+  expect(getBatchConsolidation(db,batchId).counts.calculated).toBe(3)
+  const detail=queryBatchDetail(db,batchId)
+  expect(detail.documents.flatMap(d=>d.items).filter(i=>i.calculation.status!=='CALCULATED')).toHaveLength(2)
+ })
+ it('rejeita conflito de regra mesmo com todas as confirmações principais preenchidas',()=>{
+  const documentId='00000000-0000-4000-8000-000000000104',repo=new SqliteCalculationRepository(db)
+  const before=repo.latestByDocument(documentId)!
+  expect(()=>saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'rule-conflict',expectedRunId:before.id,requireCalculated:true,answers:{...reviewed,fcpStApplicableConfirmed:false}})).toThrow(/Cálculo não concluído:.*FECOP/)
+  expect(repo.latestByDocument(documentId)?.id).toBe(before.id)
+  const draft=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'keep-conflicting-draft',expectedRunId:before.id,requireCalculated:false,answers:{...reviewed,fcpStApplicableConfirmed:false,purchaseReviewPending:true}})
+  expect(draft.calculation.result).toBeUndefined()
+ })
+ it('verifica todos os itens antes de gravar o grupo, sem conclusão parcial',()=>{
+  const otherId='00000000-0000-4000-8000-000000000105',sourceId='00000000-0000-4000-8000-000000000104'
+  const altered=structuredClone(notes[1]!)
+  altered.items[0]!.declaredIcms.amount='5000.00'
+  db.run('UPDATE documentos_fiscais SET dados_normalizados_json=? WHERE id=?',JSON.stringify(altered),otherId)
+  const repo=new SqliteCalculationRepository(db),before=[repo.latestByDocument(sourceId)?.id,repo.latestByDocument(otherId)?.id]
+  expect(()=>saveItemFiscalAnswers(db,{batchId,documentId:sourceId,itemNumber:'1',requestId:'all-or-nothing',expectedRunId:before[0]!,reuseScope:'MATCHING_BATCH_ITEMS',requireCalculated:true,answers:reviewed})).toThrow(/Cálculo não concluído:/)
+  expect([repo.latestByDocument(sourceId)?.id,repo.latestByDocument(otherId)?.id]).toEqual(before)
+ })
  it('guarda informação desconhecida para revisão e não presume revenda ao reabrir',()=>{
   const documentId='00000000-0000-4000-8000-000000000104'
   const before=getItemFiscalContext(db,batchId,documentId,'1')
