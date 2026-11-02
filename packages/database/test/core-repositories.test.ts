@@ -366,6 +366,12 @@ describe("migrations e repositórios centrais", () => {
               taxIdType: "CNPJ" as const,
               state: "PR",
             },
+            recipient: {
+              taxId: "12345678000195",
+              taxIdType: "CNPJ" as const,
+              name: "Contraparte identificada no XML",
+              state: "SP",
+            },
           },
           eligibleForProcessing: true,
           createdAt: timestamp,
@@ -385,6 +391,11 @@ describe("migrations e repositórios centrais", () => {
               taxIdType: "CNPJ" as const,
               state: "PR",
             },
+            recipient: {
+              taxId: "11222333000181",
+              taxIdType: "CNPJ" as const,
+              state: "PR",
+            },
           },
           eligibleForProcessing: true,
           createdAt: timestamp,
@@ -399,6 +410,18 @@ describe("migrations e repositórios centrais", () => {
     ).toEqual([companyId, secondCompanyId]);
     expect(batches.countCompaniesByBatch(batchId)).toBe(2);
     expect(batches.findById(batchId)?.totalDocuments).toBe(2);
+    expect(database.all(
+      "SELECT emitente_cnpj, destinatario_cnpj_cpf, uf_origem, uf_destino FROM documentos_fiscais WHERE lote_id = ? ORDER BY numero",
+      batchId,
+    )).toEqual([
+      { emitente_cnpj: "11222333000181", destinatario_cnpj_cpf: "12345678000195", uf_origem: "PR", uf_destino: "SP" },
+      { emitente_cnpj: "11444777000161", destinatario_cnpj_cpf: "11222333000181", uf_origem: "PR", uf_destino: "PR" },
+    ]);
+    expect(batches.listNormalizedDocuments(batchId).find(document => document.normalized.number === "1")?.normalized.recipient)
+      .toMatchObject({ taxId: "12345678000195", name: "Contraparte identificada no XML", state: "SP" });
+    const companies = new SqliteCompanyRepository(database);
+    expect(companies.listByOrganization(organizationId)).toHaveLength(2);
+    expect(companies.findByCnpj(organizationId, "12345678000195")).toBeUndefined();
   });
 
   it("preserva ocorrências e diagnóstico quando a importação é cancelada", () => {

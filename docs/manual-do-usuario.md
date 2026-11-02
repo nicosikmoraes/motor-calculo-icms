@@ -172,12 +172,20 @@ Use notas com memória de cálculo previamente aprovada. Compare item a item e p
 ## 3. Processar um lote
 
 1. Acesse **Novo lote** e selecione XMLs individuais ou um ZIP.
-2. O sistema identifica empresas cadastradas pelo CNPJ do XML. Nas compras
-   com ST destinadas ao Paraná, sugere a compradora; nos demais casos, usa a
-   única empresa compatível ou pede a escolha quando há duas possibilidades.
-3. Para cada nota ainda sem empresa, cadastre o CNPJ necessário e confirme a
-   associação. O cadastro rápido traz CNPJ, nome e UF do XML, e a empresa salva
-   já fica associada às notas correspondentes. O cadastro não é criado sem envio.
+2. O sistema lê automaticamente emitente e destinatário e preserva os dois
+   participantes com a nota. Em **Empresa analisada neste lote**, sugere o único
+   CNPJ comum às notas, mesmo que apareça como emitente em algumas e destinatário
+   em outras. Revise essa seleção antes de processar; ela preenche as notas
+   compatíveis. Se não houver um único CNPJ comum, escolha a empresa do lote ou
+   defina a associação por nota.
+3. Se a empresa analisada ainda não existir, use **Cadastrar empresa analisada
+   com os dados do XML**. O cadastro rápido traz CNPJ, nome e UF do XML, e a empresa
+   salva fica associada às notas correspondentes. O cadastro não é criado sem
+   confirmação. Empresas inativas devem ser reativadas em **Empresas**; fornecedores
+   e clientes não precisam de cadastro na carteira para seus dados serem guardados
+   nas notas. Abra **Revisar as notas individualmente** para ajustar exceções;
+   **Usar sugestão do lote** desfaz um ajuste individual. Notas sem o CNPJ escolhido
+   ficam pendentes de associação, sem serem atribuídas a outra empresa automaticamente.
 4. Confirme o ambiente e processe o lote. Um mesmo ZIP pode conter empresas
    diferentes, mas nenhuma nota reconhecida é processada sem associação.
 5. Acompanhe o contador de entradas durante a inspeção e o processamento. Use
