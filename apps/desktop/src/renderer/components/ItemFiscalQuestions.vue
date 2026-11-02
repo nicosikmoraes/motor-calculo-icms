@@ -196,6 +196,20 @@ function continueReview(): void {
   } else reviewStep.value = 'apply'
 }
 
+async function reviewQuestion(field?: keyof ItemFiscalAnswers): Promise<void> {
+  const first = field ?? allVisibleQuestions.value.find(question => fieldErrors.value[question.field])?.field
+  reviewStep.value = holdReason.value || first && isPurchaseQuestion(first) ? 'purchase' : 'analysis'
+  attemptedCalculation.value = true
+  error.value = ''
+  advancedOpen.value = reviewStep.value === 'analysis'
+  if (!first) return
+  fieldsToComplete.value.add(first)
+  await nextTick()
+  const element = document.getElementById(`fiscal-${props.documentId}-${props.itemNumber}-${first}`)
+  element?.scrollIntoView({ block: 'center', behavior: 'auto' })
+  element?.querySelector<HTMLElement>('input, select, textarea')?.focus()
+}
+
 async function load(): Promise<void> {
   if (loading.value || saving.value) return
   loading.value = true
@@ -229,7 +243,7 @@ async function save(draft = false): Promise<void> {
     await nextTick()
     const element = document.getElementById(`fiscal-${props.documentId}-${props.itemNumber}-${first.field}`)
     element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    element?.querySelector<HTMLElement>('input, select')?.focus()
+    element?.querySelector<HTMLElement>('input, select, textarea')?.focus()
     return
   }
   if (!draft && commonReview.value && (!selections.value.destination || destinationConflict.value)) {
@@ -398,7 +412,7 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           </section>
           <section v-if="documentary" class="review-message is-warning"><strong>{{ documentary.title }}</strong><p>{{ documentary.reason }}</p><dl v-if="documentaryFacts.length" class="reference-data"><div v-for="fact in documentaryFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.unit === 'R$' ? 'R$ ' : '' }}{{ fact.value?.replace('.', ',') }}{{ fact.unit === '%' ? '%' : '' }}</dd></div></dl></section>
           <div class="review-message" :class="technicalMissingCount ? 'is-warning' : 'is-success'"><strong>{{ technicalMissingCount ? 'Precisa de revisão fiscal' : 'Respostas preenchidas para a conferência' }}</strong><p>{{ technicalMissingCount ? `${technicalMissingCount} ponto(s) ainda precisam de confirmação na revisão avançada. Se você não souber responder, guarde o item para revisão.` : 'Confira o resumo e escolha onde aplicar. O cálculo ainda validará as regras e as condições informadas.' }}</p></div>
-          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }}</li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
+          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }} <button type="button" class="text-button" @click="reviewQuestion(question.field)">Revisar resposta</button></li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
           <details class="advanced-review" :open="advancedOpen" @toggle="advancedOpen = ($event.currentTarget as HTMLDetailsElement).open">
             <summary>Revisão fiscal avançada <span>{{ technicalMissingCount ? `${technicalMissingCount} para conferir` : 'Ver parâmetros' }}</span></summary>
             <p class="field-help">Classificação fiscal, alíquotas e condições legais precisam de conferência do responsável. As respostas sobre a compra não preenchem essas confirmações.</p><section v-if="context.entryAutomationReview" class="classification-suggestion"><strong>{{ context.entryAutomationReview.title }}</strong><p>{{ context.entryAutomationReview.reason }}</p><p>{{ context.entryAutomationReview.nextAction }}</p><a v-if="context.entryAutomationReview.sourceUrl" :href="context.entryAutomationReview.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar referência oficial</a></section>
@@ -430,7 +444,7 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
         <section v-else aria-label="Aplicar e calcular">
           <header class="review-heading"><span class="review-eyebrow">Etapa 3 de 3</span><h4>Escolha onde aplicar</h4><p>Confira suas respostas antes de enviar. Cada produto será calculado com os próprios valores.</p></header>
           <dl class="purchase-summary"><div><dt>Uso do produto</dt><dd>{{ purchaseDestinationLabel(destinationChoice) }}</dd></div><div><dt>Análise escolhida</dt><dd>{{ methodLabel }}</dd></div></dl>
-          <div v-if="holdReason || technicalMissingCount" class="review-message is-warning"><strong>{{ holdReason ? 'Informação da compra pendente' : 'Revisão fiscal pendente' }}</strong><p>{{ holdReason || `Ainda há ${technicalMissingCount} ponto(s) para conferir. Você pode guardar suas respostas sem concluir o imposto.` }}</p><button type="button" class="text-button" @click="reviewStep = holdReason ? 'purchase' : 'analysis'; advancedOpen = !holdReason">{{ holdReason ? 'Rever informações da compra' : 'Abrir revisão avançada' }}</button></div>
+          <div v-if="holdReason || technicalMissingCount" class="review-message is-warning"><strong>{{ holdReason ? 'Informação da compra pendente' : 'Revisão fiscal pendente' }}</strong><p>{{ holdReason || `Ainda há ${technicalMissingCount} ponto(s) para conferir. Você pode guardar suas respostas sem concluir o imposto.` }}</p><button type="button" class="text-button" @click="reviewQuestion()">{{ holdReason ? 'Rever informações da compra' : 'Abrir revisão avançada' }}</button></div>
         <section v-if="!holdReason && (context.reuseAvailable || matchingItems.length || matchingBatchItems.length)" class="answer-scope">
           <h5>Aplicação das respostas</h5>
           <p class="field-help">O filtro pelo motivo do alerta não define onde aplicar a resposta. Para revisar vários produtos, selecione abaixo os equivalentes e confira a lista.</p>
@@ -441,7 +455,7 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           <section v-else-if="!holdReason" class="answer-scope"><h5>Aplicação desta revisão: somente neste item</h5><p class="field-help">{{ individualReviewReason }}</p></section>
           <div v-if="selections.entryMethod === 'NO_DEBIT'" class="review-message is-warning"><strong>Decisão de entrada sem novo débito</strong><p>Você está registrando R$ 0,00 para este item, com o fundamento informado. Essa decisão não corrige o CEST ausente nem apura o imposto dos demais produtos.</p></div>
 
-          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }}</li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
+          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }} <button type="button" class="text-button" @click="reviewQuestion(question.field)">Revisar resposta</button></li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
           <section v-if="commonReview" class="treatment-summary"><h5>Condições que você confirma ao calcular</h5><p>Destinatário fora da construção civil, produto que não é petróleo ou combustível e tributação comum de 19,5%, com diferimento quando aplicável, sem ST, FCP, redução de base ou tratamento específico. Se não puder confirmar, volte à revisão avançada ou guarde para revisão.</p></section>
           <p v-if="!holdReason && !technicalMissingCount" class="field-help">Ao confirmar, as respostas fiscais serão registradas e o cálculo será validado. Nenhuma informação do XML original será alterada.</p>
         </section>
@@ -450,7 +464,8 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           <button v-if="reviewStep !== 'purchase'" type="button" class="button secondary" :disabled="saving" @click="reviewStep = reviewStep === 'apply' ? 'analysis' : 'purchase'; error = ''">Voltar</button>
           <button type="button" class="button secondary" :disabled="saving" @click="save(true)">{{ saving ? 'Salvando…' : 'Guardar para revisão' }}</button>
           <button v-if="reviewStep !== 'apply'" type="button" class="button primary" :disabled="saving" @click="continueReview">{{ reviewStep === 'purchase' ? 'Conferir análise' : 'Escolher onde aplicar' }}</button>
-          <button v-else type="submit" class="button primary" :disabled="saving || Boolean(holdReason) || technicalMissingCount > 0">{{ saving ? 'Salvando…' : selections.entryMethod === 'NO_DEBIT' ? 'Registrar decisão sem novo débito' : 'Confirmar e calcular' }}</button>
+          <button v-else-if="holdReason || technicalMissingCount > 0" type="button" class="button primary" :disabled="saving" @click="reviewQuestion()">{{ holdReason ? 'Completar informações da compra' : 'Revisar impedimentos do cálculo' }}</button>
+          <button v-else type="submit" class="button primary" :disabled="saving">{{ saving ? 'Salvando…' : selections.entryMethod === 'NO_DEBIT' ? 'Registrar decisão sem novo débito' : 'Confirmar e calcular' }}</button>
         </footer>
       </form>
       <section v-else class="review-main">
