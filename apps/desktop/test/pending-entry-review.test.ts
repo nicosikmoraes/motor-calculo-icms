@@ -28,6 +28,47 @@ beforeEach(()=>{
 })
 afterEach(()=>db.close())
 describe('pendências de entradas interestaduais',()=>{
+ it('guarda informação desconhecida para revisão e não presume revenda ao reabrir',()=>{
+  const documentId='00000000-0000-4000-8000-000000000104'
+  const before=getItemFiscalContext(db,batchId,documentId,'1')
+  const saved=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'hold-unknown-destination',expectedRunId:before.runId!,answers:{purchaseDestinationUnknown:true,purchaseReviewPending:true,purchaseReviewReason:'Falta confirmar o uso deste produto.'}})
+  expect(saved.answers.purchaseDestinationUnknown).toBe(true)
+  expect(saved.answers.destination).toBeUndefined()
+  expect(saved.destinationAssumption).toBeUndefined()
+  expect(saved.calculation.status).toBe('PENDING_DATA')
+  expect(saved.calculation.result).toBeUndefined()
+  expect(saved.matchingBatchItems).toHaveLength(3)
+  expect(()=>saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'share-held',expectedRunId:saved.runId!,reuseScope:'MATCHING_BATCH_ITEMS',answers:{purchaseDestinationUnknown:true,purchaseReviewPending:true}})).toThrow(/somente neste item/)
+  expect(applyAutomaticXmlCalculations(db,batchId)).toBe(0)
+  expect(getItemFiscalContext(db,batchId,documentId,'1').answers).toEqual(saved.answers)
+  expect(getBatchConsolidation(db,batchId).counts.calculated).toBe(0)
+ })
+ it('mantém descrição ou pagamento desconhecido pendente mesmo com respostas fiscais completas',()=>{
+  for(const extra of [{purchaseProductConfirmation:'UNKNOWN' as const},{purchaseProductConfirmation:'DIFFERENT' as const},{purchasePaymentStatus:'UNKNOWN' as const},{purchasePaymentStatus:'HAS_EVIDENCE' as const},{purchaseReviewPending:true}]) {
+   const context=buildItemFiscalContext(notes[0]!,notes[0]!.items[0]!,{...reviewed,...extra},undefined,undefined,undefined,buyer)
+   expect(context.calculation.status).toBe('PENDING_DATA')
+   expect(context.calculation.result).toBeUndefined()
+   expect(context.calculation.additionalComponents).toBeUndefined()
+  }
+ })
+ it('não compartilha referência de comprovante de um item com outras notas',()=>{
+  const context=buildItemFiscalContext(notes[0]!,notes[0]!.items[0]!,{...reviewed,purchasePaymentStatus:'HAS_EVIDENCE',purchasePaymentReference:'Guia desta compra'},undefined,undefined,undefined,buyer)
+  expect(context.calculation.status).toBe('CALCULATED')
+  const before=getItemFiscalContext(db,batchId,'00000000-0000-4000-8000-000000000104','1')
+  expect(()=>saveItemFiscalAnswers(db,{batchId,documentId:'00000000-0000-4000-8000-000000000104',itemNumber:'1',requestId:'invalid-share-evidence',expectedRunId:before.runId!,reuseScope:'MATCHING_BATCH_ITEMS',answers:{...reviewed,purchasePaymentStatus:'HAS_EVIDENCE',purchasePaymentReference:'Guia desta compra'}})).toThrow(/individual/)
+ })
+ it('registra informações da compra sem transformá-las em aprovação da classificação fiscal',()=>{
+  const documentId='00000000-0000-4000-8000-000000000104'
+  const before=getItemFiscalContext(db,batchId,documentId,'1')
+  const saved=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'business-facts-only',expectedRunId:before.runId!,answers:{destination:'RESALE',destinationBasis:'CONFIRMED',purchaseProductConfirmation:'MATCHES',purchasePaymentStatus:'HAS_EVIDENCE',purchasePaymentReference:'Guia de exemplo para conferir',purchaseReviewPending:true}})
+  expect(saved.answers.purchaseProductConfirmation).toBe('MATCHES')
+  expect(saved.answers.stClassificationConfirmed).toBeUndefined()
+  expect(saved.answers.stBuyerLiabilityConfirmed).toBeUndefined()
+  expect(saved.calculation.result).toBeUndefined()
+  const completed=saveItemFiscalAnswers(db,{batchId,documentId,itemNumber:'1',requestId:'finish-review',expectedRunId:saved.runId!,answers:{...reviewed,purchaseProductConfirmation:'MATCHES',purchaseReviewPending:false}})
+  expect(completed.calculation.status).toBe('CALCULATED')
+  expect(completed.calculation.result?.amount).toBe('33.56')
+ })
  it('prepara simulações por produto sem aprovar a classificação, gravar respostas ou alterar totais',()=>{
   const repo=new SqliteCalculationRepository(db)
   const before=repo.latestByDocument('00000000-0000-4000-8000-000000000104')!

@@ -604,6 +604,12 @@ export function itemCalculationStatus(calculation: ItemCalculationSummary): `${C
 }
 
 export interface ItemFiscalAnswers {
+  purchaseDestinationUnknown?: boolean
+  purchaseProductConfirmation?: 'MATCHES' | 'DIFFERENT' | 'UNKNOWN'
+  purchasePaymentStatus?: 'HAS_EVIDENCE' | 'UNKNOWN'
+  purchasePaymentReference?: string
+  purchaseReviewPending?: boolean
+  purchaseReviewReason?: string
   entryMethod?: 'RATE_DIFFERENCE' | 'ICMS_ST' | 'NO_DEBIT' | 'CONSUMER_DIFAL'
   entryNoDebitConfirmed?: boolean
   entryNoDebitReason?: string

@@ -20,6 +20,14 @@ A ST anterior (CST 60/CSOSN 500) permanece como tratamento documental sem apura�
 Referência de classificação, Convênio ICMS 142/18, cláusula sétima e CEST 20.009.00:
 https://www.confaz.fazenda.gov.br/legislacao/convenios/2018/CV142_18
 
+## Conferência em três etapas
+
+1. **Sobre a compra:** informa uso real, correspondência do produto à descrição sugerida e, quando há ST anterior, existência e referência de comprovante. Há opções para informação desconhecida. Uma premissa antiga de revenda não é apresentada como escolha já confirmada.
+2. **Confira a análise:** apresenta a sugestão em linguagem simples e as simulações disponíveis. Classificação fiscal, percentuais, incidência e demais confirmações ficam em **Revisão fiscal avançada**, inicialmente recolhida. Confirmar o tipo de produto não confirma sua classificação legal.
+3. **Aplicar e calcular:** mostra o resumo, começa em **Somente neste item** e permite selecionar os equivalentes antes de enviar. Informações desconhecidas ou confirmações ausentes mantêm o cálculo bloqueado; **Guardar para revisão** salva somente o item atual, sem resultado ou imposto zero.
+
+Os fatos da compra e a solicitação de revisão são gravados no histórico das respostas. O processo principal mantém a pendência mesmo se receber confirmações fiscais antigas junto com informação desconhecida. Mudar destinação, descrição ou informação de pagamento invalida as confirmações relacionadas na tela. Referências de comprovantes não são compartilhadas com outras notas. A rotina automática preserva essas revisões.
+
 ## DIFAL de uso/ativo
 
 Recorte para contribuinte PR, aquisição interestadual normal, CRT 1/3, CST 00 ou CSOSN 101/102, sem ST anterior, redução, isenção, regra setorial ou FECOP. Exige confirmação de incidência, ausência de pagamentos anteriores, composição do valor da operação e alíquotas efetivas. Não utiliza o diferimento de revenda.
