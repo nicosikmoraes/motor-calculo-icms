@@ -1,0 +1,1 @@
+APROVADO para a Tarefa 1. O diff cobre as invariantes de persistência previstas no plano e não inclui campos de pagador, cartão ou dados fiscais. A aprovação considera a tarefa como pré-requisito técnico, não como implementação integral de CA3 ou CA7.
