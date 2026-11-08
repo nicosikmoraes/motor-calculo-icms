@@ -12,14 +12,24 @@ const pool = new Pool({
 
 afterAll(async () => pool.end());
 
-describe('PostgreSQL de desenvolvimento da API', () => {
+describe('PostgreSQL da API', () => {
   it('conecta pela DATABASE_URL, incluindo a porta e a credencial externas ao container', async () => {
     const result = await pool.query('SELECT current_database() AS name, current_user AS role');
     expect(result.rows).toEqual([{ name: 'appdb', role: 'app' }]);
   });
 
-  it('continua sem tabelas ou views no schema public', async () => {
-    const result = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
-    expect(result.rows).toEqual([]);
+  it('contém somente as tabelas de doação e o histórico de migrations', async () => {
+    const result = await pool.query(
+      `SELECT table_name, table_type FROM information_schema.tables
+       WHERE table_schema = 'public' ORDER BY table_name COLLATE "C"`,
+    );
+    expect(result.rows).toEqual([
+      '_prisma_migrations',
+      'donation_opening_reservations',
+      'donation_operations',
+      'donation_orders',
+      'payment_events',
+      'payments',
+    ].map((table_name) => ({ table_name, table_type: 'BASE TABLE' })));
   });
 });

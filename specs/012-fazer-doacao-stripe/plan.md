@@ -139,11 +139,13 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
 
 ## Tarefas
 
-- [ ] **Tarefa 1 — Preparar persistência durável e histórico mínimo**
+- [x] **Tarefa 1 — Preparar persistência durável e histórico mínimo**
   - Cobre: CA1, CA3, CA7, CA9, CA12 — pré-requisito técnico das tarefas seguintes, sem alegar entrega isolada dos critérios.
-  - Teste primeiro: integração com PostgreSQL descartável prova unicidade de intenção/operação/sessão, imutabilidade do valor, rollback de confirmação e conservação de recusa anterior.
+  - Teste primeiro: integração com PostgreSQL descartável prova unicidade de intenção/operação/sessão, imutabilidade do valor, rollback de confirmação e conservação de recusa anterior. A reserva deve excluir aberturas concorrentes com identidades distintas. O banco deve rejeitar um evento ou uma operação que informe uma tentativa de outro pedido, sem deixar registro parcial. O teste deve concluir e limpar as reservas antes dos pedidos, respeitando as chaves estrangeiras.
   - Arquivos previstos: `apps/api/prisma/schema.prisma`, `apps/api/prisma/migrations/`, `apps/api/src/donations/domain/`, `apps/api/src/donations/ports/`, `apps/api/src/donations/adapters/prisma/`, `apps/api/test/donations.persistence.db-spec.ts`.
   - Adequação prevista: atualizar `apps/api/test/scaffold.spec.ts`, `apps/api/test/database.db-spec.ts` e `apps/api/test/verify-empty-database.sql` para validar o schema de doações na Atividade 10, preservando as verificações de fronteira. Não enfraquecer os checks apenas para admitir tabelas arbitrárias.
+  - Build e banco: alinhar a geração do Prisma à compilação da API e conferir que o comando de produção continua apontando para o artefato gerado. Atualizar a preparação do cliente e do banco no workflow existente em `.github/workflows/api.yml`. Em uma cópia limpa, a CI deve gerar o cliente antes das etapas que o importam e aplicar a migration antes de verificar o schema e rodar `pnpm test:db`. A tarefa só fecha quando `pnpm check` e `pnpm test:db` passam.
+  - Retomada: o primeiro ciclo terminou no limite de duas rodadas. O commit `9829d48` preserva os pareceres e as decisões. Antes de uma nova execução, arquivar os pareceres desse ciclo e preservar o rascunho local para consulta. A spec aprovada já exige que pedido e tentativa correspondam.
 
 - [ ] **Tarefa 2 — Criar pedido e Checkout válido com validação e configuração de testes**
   - Cobre: CA1, CA2, CA13; usa persistência da tarefa 1.
