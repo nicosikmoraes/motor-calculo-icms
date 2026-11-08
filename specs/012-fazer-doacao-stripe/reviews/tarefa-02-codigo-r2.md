@@ -1,5 +1,12 @@
-# Código — Tarefa 2, rodada 2
+# APROVADO
 
-Registro da mensagem recebida antes da interrupção. O parecer final não foi emitido.
+Não encontrei defeito impeditivo de arquitetura, transporte, persistência ou escopo na Tarefa 2.
 
-> A leitura confirmou defesa pré-transformação, hash estável na aquisição/finalização e NUMERIC exato com migration transacional compatível com T1. Há uma lacuna acionável no 503 real: `stripe-checkout-gateway.ts:56` só reconhece `StripeError.statusCode === 503`. No SDK instalado `RequestSender.js:99,107–117,131–143`, o status só entra no erro se o corpo for JSON com `error`; HTTP 503 com corpo vazio/HTML vira `StripeAPIError` sem `statusCode` e segue como `uncertain` sem motivo, logo `202` no controller:58, embora a reserva permaneça. O teste em `donations.create.e2e-spec.ts:215` cria artificialmente um erro já com status e não cobre esse caminho. Se o escopo do item aceito é HTTP 503 explícito de transporte, sugiro [P2] capturar o status também para corpo sem envelope via fronteira HTTP/SDK e testar com transporte controlado. Nenhuma chamada, DB ou Git.
+- `CreateDonation` não depende de NestJS nem de HTTP. Recebe configuração por interface tipada e emite códigos semânticos; o controller faz o mapeamento para status HTTP.
+- O adaptador Stripe preserva o status 503 por resposta, sem estado compartilhado entre requisições, e desativa retries. Os testes cobrem corpos válidos, malformados e vazios, além de falha sem resposta e concorrência.
+- O teste HTTP com PostgreSQL comprova que os registros existem antes da chamada ao Stripe e que, após 503, IDs, estados, evento e reserva correspondem às linhas persistidas.
+- `NUMERIC` sem typmod está representado como `Unsupported("numeric")`; a migration remove o limite de precisão, mantém as restrições de escala e finitude e recria o trigger. A escrita usa SQL parametrizado e texto, sem ponto flutuante.
+
+**Sugestão não bloqueante:** atualizar [docs/architecture.md](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/docs/architecture.md), que ainda descreve a API como scaffold Hello World sem módulo ou tabelas.
+
+Não executei testes, conforme solicitado.

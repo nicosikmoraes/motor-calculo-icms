@@ -1,5 +1,7 @@
-# Conformidade — Tarefa 2, rodada 2
+# APROVADO
 
-Registro da mensagem recebida antes de o agente atingir o limite de uso. O parecer final não foi emitido.
+Os quatro aceites foram atendidos: `CreateDonation` não depende de Nest/HTTP; o teste com PostgreSQL real verifica o commit antes do envio ao Stripe e compara os IDs, estados e reserva após HTTP 503; os testes cobrem JSON malformado; e os IDs retornados correspondem aos registros duráveis.
 
-> Achei correção 3 incompleta. Reproduzi em memória com SDK instalado Stripe 23.1.0 e `Stripe.createFetchHttpClient` totalmente controlado (sem rede): HTTP 503 com envelope Stripe `{error:{type:'api_error'}}` => `uncertain` + `SERVICO_INDISPONIVEL`; HTTP 503 com HTML de upstream ou JSON simples sem `error` => `uncertain` sem motivo, portanto controller 202 (linhas 48–60). SDK emite status 503 em ambos, mas `RequestSender.js:131–143` perde status no erro JSON inválido e retorno sem envelope cai no ramo de sessão inválida. Teste novo injeta diretamente `StripeAPIError({statusCode:503})`, encobrindo o caso. Considero P2/P3 por alcance (P2 pelo contrato explícito), `stripe-checkout-gateway.ts:55–57`. Demais três correções conformes na leitura.
+Também estão cobertos os cinco formatos de resposta 503, a falha sem resposta HTTP como 202, configuração ausente/de produção, valor acima de 63 dígitos persistido exatamente com limite do gateway e entradas inválidas sem efeitos. A migration mantém `NUMERIC` sem typmod, escala de até duas casas e imutabilidade.
+
+**Sugestões:** nenhuma.

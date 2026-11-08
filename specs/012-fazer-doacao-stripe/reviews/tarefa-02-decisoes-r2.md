@@ -1,9 +1,10 @@
-# Encerramento — Tarefa 2, rodada 2
+# Decisões da revisão — Tarefa 2, rodada 2 do novo ciclo
 
-Os dois revisores registraram a mesma lacuna. Um HTTP 503 com envelope de erro do Stripe é reconhecido. Com HTML, JSON sem envelope ou corpo vazio, o adaptador retorna resultado incerto sem o motivo de indisponibilidade e o controlador usa HTTP 202. A tentativa permanece indeterminada e a reserva é preservada.
+| Apontamento aceito na rodada 1 | Resultado | Evidência |
+| --- | --- | --- |
+| 1. O caso de uso dependia de NestJS e de detalhes HTTP. | Corrigido; aprovado pelos dois revisores. | `CreateDonation` usa configuração tipada e códigos semânticos; o controller faz o mapeamento HTTP. |
+| 2. Os testes de HTTP 503 não provavam que os IDs correspondiam a registros duráveis antes do envio. | Corrigido; aprovado pelos dois revisores. | O teste de integração consulta pedido, tentativa, operação e reserva no PostgreSQL dentro do transporte Stripe, antes de devolver 503. |
+| 3. Faltava teste para HTTP 503 com JSON malformado. | Corrigido; aprovado pelos dois revisores. | A suíte HTTP agora inclui resposta `application/json` malformada com status 503. |
+| 4. Faltava conferir IDs, estados e reserva após HTTP 503 em registros reais. | Corrigido; aprovado pelos dois revisores. | A integração confere que os IDs da resposta correspondem às linhas reais e que estado, evento e reserva permanecem persistidos. |
 
-O coordenador reproduziu as quatro respostas com o SDK Stripe instalado e um transporte em memória. Cada cenário fez uma chamada ao transporte controlado. Somente o cenário com envelope de erro trouxe o motivo `SERVICO_INDISPONIVEL`.
-
-O aceite do usuário para o item 3 da primeira rodada permanece aplicável. Trata-se do mesmo requisito de devolver HTTP 503 quando o serviço responder com esse status, preservando as referências duráveis. Os outros três ajustes foram confirmados na leitura da rodada.
-
-A Tarefa 2 permanece pendente após o limite de duas rodadas de revisão. Para retomar, o teste deve usar o SDK com transporte controlado e respostas HTTP brutas, incluindo 503 com JSON de erro, HTML, JSON sem envelope e corpo vazio. A classificação deve conservar o status observado antes de interpretar o corpo e continuar diferenciando ausência de resposta de HTTP 503.
+Os dois pareceres da rodada 2 aprovaram a tarefa. Não surgiram novos apontamentos bloqueantes. Uma sugestão do parecer de código para atualizar `docs/architecture.md` é não bloqueante e não altera o escopo desta tarefa.

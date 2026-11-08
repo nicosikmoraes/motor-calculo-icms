@@ -36,7 +36,8 @@ enum PaymentEventOrigin {
 model DonationOrder {
   id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   intentKeyHash String              @unique @map("intent_key_hash")
-  amount        Decimal             @db.Decimal(65, 2)
+  // PostgreSQL NUMERIC without typmod; exact text writes use the Prisma adapter's SQL boundary.
+  amount        Unsupported("numeric")
   currency      DonationCurrency    @default(BRL)
   status        DonationOrderStatus @default(pendente)
   createdAt     DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
