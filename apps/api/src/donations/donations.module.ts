@@ -7,6 +7,7 @@ import { HandleStripeEvent } from './application/handle-stripe-event.js';
 import { RetryDonation } from './application/retry-donation.js';
 import { DonationOrdersController } from './adapters/http/donation-orders.controller.js';
 import { StripeWebhookController } from './adapters/http/stripe-webhook.controller.js';
+import { DonationsReturnController } from './adapters/http/donations-return.controller.js';
 import { PrismaDonationCreationRepository } from './adapters/prisma/donation-creation-repository.js';
 import { PrismaDonationRepository } from './adapters/prisma/prisma-donation-repository.js';
 import { StripeCheckoutAdapter } from './adapters/stripe/stripe-checkout.adapter.js';
@@ -25,7 +26,7 @@ const prismaProvider = {
 };
 
 @Module({
-  controllers: [DonationOrdersController, StripeWebhookController],
+  controllers: [DonationOrdersController, StripeWebhookController, DonationsReturnController],
   providers: [
     prismaProvider,
     { provide: DONATION_CREATION_REPOSITORY, inject: [PrismaClient],

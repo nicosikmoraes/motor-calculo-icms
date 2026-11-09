@@ -21,6 +21,10 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  getCurrentDonation: (intent) => ipcRenderer.invoke(IPC_CHANNELS.GET_CURRENT_DONATION, intent),
+  createDonation: (input) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_DONATION, { ...input }),
+  retryDonation: (input) => ipcRenderer.invoke(IPC_CHANNELS.RETRY_DONATION, { ...input }),
+  openDonationCheckout: (url) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_DONATION_CHECKOUT, url) as Promise<void>,
   getDashboard: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DASHBOARD),
   listDocumentConflicts: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_DOCUMENT_CONFLICTS),
   saveConflictResolution: input => ipcRenderer.invoke(IPC_CHANNELS.SAVE_CONFLICT_RESOLUTION, {

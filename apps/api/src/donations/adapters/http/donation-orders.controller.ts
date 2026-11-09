@@ -16,6 +16,14 @@ const httpStatusByFailure: Record<DonationCreationFailureCode, number> = {
 export class DonationOrdersController {
   constructor(private readonly createDonation: CreateDonation, private readonly retryDonation: RetryDonation) {}
 
+  @Get('current')
+  async current(@Req() request: Request, @Res() response: Response) {
+    try {
+      const donation = await this.retryDonation.inspectCurrent(request.header('X-Donation-Intent'));
+      return donation ? response.status(200).json(donation) : response.status(404).json({ message: 'Pedido não encontrado' });
+    } catch (error) { return this.failure(error, response); }
+  }
+
   @Get(':id')
   async get(@Param('id') id: string, @Req() request: Request, @Res() response: Response) {
     try {

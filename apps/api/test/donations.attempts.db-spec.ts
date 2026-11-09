@@ -76,6 +76,7 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
     await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, intentHash, '12.34']);
     await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key) VALUES ($1, $2, $3)', [paymentId, orderId, randomUUID()]);
     const repository = new PrismaDonationCreationRepository(prisma);
+    expect(await repository.getOrderIdByIntentHash(intentHash)).toBe(orderId);
     expect(await repository.getAuthorizedDonation(orderId, 'wrong-intent-hash')).toBeNull();
     expect(await repository.getAuthorizedDonation(orderId, intentHash)).toMatchObject({ orderId, status: 'pendente',
       attempts: [{ paymentId, status: 'pendente' }] });
@@ -134,5 +135,12 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
       stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() });
     expect(opening).toMatchObject({ isNew: true, orderId, status: 'pendente', checkoutSessionId: null });
     expect((await pool.query('SELECT count(*)::int AS count FROM payments WHERE order_id = $1', [orderId])).rows[0].count).toBe(2);
+  });
+
+  it('schema de doações não armazena dados pessoais, cartão nem corpo bruto do webhook', async () => {
+    const columns = await pool.query(`SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name IN ('donation_orders', 'payments', 'donation_operations', 'payment_events')`);
+    const forbidden = /email|card|cpf|cnpj|tax|billing|payer|customer|payload|body|raw_event/i;
+    expect(columns.rows.filter((column: { column_name: string }) => forbidden.test(column.column_name))).toEqual([]);
   });
 });

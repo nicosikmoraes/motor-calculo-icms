@@ -32,6 +32,7 @@ export class DonationOperationConflictError extends Error {
 
 export interface DonationCreationRepository {
   createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening>;
+  getOrderIdByIntentHash(intentKeyHash: string): Promise<string | null>;
   recordCheckout(input: PersistedDonationOpening & {
     checkoutSessionId: string;
     paymentIntentId: string | null;

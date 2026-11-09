@@ -4,6 +4,13 @@ import { DonationOperationConflictError, type DonationCreationRepository, type N
 export class PrismaDonationCreationRepository implements DonationCreationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async getOrderIdByIntentHash(intentKeyHash: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id::text AS id FROM donation_orders WHERE intent_key_hash = ${intentKeyHash} LIMIT 1
+    `;
+    return rows[0]?.id ?? null;
+  }
+
   async createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.intentKeyHash}))`;

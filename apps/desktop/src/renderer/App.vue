@@ -54,6 +54,7 @@ onMounted(async () => {
         <RouterLink to="/empresas"><AppIcon name="companies" />Empresas</RouterLink>
         <RouterLink to="/lotes"><AppIcon name="history" />Histórico de lotes</RouterLink>
         <RouterLink to="/conferencia-mensal"><AppIcon name="calendar" />Conferência mensal</RouterLink>
+        <RouterLink to="/apoio"><AppIcon name="briefcase" />Apoiar o projeto</RouterLink>
         <RouterLink class="sidebar-import" to="/lotes/novo"><AppIcon name="plus" />Importar notas</RouterLink>
       </nav></div>
 

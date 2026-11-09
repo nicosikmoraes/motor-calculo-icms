@@ -10,6 +10,14 @@ export class RetryDonation {
   constructor(private readonly repository: DonationCreationRepository, private readonly gateway: StripeCheckoutGateway,
     private readonly identitySecret: string) {}
 
+  async inspectCurrent(intent: unknown) {
+    if (typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
+    let orderId: string | null;
+    try { orderId = await this.repository.getOrderIdByIntentHash(createHash('sha256').update(intent).digest('hex')); }
+    catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
+    return orderId ? this.inspect(orderId, intent) : null;
+  }
+
   async inspect(orderId: string, intent: unknown) {
     const donation = await this.authorized(orderId, intent);
     if (!donation) return null;

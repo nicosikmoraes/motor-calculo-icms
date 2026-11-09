@@ -1,0 +1,3 @@
+**REPROVADO.** O allowlist de checkout aceita URLs HTTPS em `checkout.stripe.com` com qualquer porta e não rejeita credenciais na URL. Por exemplo, `https://checkout.stripe.com:8443/c/pay/...` passa e é aberto externamente. Em [donation-checkout.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/desktop/src/main/donation-checkout.ts:4), exija a porta padrão (`url.port === ''`) e rejeite `username` e `password`.
+
+Nos demais pontos revisados, os limites IPC, a consulta autenticada de doação corrente, o retorno que não confirma pagamento e a separação dos dados fiscais parecem adequados. Não executei testes, conforme solicitado.

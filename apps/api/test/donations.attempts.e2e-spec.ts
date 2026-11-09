@@ -32,6 +32,7 @@ describe('tentativas de doação', () => {
     gateway = { retrieveCheckout: vi.fn(async (id: string) => ({ id, url: null, paymentIntentId: null, orderId, paymentId,
       amountInCents: '1234', currency: 'brl', livemode: false, status: 'expired', paymentStatus: 'unpaid' })) };
     retryService = { inspect: vi.fn(async () => ({ orderId, status: 'pendente', attempts: [] })),
+      inspectCurrent: vi.fn(async () => ({ orderId, status: 'pendente', attempts: [] })),
       retry: vi.fn(async () => ({ orderId, paymentId, status: 'pendente', reused: true })) };
     stripe = new Stripe('sk_test_attempts');
     const module = await Test.createTestingModule({ imports: [AppModule] })
@@ -102,6 +103,10 @@ describe('tentativas de doação', () => {
   });
 
   it('consulta e retoma pelo endpoint com a chave de intenção e identidade no cabeçalho', async () => {
+    const current = await request(app.getHttpServer()).get('/donation-orders/current')
+      .set('X-Donation-Intent', 'intent-portador-123456789');
+    expect(current.status).toBe(200);
+    expect(retryService.inspectCurrent).toHaveBeenCalledWith('intent-portador-123456789');
     const read = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`)
       .set('X-Donation-Intent', 'intent-portador-123456789');
     expect(read.status).toBe(200);
@@ -110,6 +115,13 @@ describe('tentativas de doação', () => {
       .set('X-Donation-Intent', 'intent-portador-123456789').set('Idempotency-Key', 'attempt-operation-123456');
     expect(attempted.status).toBe(200);
     expect(retryService.retry).toHaveBeenCalledWith(orderId, 'intent-portador-123456789', 'attempt-operation-123456');
+  });
+
+  it('retorno do Checkout informa que a confirmação depende da consulta ao pedido', async () => {
+    const returned = await request(app.getHttpServer()).get('/donations/return?result=success');
+    expect(returned.status).toBe(200);
+    expect(returned.headers['content-type']).toContain('text/html');
+    expect(returned.text).toContain('Aguardando confirmação do pagamento');
   });
 });
 
