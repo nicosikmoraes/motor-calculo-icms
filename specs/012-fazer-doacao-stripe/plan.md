@@ -166,7 +166,7 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Arquivos previstos: `apps/api/src/main.ts`, `apps/api/src/donations/adapters/http/stripe-webhook.controller.ts`, `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/stripe/`, `apps/api/test/donations.webhook.e2e-spec.ts`.
   - Limite: habilitar corpo bruto para validação sem registrar seu conteúdo; segredo ausente nunca ativa modo permissivo.
 
-- [ ] **Tarefa 5 — Garantir confirmação atômica sob repetição e falha**
+- [x] **Tarefa 5 — Garantir confirmação atômica sob repetição e falha**
   - Cobre: CA7; reforça as invariantes de CA5 e CA10.
   - Teste primeiro: mesmo evento repetido e concorrente, dois IDs de evento para a mesma sessão e falha injetada entre gravações. Provar uma confirmação, nenhuma alteração parcial, HTTP de falha antes de concluir e processamento bem-sucedido na reentrega.
   - Arquivos previstos: `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/prisma/`, `apps/api/test/donations.webhook-concurrency.db-spec.ts`.
