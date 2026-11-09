@@ -39,7 +39,8 @@ export class StripeWebhookController {
 }
 
 function toVerifiedStripeEvent(event: Stripe.Event): VerifiedStripeEvent {
-  const session = event.data.object as Stripe.Checkout.Session;
+  const object = event.data.object as unknown as { id: string; object: string; metadata?: Record<string, string> | null };
+  const session = object;
   return {
     id: event.id,
     type: event.type,
@@ -50,6 +51,7 @@ function toVerifiedStripeEvent(event: Stripe.Event): VerifiedStripeEvent {
       object: session.object,
       orderId: session.metadata?.donation_order_id ?? null,
       paymentId: session.metadata?.donation_payment_id ?? null,
+      paymentIntentId: event.type === 'payment_intent.payment_failed' ? object.id : null,
     },
   };
 }

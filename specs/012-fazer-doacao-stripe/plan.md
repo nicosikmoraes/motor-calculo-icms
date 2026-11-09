@@ -171,7 +171,7 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Teste primeiro: mesmo evento repetido e concorrente, dois IDs de evento para a mesma sessão e falha injetada entre gravações. Provar uma confirmação, nenhuma alteração parcial, HTTP de falha antes de concluir e processamento bem-sucedido na reentrega.
   - Arquivos previstos: `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/prisma/`, `apps/api/test/donations.webhook-concurrency.db-spec.ts`.
 
-- [ ] **Tarefa 6 — Preservar recusas e controlar nova tentativa e expiração**
+- [x] **Tarefa 6 — Preservar recusas e controlar nova tentativa e expiração**
   - Cobre: CA9, CA10; integra a retomada de CA3/CA4.
   - Teste primeiro: recusa assinada seguida de sucesso conserva ambos os fatos; sessão ainda aberta é reutilizada; expirada permite nova tentativa no mesmo valor; sessão concluída ou incerta bloqueia. Concorrer nova tentativa com confirmação, entregar eventos antigos depois de pago, simular falha ao encerrar sessão excedente e segunda confirmação real. Provar histórico completo, pedido pago monotônico e ausência de reembolso automático.
   - Arquivos previstos: `apps/api/src/donations/application/retry-donation.ts`, `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/http/`, `apps/api/src/donations/adapters/stripe/`, `apps/api/test/donations.attempts.e2e-spec.ts`.

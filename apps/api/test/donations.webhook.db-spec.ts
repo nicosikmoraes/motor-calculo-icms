@@ -127,7 +127,7 @@ describe('Webhook de doação com PostgreSQL', () => {
         amountInCents: '1235', currency: 'brl', livemode: false, status: 'complete', paymentStatus: 'paid' as const,
       };
       const handler = new HandleStripeEvent(repository, { createCheckout: async () => retrieved,
-        retrieveCheckout: async () => retrieved });
+        retrieveCheckout: async () => retrieved, expireCheckout: async () => retrieved });
       const eventId = `evt_${randomUUID().replaceAll('-', '')}`;
       await handler.execute({ id: eventId, type: 'checkout.session.completed', created: 1794140000, livemode: false,
         session: { id: retrieved.id, object: 'checkout.session', orderId, paymentId } });

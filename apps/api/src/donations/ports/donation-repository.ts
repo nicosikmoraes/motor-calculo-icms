@@ -12,6 +12,7 @@ export interface DonationRepository {
     amountInCents: string;
     currency: 'BRL';
     checkoutSessionId: string | null;
+    paymentIntentId?: string | null;
     sessionLinkedElsewhere: boolean;
   } | null>;
   recordWebhookDivergence(input: {
@@ -20,6 +21,8 @@ export interface DonationRepository {
     stripeEventId: string;
     reason: string;
   }): Promise<void>;
+  recordPaymentFailure(input: { orderId: string; paymentId: string; paymentIntentId: string; stripeEventId: string; occurredAt: Date }): Promise<void>;
+  recordSessionExpiration(input: { orderId: string; paymentId: string; checkoutSessionId: string; stripeEventId: string; occurredAt: Date }): Promise<void>;
   reserveOpening(opening: NewDonationOpening): Promise<DonationOpeningReservation | null>;
   releaseOpening(operation: DonationOperationId): Promise<boolean>;
   confirmPayment(confirmation: VerifiedPaymentConfirmation): Promise<boolean>;

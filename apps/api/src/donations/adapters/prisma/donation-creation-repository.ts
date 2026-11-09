@@ -61,11 +61,12 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
 
   async recordCheckout(input: PersistedDonationOpening & { checkoutSessionId: string; paymentIntentId: string | null; checkoutUrl: string | null }): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({ where: { id: input.paymentId }, data: {
+      const updated = await tx.payment.updateMany({ where: { id: input.paymentId, orderId: input.orderId, status: { not: 'paga' } }, data: {
         checkoutSessionId: input.checkoutSessionId, paymentIntentId: input.paymentIntentId, checkoutUrl: input.checkoutUrl,
+        status: 'pendente', reason: null,
       } });
       await tx.donationOpeningReservation.deleteMany({ where: { orderId: input.orderId } });
-      await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
+      if (updated.count) await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
         origin: 'api', reason: null, toStatus: 'pendente' } });
     });
   }
@@ -88,6 +89,78 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
       await tx.donationOpeningReservation.deleteMany({ where: { orderId: input.orderId } });
       await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
         origin: 'api', toStatus: 'falha_na_criacao', reason: input.reason } });
+    });
+  }
+
+  async getAuthorizedDonation(orderId: string, intentKeyHash: string) {
+    const orders = await this.prisma.$queryRaw<Array<{ orderId: string; amount: string; currency: 'BRL'; status: string }>>`
+      SELECT id::text AS "orderId", amount::text AS amount, currency::text AS currency, status::text AS status
+      FROM donation_orders WHERE id = ${orderId}::uuid AND intent_key_hash = ${intentKeyHash}
+    `;
+    const order = orders[0];
+    if (!order || order.currency !== 'BRL') return null;
+    const attempts = await this.prisma.$queryRaw<Array<{ paymentId: string; status: string; reason: string | null;
+      checkoutSessionId: string | null; checkoutUrl: string | null; paymentIntentId: string | null; stripeIdempotencyKey: string;
+      operationKeyHash: string | null;
+      firstSentAt: Date | null; checkoutParameters: { amountInCents: string; currency: 'brl'; successUrl: string; cancelUrl: string } | null }>>`
+      SELECT id::text AS "paymentId", status::text AS status, reason, checkout_session_id AS "checkoutSessionId",
+        checkout_url AS "checkoutUrl", payment_intent_id AS "paymentIntentId", stripe_idempotency_key AS "stripeIdempotencyKey",
+        first_sent_at AS "firstSentAt", checkout_parameters AS "checkoutParameters", op.operation_key AS "operationKeyHash"
+      FROM payments p LEFT JOIN donation_operations op ON op.payment_id = p.id
+      WHERE p.order_id = ${orderId}::uuid ORDER BY p.created_at DESC, p.id DESC
+    `;
+    const events = await this.prisma.$queryRaw<Array<{ paymentId: string; status: string | null; reason: string | null; occurredAt: Date }>>`
+      SELECT payment_id::text AS "paymentId", to_status::text AS status, reason, occurred_at AS "occurredAt"
+      FROM payment_events WHERE order_id = ${orderId}::uuid ORDER BY occurred_at, id
+    `;
+    return { ...order, attempts, events };
+  }
+
+  async markSessionExpired(input: { orderId: string; paymentId: string; sessionId: string }): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.payment.updateMany({ where: { id: input.paymentId, orderId: input.orderId,
+        checkoutSessionId: input.sessionId, status: { not: 'paga' } }, data: { status: 'expirada', reason: 'SESSAO_EXPIRADA' } });
+      if (updated.count) await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
+        origin: 'gateway', toStatus: 'expirada', reason: 'SESSAO_EXPIRADA' } });
+    });
+  }
+
+  async recordRetryExpirationFailure(input: { orderId: string; paymentId: string; sessionId: string }): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({ where: { id: input.paymentId, orderId: input.orderId,
+        checkoutSessionId: input.sessionId, status: { not: 'paga' } },
+        data: { status: 'indeterminada', reason: 'EXPIRACAO_SESSAO_EXCEDENTE_FALHOU' } });
+      await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
+        origin: 'api', toStatus: null, reason: 'EXPIRACAO_SESSAO_EXCEDENTE_FALHOU' } });
+    });
+  }
+
+  async createRetry(input: { orderId: string; intentKeyHash: string; currentPaymentId: string; currentStatus: string;
+    operationKeyHash: string; fingerprint: string; stripeIdempotencyKey: string; firstSentAt: Date }): Promise<PersistedDonationOpening | null> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM donation_orders WHERE id = ${input.orderId}::uuid FOR NO KEY UPDATE`;
+      const [order] = await tx.$queryRaw<Array<{ orderId: string; amount: string; currency: 'BRL'; status: string }>>`
+        SELECT id::text AS "orderId", amount::text AS amount, currency::text AS currency, status::text AS status
+        FROM donation_orders WHERE id = ${input.orderId}::uuid AND intent_key_hash = ${input.intentKeyHash}
+      `;
+      if (!order || order.status !== 'pendente' || await tx.donationOpeningReservation.findUnique({ where: { orderId: input.orderId } })) return null;
+      const [latest] = await tx.$queryRaw<Array<{ id: string; status: string; reason: string | null; params: { amountInCents: string; currency: 'brl'; successUrl: string; cancelUrl: string } | null }>>`
+        SELECT id::text AS id, status::text AS status, reason, checkout_parameters AS params
+        FROM payments WHERE order_id = ${input.orderId}::uuid ORDER BY created_at DESC, id DESC LIMIT 1
+      `;
+      if (!latest || latest.id !== input.currentPaymentId || latest.status !== input.currentStatus) return null;
+      if (!(latest.status === 'expirada' || latest.status === 'falha_na_criacao'
+        && latest.reason !== 'VALOR_NAO_ACEITO')) return null;
+      const parameters = latest.params;
+      if (!parameters) return null;
+      const payment = await tx.payment.create({ data: { orderId: input.orderId, stripeIdempotencyKey: input.stripeIdempotencyKey,
+        firstSentAt: input.firstSentAt, checkoutParameters: parameters, status: 'pendente' }, select: { id: true } });
+      await tx.donationOperation.create({ data: { orderId: input.orderId, operationKey: input.operationKeyHash,
+        fingerprint: input.fingerprint, paymentId: payment.id } });
+      await tx.donationOpeningReservation.create({ data: { orderId: input.orderId, operationKey: input.operationKeyHash } });
+      return { isNew: true, orderId: order.orderId, paymentId: payment.id, amount: order.amount, currency: 'BRL',
+        amountInCents: parameters.amountInCents, stripeIdempotencyKey: input.stripeIdempotencyKey, firstSentAt: input.firstSentAt,
+        successUrl: parameters.successUrl, cancelUrl: parameters.cancelUrl, checkoutSessionId: null, checkoutUrl: null, status: 'pendente' };
     });
   }
 }

@@ -12,11 +12,11 @@ export class PrismaDonationRepository implements DonationRepository {
 
   async findPaymentForWebhook(orderId: string, paymentId: string, _checkoutSessionId: string) {
     const rows = await this.prisma.$queryRaw<Array<{
-      orderId: string; paymentId: string; amount: string; currency: 'BRL'; checkoutSessionId: string | null;
+      orderId: string; paymentId: string; amount: string; currency: 'BRL'; checkoutSessionId: string | null; paymentIntentId: string | null;
       sessionLinkedElsewhere: boolean;
     }>>`
       SELECT o.id::text AS "orderId", p.id::text AS "paymentId", o.amount::text AS amount,
-        o.currency::text AS currency, p.checkout_session_id AS "checkoutSessionId",
+        o.currency::text AS currency, p.checkout_session_id AS "checkoutSessionId", p.payment_intent_id AS "paymentIntentId",
         EXISTS (SELECT 1 FROM payments linked WHERE linked.checkout_session_id = ${_checkoutSessionId}
           AND (linked.order_id <> o.id OR linked.id <> p.id)) AS "sessionLinkedElsewhere"
       FROM donation_orders o
@@ -29,7 +29,35 @@ export class PrismaDonationRepository implements DonationRepository {
     const amountInCents = decimalToCents(row.amount);
     if (amountInCents === null) return null;
     return { orderId: row.orderId, paymentId: row.paymentId, amountInCents,
-      currency: row.currency, checkoutSessionId: row.checkoutSessionId, sessionLinkedElsewhere: row.sessionLinkedElsewhere };
+      currency: row.currency, checkoutSessionId: row.checkoutSessionId, paymentIntentId: row.paymentIntentId,
+      sessionLinkedElsewhere: row.sessionLinkedElsewhere };
+  }
+
+  async recordPaymentFailure(input: { orderId: string; paymentId: string; paymentIntentId: string; stripeEventId: string; occurredAt: Date }): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const inserted = await tx.paymentEvent.createMany({ data: [{ orderId: input.orderId, paymentId: input.paymentId,
+        stripeEventId: input.stripeEventId, origin: 'webhook', toStatus: null, reason: 'EVENTO_EM_PROCESSAMENTO',
+        occurredAt: input.occurredAt }], skipDuplicates: true });
+      if (inserted.count === 0) return;
+      const updated = await tx.payment.updateMany({ where: { id: input.paymentId, orderId: input.orderId,
+        status: { not: 'paga' }, OR: [{ paymentIntentId: input.paymentIntentId }, { paymentIntentId: null }] },
+        data: { status: 'recusada', paymentIntentId: input.paymentIntentId, reason: 'RECUSA_CARTAO' } });
+      await tx.paymentEvent.updateMany({ where: { stripeEventId: input.stripeEventId }, data: {
+        toStatus: updated.count ? 'recusada' : null, reason: updated.count ? 'RECUSA_CARTAO' : 'RECUSA_APOS_CONFIRMACAO' } });
+    });
+  }
+
+  async recordSessionExpiration(input: { orderId: string; paymentId: string; checkoutSessionId: string; stripeEventId: string; occurredAt: Date }): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const inserted = await tx.paymentEvent.createMany({ data: [{ orderId: input.orderId, paymentId: input.paymentId,
+        stripeEventId: input.stripeEventId, origin: 'webhook', toStatus: null, reason: 'EVENTO_EM_PROCESSAMENTO',
+        occurredAt: input.occurredAt }], skipDuplicates: true });
+      if (inserted.count === 0) return;
+      const updated = await tx.payment.updateMany({ where: { id: input.paymentId, orderId: input.orderId,
+        checkoutSessionId: input.checkoutSessionId, status: { not: 'paga' } }, data: { status: 'expirada', reason: 'SESSAO_EXPIRADA' } });
+      await tx.paymentEvent.updateMany({ where: { stripeEventId: input.stripeEventId }, data: {
+        toStatus: updated.count ? 'expirada' : null, reason: updated.count ? 'SESSAO_EXPIRADA' : 'EXPIRACAO_APOS_CONFIRMACAO' } });
+    });
   }
 
   async recordWebhookDivergence({ orderId, paymentId, stripeEventId, reason }: {
@@ -90,6 +118,8 @@ export class PrismaDonationRepository implements DonationRepository {
     confirmedAt,
   }: VerifiedPaymentConfirmation): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
+      const lockedOrder = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM donation_orders WHERE id = ${orderId}::uuid FOR NO KEY UPDATE`;
+      if (lockedOrder.length === 0) return false;
       const payment = await tx.payment.updateMany({
         where: {
           id: paymentId,

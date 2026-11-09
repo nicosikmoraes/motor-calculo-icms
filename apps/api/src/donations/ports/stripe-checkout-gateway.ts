@@ -24,6 +24,7 @@ export interface CheckoutSession {
 export interface StripeCheckoutGateway {
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession>;
   retrieveCheckout(sessionId: string): Promise<CheckoutSession>;
+  expireCheckout(sessionId: string): Promise<CheckoutSession>;
 }
 
 export class StripeUnavailableError extends Error {

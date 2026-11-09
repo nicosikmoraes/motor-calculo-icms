@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { CreateDonation } from './application/create-donation.js';
 import { HandleStripeEvent } from './application/handle-stripe-event.js';
+import { RetryDonation } from './application/retry-donation.js';
 import { DonationOrdersController } from './adapters/http/donation-orders.controller.js';
 import { StripeWebhookController } from './adapters/http/stripe-webhook.controller.js';
 import { PrismaDonationCreationRepository } from './adapters/prisma/donation-creation-repository.js';
@@ -37,6 +38,9 @@ const prismaProvider = {
     { provide: STRIPE_CHECKOUT_GATEWAY, useExisting: StripeCheckoutAdapter },
     { provide: HandleStripeEvent, inject: [DONATION_REPOSITORY, STRIPE_CHECKOUT_GATEWAY],
       useFactory: (repository: PrismaDonationRepository, gateway: StripeCheckoutGateway) => new HandleStripeEvent(repository, gateway) },
+    { provide: RetryDonation, inject: [DONATION_CREATION_REPOSITORY, STRIPE_CHECKOUT_GATEWAY, ConfigService],
+      useFactory: (repository: PrismaDonationCreationRepository, gateway: StripeCheckoutGateway, config: ConfigService) =>
+        new RetryDonation(repository, gateway, config.get<string>('DONATION_IDENTITY_SECRET') ?? config.get<string>('STRIPE_SECRET_KEY') ?? 'unconfigured') },
     {
       provide: CreateDonation,
       inject: [DONATION_CREATION_REPOSITORY, STRIPE_CHECKOUT_GATEWAY, ConfigService],

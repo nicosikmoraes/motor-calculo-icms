@@ -1,0 +1,9 @@
+**APROVADO**
+
+1. **Sem achado bloqueante.** Recusa sem ID de sessão bloqueia a abertura de uma nova tentativa; somente operação já existente pode repetir a chamada dentro da janela, usando tentativa, chave de idempotência e parâmetros persistidos. Após 23 horas, o replay é bloqueado. Evidência: [retry-donation.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/application/retry-donation.ts:56), [donation-creation-repository.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/adapters/prisma/donation-creation-repository.ts:138).
+
+2. **Sem achado bloqueante.** Expiração só é registrada após consulta confirmar `expired` e `unpaid`, com os identificadores correspondentes. Evidência: [handle-stripe-event.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/application/handle-stripe-event.ts:44).
+
+3. **Sem achado bloqueante.** Reentregas do mesmo evento de recusa ou expiração são deduplicadas e não repetem a transição; o webhook retorna 200 quando o processamento termina. Evidência: [prisma-donation-repository.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/adapters/prisma/prisma-donation-repository.ts:36), [stripe-webhook.controller.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/adapters/http/stripe-webhook.controller.ts:32).
+
+**Sugestão não bloqueante:** os testes cobrem replay recente e bloqueio após 25 horas, mas não verificam diretamente o limite de 23 horas; alguns nomes ainda dizem “24h”. Evidência: [donations.attempts.e2e-spec.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/test/donations.attempts.e2e-spec.ts:161). Não executei testes, conforme solicitado.

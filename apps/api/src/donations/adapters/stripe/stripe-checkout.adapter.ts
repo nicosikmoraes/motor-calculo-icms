@@ -52,6 +52,10 @@ export class StripeCheckoutAdapter implements StripeCheckoutGateway {
     return this.mapSession(session);
   }
 
+  async expireCheckout(sessionId: string): Promise<CheckoutSession> {
+    return this.mapSession(await this.stripe.checkout.sessions.expire(sessionId));
+  }
+
   private mapSession(session: Stripe.Checkout.Session): CheckoutSession {
     const paymentIntent = session.payment_intent;
     return {
