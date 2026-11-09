@@ -9,6 +9,7 @@ import { PrismaDonationRepository } from '../src/donations/adapters/prisma/prism
 import { StripeCheckoutAdapter } from '../src/donations/adapters/stripe/stripe-checkout.adapter.js';
 import { CreateDonation } from '../src/donations/application/create-donation.js';
 import { HandleStripeEvent } from '../src/donations/application/handle-stripe-event.js';
+import { RetryDonation } from '../src/donations/application/retry-donation.js';
 import { createHash } from 'node:crypto';
 
 const connectionString = process.env.DATABASE_URL;
@@ -102,6 +103,10 @@ describe('Webhook de doação com PostgreSQL', () => {
       const created = await pendingCreation!;
       expect(created.donation.orderId).toBe(persisted.order_id);
       expect(created.donation.paymentId).toBe(persisted.payment_id);
+      const current = await new RetryDonation(creation, stripe, 'test-identity-secret').inspectCurrent(orderIdempotency);
+      expect(current).toMatchObject({ orderId: persisted.order_id, status: 'pago', attempts: [
+        expect.objectContaining({ paymentId: persisted.payment_id, status: 'paga' }),
+      ] });
       expect((await pool.query(
         `SELECT (SELECT count(*)::int FROM donation_orders WHERE intent_key_hash = $1) AS order_count,
                 (SELECT count(*)::int FROM payments WHERE order_id = $2) AS payment_count`,

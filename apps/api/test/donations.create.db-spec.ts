@@ -49,7 +49,7 @@ describe('reserva durável de operação idempotente', () => {
       successUrl: 'https://example.test/original-success', cancelUrl: 'https://example.test/original-cancel',
     };
     const [first, concurrent] = await Promise.all([repository.createIntent(input), repository.createIntent(input)]);
-    expect(concurrent).toMatchObject({ orderId: first.orderId, paymentId: first.paymentId, isNew: false });
+    expect(concurrent).toMatchObject({ orderId: first.orderId, paymentId: first.paymentId });
     expect([first.isNew, concurrent.isNew].sort()).toEqual([false, true]);
     orderIds.push(first.orderId);
 

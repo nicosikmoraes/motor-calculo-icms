@@ -7,6 +7,7 @@ import { DONATION_REPOSITORY } from '../src/donations/ports/donation-repository.
 import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
+import { RetryDonation } from '../src/donations/application/retry-donation.js';
 
 const webhookSecret = 'whsec_controlled';
 
@@ -19,6 +20,7 @@ describe('POST /webhooks/stripe', () => {
   let checkoutCreateStarted: (() => void) | undefined;
   let checkoutCreateGate: Promise<void> | undefined;
   let checkoutCreateCalls: number;
+  let currentDonation: { orderId: string; status: 'pendente' | 'pago' };
 
   const validSession = (orderId: string, paymentId: string) => ({
     id: 'cs_test_paid', object: 'checkout.session', payment_intent: 'pi_test_paid',
@@ -33,6 +35,7 @@ describe('POST /webhooks/stripe', () => {
     vi.stubEnv('DONATION_CANCEL_URL', 'https://example.test/cancel');
     checkoutCreateCalls = 0;
     checkoutCreateGate = undefined;
+    currentDonation = { orderId: knownOrderId, status: 'pendente' };
     const stripeFetch: typeof fetch = async (_input, init) => {
       if (init?.method === 'POST') {
         checkoutCreateCalls += 1;
@@ -52,7 +55,7 @@ describe('POST /webhooks/stripe', () => {
         return { orderId, paymentId, amountInCents: '1234', currency: 'BRL', checkoutSessionId: null, sessionLinkedElsewhere: false };
       }),
       recordWebhookDivergence: vi.fn(async () => undefined),
-      confirmPayment: vi.fn(async () => true),
+      confirmPayment: vi.fn(async () => { currentDonation.status = 'pago'; return true; }),
     };
     creationRepo = {
       createIntent: vi.fn(async (input: any) => ({ isNew: true, orderId: knownOrderId, paymentId: knownPaymentId,
@@ -66,6 +69,10 @@ describe('POST /webhooks/stripe', () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(DONATION_REPOSITORY).useValue(repo)
       .overrideProvider(DONATION_CREATION_REPOSITORY).useValue(creationRepo)
+      .overrideProvider(RetryDonation).useValue({
+        inspectCurrent: vi.fn(async () => currentDonation),
+        inspect: vi.fn(async () => currentDonation),
+      })
       .overrideProvider(STRIPE_CLIENT).useValue(stripe)
       .compile();
     app = module.createNestApplication({ rawBody: true });
@@ -100,6 +107,26 @@ describe('POST /webhooks/stripe', () => {
       paymentIntentId: 'pi_test_paid', stripeEventId: expect.stringMatching(/^evt_/),
     }));
     expect(JSON.stringify(response.body)).not.toContain(JSON.stringify(retrieved));
+  });
+
+  it('integra criação, retorno pendente, webhook assinado e consulta do pedido pago', async () => {
+    const intent = randomUUID();
+    retrieved = validSession(knownOrderId, knownPaymentId);
+    const created = await request(app.getHttpServer()).post('/donation-orders')
+      .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
+      .send({ amount: '12.34', currency: 'BRL' }).expect(201);
+    expect(created.body).toMatchObject({ orderId: knownOrderId, paymentId: knownPaymentId, status: 'pendente' });
+
+    const returned = await request(app.getHttpServer()).get('/donations/return?result=success').expect(200);
+    expect(returned.text).toContain('Aguardando confirmação do pagamento');
+    expect(currentDonation.status).toBe('pendente');
+
+    const event = eventFor(retrieved);
+    expect((await postEvent(event)).status).toBe(200);
+    const current = await request(app.getHttpServer()).get('/donation-orders/current')
+      .set('X-Donation-Intent', intent).expect(200);
+    expect(current.body).toMatchObject({ orderId: knownOrderId, status: 'pago' });
+    expect(repo.confirmPayment).toHaveBeenCalledTimes(1);
   });
 
   it.each(['ausente', 'inválida'])('não confirma com assinatura %s', async (kind) => {

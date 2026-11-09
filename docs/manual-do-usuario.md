@@ -1,5 +1,11 @@
 # Manual do usuário e do contador
 
+> A área **Apoiar o projeto** está em implementação nesta branch. O uso com
+> Stripe exige API e PostgreSQL locais configurados com credenciais `sk_test_`;
+> não use chaves de produção. O roteiro e as limitações atuais estão em
+> [Atividade 10](atividade-10.md). Ainda não há demonstração real de pagamento
+> validada nesta instalação.
+
 ## 1. Acesso e atividades
 
 No MVP não existe distinção de permissões: todos os usuários da instalação podem executar todas as operações.
