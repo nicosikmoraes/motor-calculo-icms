@@ -53,9 +53,11 @@ model Payment {
   orderId              String              @map("order_id") @db.Uuid
   status               PaymentStatus       @default(pendente)
   checkoutSessionId    String?             @unique @map("checkout_session_id")
+  checkoutUrl          String?             @map("checkout_url")
   paymentIntentId      String?             @unique @map("payment_intent_id")
   stripeIdempotencyKey String              @unique @map("stripe_idempotency_key")
   firstSentAt          DateTime?           @map("first_sent_at") @db.Timestamp(3)
+  checkoutParameters Json? @map("checkout_parameters") @db.JsonB
   reason               String?
   createdAt            DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
   updatedAt            DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)

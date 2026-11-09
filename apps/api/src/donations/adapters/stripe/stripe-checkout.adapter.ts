@@ -44,10 +44,25 @@ export class StripeCheckoutAdapter implements StripeCheckoutGateway {
       if (isHttp503(error)) throw new StripeUnavailableError();
       throw error;
     }
+    return this.mapSession(session);
+  }
+
+  async retrieveCheckout(sessionId: string): Promise<CheckoutSession> {
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    return this.mapSession(session);
+  }
+
+  private mapSession(session: Stripe.Checkout.Session): CheckoutSession {
+    const paymentIntent = session.payment_intent;
     return {
-      id: session.id,
-      url: session.url,
-      paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+      id: session.id, url: session.url,
+      paymentIntentId: typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id ?? null,
+      orderId: session.metadata?.donation_order_id ?? null,
+      paymentId: session.metadata?.donation_payment_id ?? null,
+      amountInCents: session.amount_total === null ? null : String(session.amount_total),
+      currency: session.currency,
+      livemode: session.livemode,
+      status: session.status,
     };
   }
 }

@@ -5,13 +5,29 @@ export interface NewDonationIntent {
   fingerprint: string;
   stripeIdempotencyKey: string;
   firstSentAt: Date;
+  amountInCents: string;
+  successUrl: string;
+  cancelUrl: string;
 }
 
 export interface PersistedDonationOpening {
+  isNew: boolean;
   orderId: string;
   paymentId: string;
   amount: string;
   currency: 'BRL';
+  amountInCents: string;
+  stripeIdempotencyKey: string;
+  firstSentAt: Date;
+  successUrl: string;
+  cancelUrl: string;
+  checkoutSessionId: string | null;
+  checkoutUrl: string | null;
+  status: string;
+}
+
+export class DonationOperationConflictError extends Error {
+  constructor() { super('A identidade da operação já foi usada com parâmetros diferentes'); }
 }
 
 export interface DonationCreationRepository {

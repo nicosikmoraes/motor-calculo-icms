@@ -12,6 +12,10 @@ const validSession = {
   url: 'https://checkout.stripe.com/c/pay/cs_test_controlled',
   payment_intent: 'pi_test_controlled',
   livemode: false,
+  metadata: { donation_order_id: 'order', donation_payment_id: 'payment' },
+  amount_total: 1234,
+  currency: 'brl',
+  status: 'open',
 };
 
 function createControlledStripe() {
@@ -51,7 +55,10 @@ describe('POST /donation-orders', () => {
     controlled = createControlledStripe();
     donations = {
       createIntent: vi.fn(async (input: Record<string, unknown>) => ({
-        orderId: randomUUID(), paymentId: randomUUID(), amount: input.amount as string, currency: 'BRL' as const,
+        isNew: true, orderId: randomUUID(), paymentId: randomUUID(), amount: input.amount as string, currency: 'BRL' as const,
+        amountInCents: input.amountInCents as string, stripeIdempotencyKey: input.stripeIdempotencyKey as string,
+        firstSentAt: input.firstSentAt as Date, successUrl: input.successUrl as string, cancelUrl: input.cancelUrl as string,
+        checkoutSessionId: null, checkoutUrl: null, status: 'pendente',
       })),
       recordCheckout: vi.fn(async () => undefined),
       recordIndeterminate: vi.fn(async () => undefined),

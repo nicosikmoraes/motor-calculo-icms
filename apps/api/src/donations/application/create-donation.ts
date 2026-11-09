@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import type { DonationCreationRepository, PersistedDonationOpening } from '../ports/donation-creation-repository.js';
+import { DonationOperationConflictError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
 import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
 import { StripeUnavailableError } from '../ports/stripe-checkout-gateway.js';
 
@@ -25,6 +25,8 @@ export class DonationCreationError extends Error {
 
 const amountPattern = /^\d+(?:\.\d{1,2})?$/;
 const invalidMessage = 'Informe um valor em reais de pelo menos R$ 0,50, com até duas casas decimais';
+type DonationCreationResult = { donation: Record<string, unknown>; replayed: boolean };
+const inFlightCreations = new Map<string, { fingerprint: string; promise: Promise<DonationCreationResult> }>();
 
 export function parseDonationAmount(value: unknown): { decimal: string; cents: string } | null {
   if (typeof value !== 'string' || !amountPattern.test(value)) return null;
@@ -87,31 +89,79 @@ export class CreateDonation {
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
     const hashSecret = this.config.identitySecret ?? secret;
+    const flightKey = `${createHash('sha256').update(headers.intent).digest('hex')}:${safeIdentity(hashSecret, headers.operation)}`;
+    const existingFlight = inFlightCreations.get(flightKey);
+    const fingerprint = createHash('sha256').update(`${parsed.amount}:BRL`).digest('hex');
+    if (existingFlight) {
+      if (existingFlight.fingerprint !== fingerprint) throw new DonationOperationConflictError();
+      return existingFlight.promise.then((result) => ({ ...result, replayed: true }));
+    }
+    const execution = this.open(headers.intent, headers.operation, parsed, successUrl, cancelUrl, hashSecret);
+    const flight = { fingerprint, promise: execution };
+    inFlightCreations.set(flightKey, flight);
+    try { return await execution; }
+    finally { if (inFlightCreations.get(flightKey) === flight) inFlightCreations.delete(flightKey); }
+  }
+
+  private async open(intent: string, operation: string, parsed: { amount: string; cents: string }, successUrl: string, cancelUrl: string, hashSecret: string) {
+    const stripeIdempotencyKey = `donation_${safeIdentity(hashSecret, operation)}`;
     let opening: PersistedDonationOpening;
     try {
       opening = await this.repository.createIntent({
-        intentKeyHash: createHash('sha256').update(headers.intent).digest('hex'),
+        intentKeyHash: createHash('sha256').update(intent).digest('hex'),
         amount: parsed.amount,
-        operationKeyHash: safeIdentity(hashSecret, headers.operation),
+        operationKeyHash: safeIdentity(hashSecret, operation),
         fingerprint: createHash('sha256').update(`${parsed.amount}:BRL`).digest('hex'),
-        stripeIdempotencyKey: `donation_${safeIdentity(hashSecret, headers.operation)}`,
+        stripeIdempotencyKey,
         firstSentAt: new Date(),
+        amountInCents: parsed.cents,
+        successUrl,
+        cancelUrl,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof DonationOperationConflictError) throw error;
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
+    }
+
+    if (opening.checkoutSessionId) {
+      try {
+        const session = await this.gateway.retrieveCheckout(opening.checkoutSessionId);
+        const matches = session.id === opening.checkoutSessionId && session.orderId === opening.orderId
+          && session.paymentId === opening.paymentId && session.amountInCents === opening.amountInCents
+          && session.currency === 'brl' && !session.livemode;
+        if (!matches) throw new Error('Checkout recuperado não corresponde à operação persistida');
+        if (session.status === 'open' && session.url) {
+          return { donation: { orderId: opening.orderId, paymentId: opening.paymentId, amount: opening.amount, currency: opening.currency,
+            status: 'pendente', checkoutUrl: session.url }, replayed: true };
+        }
+        throw new DonationCreationError('result_uncertain', { orderId: opening.orderId, paymentId: opening.paymentId,
+          status: 'pendente', message: 'Aguardando confirmação do pagamento' });
+      } catch (error) {
+        if (error instanceof DonationCreationError) throw error;
+        throw new DonationCreationError('result_uncertain', { orderId: opening.orderId, paymentId: opening.paymentId,
+          status: 'indeterminada', message: 'Pagamento em verificação; nenhuma nova tentativa foi aberta' });
+      }
+    }
+    if (opening.status === 'falha_na_criacao') {
+      throw new DonationCreationError('gateway_rejected_amount', { orderId: opening.orderId, paymentId: opening.paymentId,
+        status: opening.status, reason: 'VALOR_NAO_ACEITO', message: 'Valor não aceito pelo serviço de pagamentos' });
+    }
+    if (Date.now() >= opening.firstSentAt.getTime() + 24 * 60 * 60 * 1000) {
+      throw new DonationCreationError('result_uncertain', { orderId: opening.orderId, paymentId: opening.paymentId,
+        status: 'indeterminada', message: 'Pagamento em verificação; nenhuma nova tentativa foi aberta' });
     }
 
     try {
       const session = await this.gateway.createCheckout({
-        amountInCents: parsed.cents, currency: 'brl', orderId: opening.orderId,
-        paymentId: opening.paymentId, idempotencyKey: `donation_${safeIdentity(hashSecret, headers.operation)}`,
-        successUrl, cancelUrl,
+        amountInCents: opening.amountInCents, currency: 'brl', orderId: opening.orderId,
+        paymentId: opening.paymentId, idempotencyKey: opening.stripeIdempotencyKey,
+        successUrl: opening.successUrl, cancelUrl: opening.cancelUrl,
       });
       if (!session.url) throw new Error('Checkout sem URL');
       await this.repository.recordCheckout({ ...opening, checkoutSessionId: session.id,
         paymentIntentId: session.paymentIntentId, checkoutUrl: session.url });
-      return { orderId: opening.orderId, paymentId: opening.paymentId, amount: opening.amount,
-        currency: opening.currency, status: 'pendente', checkoutUrl: session.url };
+      return { donation: { orderId: opening.orderId, paymentId: opening.paymentId, amount: opening.amount,
+        currency: opening.currency, status: 'pendente', checkoutUrl: session.url }, replayed: !opening.isNew };
     } catch (error) {
       const rejection = safeStripeReason(error);
       if (rejection) {

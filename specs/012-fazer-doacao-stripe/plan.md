@@ -155,7 +155,7 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Entrega futura: SDK e configuração somente na API, sem segredos no Git; erros conclusivos e indeterminados são separados conforme a spec.
   - Retomada após duas rodadas: os pareceres originais ficam arquivados em `reviews/arquivo/tarefa-02-ciclo-01/`. O novo ciclo começa do commit da Tarefa 1; o rascunho não commitado do ciclo anterior é preservado fora da árvore de trabalho apenas como referência. O teste de 503 observa respostas no transporte bruto do SDK, antes da interpretação do corpo, sem compartilhar estado transitório entre requisições concorrentes.
 
-- [ ] **Tarefa 3 — Retomar operação incerta sem abrir Checkout duplicado**
+- [x] **Tarefa 3 — Retomar operação incerta sem abrir Checkout duplicado**
   - Cobre: CA3, CA4; cobre a recuperação inicial exigida no CA11.
   - Teste primeiro: gateway cria sessão e perde resposta; repetir a mesma operação recupera o mesmo pedido/tentativa/sessão. Disparar confirmações concorrentes; variar parâmetros com a mesma identidade; avançar relógio controlado até a fronteira de 24h. Provar que após a janela nenhum novo POST ao gateway é feito sem evidência conclusiva e que nenhuma consulta marca pago.
   - Arquivos previstos: `apps/api/src/donations/application/create-donation.ts`, `apps/api/src/donations/application/resume-donation.ts`, `apps/api/src/donations/adapters/stripe/`, `apps/api/src/donations/adapters/prisma/`, `apps/api/test/donations.recovery.e2e-spec.ts`.

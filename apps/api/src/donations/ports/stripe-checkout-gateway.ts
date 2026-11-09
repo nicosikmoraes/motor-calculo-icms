@@ -12,10 +12,17 @@ export interface CheckoutSession {
   id: string;
   url: string | null;
   paymentIntentId: string | null;
+  orderId: string | null;
+  paymentId: string | null;
+  amountInCents: string | null;
+  currency: string | null;
+  livemode: boolean;
+  status: string | null;
 }
 
 export interface StripeCheckoutGateway {
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession>;
+  retrieveCheckout(sessionId: string): Promise<CheckoutSession>;
 }
 
 export class StripeUnavailableError extends Error {

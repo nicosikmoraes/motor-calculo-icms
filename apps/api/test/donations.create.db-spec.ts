@@ -8,10 +8,12 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { AppModule } from '../src/app.module.js';
 import { CreateDonation, DonationCreationError } from '../src/donations/application/create-donation.js';
 import { PrismaDonationCreationRepository } from '../src/donations/adapters/prisma/donation-creation-repository.js';
+import { PrismaDonationRepository } from '../src/donations/adapters/prisma/prisma-donation-repository.js';
 import { StripeCheckoutAdapter } from '../src/donations/adapters/stripe/stripe-checkout.adapter.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
 import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
+import { DonationOperationConflictError } from '../src/donations/ports/donation-creation-repository.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
@@ -35,6 +37,30 @@ afterEach(async () => {
 afterAll(async () => {
   await client.$disconnect();
   await pool.end();
+});
+
+describe('reserva durável de operação idempotente', () => {
+  it('retorna a mesma tentativa e snapshot após configuração mudar e rejeita fingerprint divergente', async () => {
+    const repository = new PrismaDonationCreationRepository(client);
+    const input = {
+      intentKeyHash: randomUUID().replaceAll('-', ''), operationKeyHash: randomUUID().replaceAll('-', ''),
+      amount: '12.34', fingerprint: 'fp-1234', stripeIdempotencyKey: `donation_${randomUUID().replaceAll('-', '')}`,
+      firstSentAt: new Date('2026-11-08T12:00:00.000Z'), amountInCents: '1234',
+      successUrl: 'https://example.test/original-success', cancelUrl: 'https://example.test/original-cancel',
+    };
+    const [first, concurrent] = await Promise.all([repository.createIntent(input), repository.createIntent(input)]);
+    expect(concurrent).toMatchObject({ orderId: first.orderId, paymentId: first.paymentId, isNew: false });
+    expect([first.isNew, concurrent.isNew].sort()).toEqual([false, true]);
+    orderIds.push(first.orderId);
+
+    const recovered = await repository.createIntent({ ...input, successUrl: 'https://example.test/changed-success', cancelUrl: 'https://example.test/changed-cancel' });
+    expect(recovered).toMatchObject({ orderId: first.orderId, paymentId: first.paymentId, successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl, stripeIdempotencyKey: input.stripeIdempotencyKey, amountInCents: '1234' });
+    await expect(repository.createIntent({ ...input, fingerprint: 'different-fingerprint', amount: '13.34' }))
+      .rejects.toBeInstanceOf(DonationOperationConflictError);
+    const rows = await pool.query('SELECT count(*)::int AS count FROM payments WHERE order_id = $1::uuid', [first.orderId]);
+    expect(rows.rows[0].count).toBe(1);
+  });
 });
 
 describe('Criação de doação com valor acima do limite DECIMAL(65,2)', () => {
@@ -197,5 +223,57 @@ describe('POST de criação com PostgreSQL real durante HTTP 503 do Stripe', () 
     } finally {
       await app.close();
     }
+  });
+});
+
+describe('confirmação concorrente durante a criação Stripe', () => {
+  it('preserva estado pago se a confirmação transacional chega antes da resposta incerta', async () => {
+    const confirmationRepository = new PrismaDonationRepository(client);
+    let confirmationResult: boolean | undefined;
+    let observedIds: { orderId: string; paymentId: string } | undefined;
+    let stripeCalls = 0;
+    const stripe = createStripeClient('sk_test_controlled', async (_input, init) => {
+      stripeCalls += 1;
+      const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : String(init?.body ?? ''));
+      const orderId = form.get('metadata[donation_order_id]');
+      const paymentId = form.get('metadata[donation_payment_id]');
+      if (!orderId || !paymentId) throw new Error('Stripe não recebeu os IDs persistidos da operação');
+      observedIds = { orderId, paymentId };
+      orderIds.push(orderId);
+
+      // Simula o evento concorrente usando apenas a transação de confirmação de T1.
+      confirmationResult = await confirmationRepository.confirmPayment({
+        orderId,
+        paymentId,
+        checkoutSessionId: 'cs_test_confirmed_during_open',
+        paymentIntentId: 'pi_test_confirmed_during_open',
+        stripeEventId: `evt_${randomUUID()}`,
+        confirmedAt: new Date('2026-11-08T18:00:00.000Z'),
+      });
+      throw new Error('socket closed after Stripe created the session');
+    });
+    const service = new CreateDonation(
+      new PrismaDonationCreationRepository(client),
+      new StripeCheckoutAdapter(stripe),
+      {
+        stripeSecretKey: 'sk_test_controlled',
+        successUrl: 'https://example.test/donations/return?result=success',
+        cancelUrl: 'https://example.test/donations/return?result=cancel',
+      },
+    );
+
+    await expect(service.execute({ intent: randomUUID(), operation: randomUUID() }, { amount: '12.34', currency: 'BRL' }))
+      .rejects.toMatchObject({ code: 'result_uncertain' });
+    expect(stripeCalls).toBe(1);
+    expect(confirmationResult).toBe(true);
+    expect(observedIds).toBeDefined();
+    const [order, payment, events] = await Promise.all([
+      pool.query('SELECT status FROM donation_orders WHERE id = $1::uuid', [observedIds?.orderId]),
+      pool.query('SELECT status, reason, checkout_session_id FROM payments WHERE id = $1::uuid', [observedIds?.paymentId]),
+      pool.query("SELECT to_status FROM payment_events WHERE order_id = $1::uuid ORDER BY occurred_at", [observedIds?.orderId]),
+    ]);
+    expect(order.rows).toEqual([{ status: 'pago' }]);
+    expect(payment.rows).toEqual([{ status: 'paga', reason: null, checkout_session_id: 'cs_test_confirmed_during_open' }]);
+    expect(events.rows.map((row) => row.to_status)).toEqual(['paga']);
   });
 });
