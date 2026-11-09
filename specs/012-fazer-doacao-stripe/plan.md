@@ -176,13 +176,13 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Teste primeiro: recusa assinada seguida de sucesso conserva ambos os fatos; sessão ainda aberta é reutilizada; expirada permite nova tentativa no mesmo valor; sessão concluída ou incerta bloqueia. Concorrer nova tentativa com confirmação, entregar eventos antigos depois de pago, simular falha ao encerrar sessão excedente e segunda confirmação real. Provar histórico completo, pedido pago monotônico e ausência de reembolso automático.
   - Arquivos previstos: `apps/api/src/donations/application/retry-donation.ts`, `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/http/`, `apps/api/src/donations/adapters/stripe/`, `apps/api/test/donations.attempts.e2e-spec.ts`.
 
-- [ ] **Tarefa 7 — Entregar a área de apoio com abandono e retomada verificáveis**
+- [x] **Tarefa 7 — Entregar a área de apoio com abandono e retomada verificáveis**
   - Cobre: CA1, CA2, CA8, CA9, CA11, CA13; apresenta os estados de CA4/CA10.
   - Teste primeiro: teste de fluxo da interface conserva intenção/operação antes da primeira requisição, perde a resposta e reinicia a tela recuperando o mesmo pedido. Retornos de sucesso/cancelamento não confirmam pagamento; consulta posterior com webhook mostra pago. API indisponível e chave incorreta mostram as mensagens previstas, sem impedir navegação fiscal. Teste do processo principal rejeita URLs fora do Checkout permitido.
   - Arquivos previstos: `apps/desktop/src/renderer/views/SupportProjectView.vue`, `apps/desktop/src/renderer/services/donations.ts`, `apps/desktop/src/renderer/router.ts`, ponto existente de navegação, `apps/desktop/src/main/` e `apps/desktop/src/preload/` para abertura restrita, `packages/contracts/` para o contrato IPC mínimo, `apps/desktop/test/donations-flow.test.ts`, `apps/api/src/donations/adapters/http/` para consulta e retorno.
   - Limite: mudanças futuras apenas para conectar a área independente; não refatorar cadastros, lotes ou cálculo fiscal.
 
-- [ ] **Tarefa 8 — Verificar minimização e acesso isolado ao pedido**
+- [x] **Tarefa 8 — Verificar minimização e acesso isolado ao pedido**
   - Cobre: CA12; completa a proteção de acesso do CA11.
   - Teste primeiro: payloads de criação/gateway, logs e registros após sucesso/erro não contêm dados fiscais, cartão, pagador, segredo Stripe ou chave portadora bruta. Banco guarda apenas hash da chave; intenção errada não consulta nem retoma pedido. Webhook é verificado transitoriamente sem persistir seu corpo. Testes de fronteira continuam rejeitando dependência fiscal na API e adaptadores de servidor no desktop.
   - Arquivos previstos: `apps/api/test/donations.privacy.e2e-spec.ts`, `apps/api/test/scaffold.spec.ts`, `apps/api/src/donations/adapters/http/`, `apps/api/src/donations/adapters/prisma/`, `apps/desktop/test/donations-flow.test.ts`.

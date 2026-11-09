@@ -153,6 +153,34 @@ describe('POST /donation-orders', () => {
     expect(controlled.callCount()).toBe(1);
   });
 
+  it('não recebe nem envia dados do pagador, cartão, fiscais ou chaves portadoras', async () => {
+    controlled.respond(200, JSON.stringify(validSession));
+    const intent = randomUUID(); const operation = randomUUID();
+    const response = await request(app.getHttpServer()).post('/donation-orders')
+      .set('X-Donation-Intent', intent).set('Idempotency-Key', operation)
+      .send({ amount: '10.00', currency: 'BRL' }).expect(201);
+    const responseText = JSON.stringify(response.body);
+    const stripeRequest = controlled.requestBodies[0];
+    expect(responseText).not.toContain(intent);
+    expect(responseText).not.toContain(operation);
+    for (const sensitiveField of ['email', 'card[number]', 'card[cvc]', 'cnpj', 'cpf', 'tax_id', 'billing_address']) {
+      expect(responseText.toLowerCase()).not.toContain(sensitiveField);
+      expect(stripeRequest.toLowerCase()).not.toContain(sensitiveField);
+    }
+    expect(stripeRequest).not.toContain(intent);
+    expect(stripeRequest).not.toContain(operation);
+    expect(stripeRequest).toContain('donation_order_id');
+    expect(stripeRequest).toContain('donation_payment_id');
+  });
+
+  it('rejeita campos pessoais adicionais antes de persistir ou chamar Stripe', async () => {
+    await request(app.getHttpServer()).post('/donation-orders')
+      .set('X-Donation-Intent', randomUUID()).set('Idempotency-Key', randomUUID())
+      .send({ amount: '10.00', currency: 'BRL', email: 'pessoa@example.test', cpf: '12345678900' }).expect(422);
+    expect(donations.createIntent).not.toHaveBeenCalled();
+    expect(controlled.callCount()).toBe(0);
+  });
+
   it.each([
     [{ amount: '', currency: 'BRL' }],
     [{ amount: '0', currency: 'BRL' }],
