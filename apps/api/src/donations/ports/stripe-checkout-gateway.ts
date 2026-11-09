@@ -18,6 +18,7 @@ export interface CheckoutSession {
   currency: string | null;
   livemode: boolean;
   status: string | null;
+  paymentStatus: 'paid' | 'unpaid' | 'no_payment_required' | null;
 }
 
 export interface StripeCheckoutGateway {

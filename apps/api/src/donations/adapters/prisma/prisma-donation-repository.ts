@@ -10,6 +10,41 @@ import type { DonationRepository } from '../../ports/donation-repository.js';
 export class PrismaDonationRepository implements DonationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async findPaymentForWebhook(orderId: string, paymentId: string, _checkoutSessionId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      orderId: string; paymentId: string; amount: string; currency: 'BRL'; checkoutSessionId: string | null;
+      sessionLinkedElsewhere: boolean;
+    }>>`
+      SELECT o.id::text AS "orderId", p.id::text AS "paymentId", o.amount::text AS amount,
+        o.currency::text AS currency, p.checkout_session_id AS "checkoutSessionId",
+        EXISTS (SELECT 1 FROM payments linked WHERE linked.checkout_session_id = ${_checkoutSessionId}
+          AND (linked.order_id <> o.id OR linked.id <> p.id)) AS "sessionLinkedElsewhere"
+      FROM donation_orders o
+      JOIN payments p ON p.order_id = o.id
+      WHERE o.id = ${orderId}::uuid AND p.id = ${paymentId}::uuid
+      LIMIT 1
+    `;
+    const row = rows[0];
+    if (!row || row.currency !== 'BRL') return null;
+    const amountInCents = decimalToCents(row.amount);
+    if (amountInCents === null) return null;
+    return { orderId: row.orderId, paymentId: row.paymentId, amountInCents,
+      currency: row.currency, checkoutSessionId: row.checkoutSessionId, sessionLinkedElsewhere: row.sessionLinkedElsewhere };
+  }
+
+  async recordWebhookDivergence({ orderId, paymentId, stripeEventId, reason }: {
+    orderId: string; paymentId: string; stripeEventId: string; reason: string;
+  }): Promise<void> {
+    await this.prisma.paymentEvent.create({ data: {
+      orderId,
+      paymentId,
+      stripeEventId,
+      origin: 'webhook',
+      toStatus: null,
+      reason,
+    } });
+  }
+
   async reserveOpening({
     orderId,
     operationKey,
@@ -91,4 +126,11 @@ export class PrismaDonationRepository implements DonationRepository {
       return true;
     });
   }
+}
+
+function decimalToCents(amount: string): string | null {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(amount);
+  if (!match) return null;
+  const whole = match[1].replace(/^0+(?=\d)/, '');
+  return `${whole}${(match[2] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
 }

@@ -63,6 +63,15 @@ export class StripeCheckoutAdapter implements StripeCheckoutGateway {
       currency: session.currency,
       livemode: session.livemode,
       status: session.status,
+      paymentStatus: normalizePaymentStatus(session.payment_status),
     };
   }
+}
+
+function normalizePaymentStatus(value: Stripe.Checkout.Session.PaymentStatus): CheckoutSession['paymentStatus'] {
+  const status = value as string;
+  if (status === 'paid' || status === 'unpaid' || status === 'no_payment_required') {
+    return status as NonNullable<CheckoutSession['paymentStatus']>;
+  }
+  return null;
 }

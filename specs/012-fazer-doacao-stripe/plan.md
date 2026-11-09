@@ -160,7 +160,7 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Teste primeiro: gateway cria sessão e perde resposta; repetir a mesma operação recupera o mesmo pedido/tentativa/sessão. Disparar confirmações concorrentes; variar parâmetros com a mesma identidade; avançar relógio controlado até a fronteira de 24h. Provar que após a janela nenhum novo POST ao gateway é feito sem evidência conclusiva e que nenhuma consulta marca pago.
   - Arquivos previstos: `apps/api/src/donations/application/create-donation.ts`, `apps/api/src/donations/application/resume-donation.ts`, `apps/api/src/donations/adapters/stripe/`, `apps/api/src/donations/adapters/prisma/`, `apps/api/test/donations.recovery.e2e-spec.ts`.
 
-- [ ] **Tarefa 4 — Validar webhook e confirmar apenas o pedido correspondente**
+- [x] **Tarefa 4 — Validar webhook e confirmar apenas o pedido correspondente**
   - Cobre: CA5, CA6; usa a transação da tarefa 1.
   - Teste primeiro: corpo bruto com assinatura de teste válida confirma o valor esperado; assinatura ausente/inválida, produção, valor/moeda divergentes, sessão de outro pedido e ID desconhecido não confirmam. Entregar evento antes da resposta da criação e provar recuperação/verificação do vínculo sem criar pedido adicional.
   - Arquivos previstos: `apps/api/src/main.ts`, `apps/api/src/donations/adapters/http/stripe-webhook.controller.ts`, `apps/api/src/donations/application/handle-stripe-event.ts`, `apps/api/src/donations/adapters/stripe/`, `apps/api/test/donations.webhook.e2e-spec.ts`.
