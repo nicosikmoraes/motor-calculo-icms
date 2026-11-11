@@ -12,6 +12,8 @@ export interface VerifiedStripeEvent {
     orderId: string | null;
     paymentId: string | null;
     paymentIntentId?: string | null;
+    amountInCents?: string | null;
+    currency?: string | null;
   };
 }
 
@@ -35,6 +37,16 @@ export class HandleStripeEvent {
       if (known.paymentIntentId && known.paymentIntentId !== event.session.id) {
         await this.repository.recordWebhookDivergence({ orderId: event.session.orderId, paymentId: event.session.paymentId,
           stripeEventId: event.id, reason: 'PAYMENT_INTENT_DIVERGENTE' });
+        return;
+      }
+      if (event.session.amountInCents !== known.amountInCents) {
+        await this.repository.recordWebhookDivergence({ orderId: event.session.orderId, paymentId: event.session.paymentId,
+          stripeEventId: event.id, reason: 'VALOR_DIVERGENTE' });
+        return;
+      }
+      if (event.session.currency?.toUpperCase() !== known.currency) {
+        await this.repository.recordWebhookDivergence({ orderId: event.session.orderId, paymentId: event.session.paymentId,
+          stripeEventId: event.id, reason: 'MOEDA_DIVERGENTE' });
         return;
       }
       await this.repository.recordPaymentFailure({ orderId: event.session.orderId, paymentId: event.session.paymentId,

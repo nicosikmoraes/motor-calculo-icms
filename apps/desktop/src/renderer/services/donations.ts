@@ -1,4 +1,4 @@
-import type { DonationOrderSummary } from '@motor/contracts'
+import type { DonationInputError, DonationOrderSummary } from '@motor/contracts'
 
 const storageKey = 'contabilinico.donations.intent.v1'
 type DonationIdentity = { intent: string; operation?: string; operationKind?: 'create' | 'retry' }
@@ -46,7 +46,7 @@ export async function loadCurrentDonation(): Promise<DonationOrderSummary | null
   return donation
 }
 
-export async function createDonation(amount: string): Promise<DonationOrderSummary> {
+export async function createDonation(amount: string): Promise<DonationOrderSummary | DonationInputError> {
   const current = operation('create')
   const donation = await window.desktopApi.createDonation({ ...current, amount, currency: 'BRL' })
   clearOperation('create')

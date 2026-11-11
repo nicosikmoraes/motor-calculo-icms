@@ -128,7 +128,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     const originalPaymentId = checkout?.metadata.donation_payment_id as string;
 
     const failed = signedEvent('payment_intent.payment_failed', {
-      id: checkout?.payment_intent, object: 'payment_intent', livemode: false,
+      id: checkout?.payment_intent, object: 'payment_intent', amount: 1234, currency: 'brl', livemode: false,
       metadata: { donation_order_id: orderId, donation_payment_id: originalPaymentId },
     });
     await request(app.getHttpServer()).post('/webhooks/stripe').set('Content-Type', 'application/json')

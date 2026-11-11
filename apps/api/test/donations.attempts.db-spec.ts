@@ -71,6 +71,22 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
     expect(result.rows[0]).toEqual({ order_status: 'pendente', payment_status: 'expirada' });
   });
 
+  it('deduplica divergência de webhook reentregue sem alterar o estado do pagamento', async () => {
+    const orderId = randomUUID(); const paymentId = randomUUID(); orderIds.push(orderId);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)',
+      [orderId, randomUUID(), '12.34']);
+    await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key) VALUES ($1, $2, $3)',
+      [paymentId, orderId, randomUUID()]);
+    const divergence = { orderId, paymentId, stripeEventId: `evt_divergence_${randomUUID()}`, reason: 'VALOR_DIVERGENTE' };
+    await repository.recordWebhookDivergence(divergence);
+    await expect(repository.recordWebhookDivergence(divergence)).resolves.toBeUndefined();
+    const events = await pool.query('SELECT count(*)::int AS count FROM payment_events WHERE stripe_event_id = $1',
+      [divergence.stripeEventId]);
+    const payment = await pool.query('SELECT status, reason FROM payments WHERE id = $1', [paymentId]);
+    expect(events.rows[0].count).toBe(1);
+    expect(payment.rows[0]).toEqual({ status: 'pendente', reason: null });
+  });
+
   it('consulta pedido e histórico apenas pelo hash correto da chave de intenção', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); const intentHash = randomUUID().replaceAll('-', ''); orderIds.push(orderId);
     await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, intentHash, '12.34']);

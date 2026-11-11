@@ -52,6 +52,12 @@ describe('retomada da área de apoio', () => {
     expect(store.get('contabilinico.donations.intent.v1')).not.toContain('"operation"')
   })
 
+  it('limpa a identidade da operação quando o servidor rejeita o formato do valor', async () => {
+    vi.mocked(api.createDonation).mockResolvedValueOnce({ kind: 'invalid_input', field: 'amount', message: 'Valor inválido' })
+    await expect(createDonation('1.234')).resolves.toMatchObject({ kind: 'invalid_input', field: 'amount' })
+    expect(store.get('contabilinico.donations.intent.v1')).not.toContain('"operation"')
+  })
+
   it('mantém a identidade da nova tentativa se a resposta de retry se perde', async () => {
     vi.mocked(api.retryDonation).mockRejectedValueOnce(new Error('offline'))
     await expect(retryDonation(donation.orderId)).rejects.toThrow('offline')

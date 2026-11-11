@@ -80,6 +80,10 @@ function registerIpcHandlers(): void {
       try { body = await response.json() } catch { /* Não propague corpo bruto do serviço. */ }
       if (response.status === 404 && path === '/donation-orders/current') return null
       if (response.status === 422 && body?.reason === 'VALOR_NAO_ACEITO') return body
+      if (response.status === 422 && (body?.field === 'amount' || body?.field === 'currency')
+        && typeof body?.message === 'string') {
+        return { kind: 'invalid_input', field: body.field, message: body.message }
+      }
       if (!response.ok || response.status === 202) throw new Error(typeof body?.message === 'string'
         ? body.message : 'Não foi possível retomar o pagamento agora')
       return body

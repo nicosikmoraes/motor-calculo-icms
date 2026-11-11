@@ -63,14 +63,10 @@ export class PrismaDonationRepository implements DonationRepository {
   async recordWebhookDivergence({ orderId, paymentId, stripeEventId, reason }: {
     orderId: string; paymentId: string; stripeEventId: string; reason: string;
   }): Promise<void> {
-    await this.prisma.paymentEvent.create({ data: {
-      orderId,
-      paymentId,
-      stripeEventId,
-      origin: 'webhook',
-      toStatus: null,
-      reason,
-    } });
+    await this.prisma.paymentEvent.createMany({
+      data: [{ orderId, paymentId, stripeEventId, origin: 'webhook', toStatus: null, reason }],
+      skipDuplicates: true,
+    });
   }
 
   async reserveOpening({

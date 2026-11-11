@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { DonationOrderSummary } from '@motor/contracts'
+import type { DonationInputError, DonationOrderSummary } from '@motor/contracts'
 import { createDonation, loadCurrentDonation, openDonationCheckout, retryDonation, startNewDonationIntent } from '../services/donations'
 import { donationCanRetry, donationCreatedNotice, donationRequiresNewIntent, donationStatusMessage } from '../donation-status'
 
@@ -8,6 +8,7 @@ const amount = ref('10,00')
 const donation = ref<DonationOrderSummary | null>(null)
 const busy = ref(false)
 const error = ref('')
+const amountError = ref('')
 const notice = ref('')
 const checkoutUrl = computed(() => donation.value?.checkoutUrl
   ?? donation.value?.attempts?.find((attempt) => attempt.paymentId === donation.value?.paymentId)?.checkoutUrl
@@ -27,13 +28,23 @@ async function refresh(): Promise<void> {
 }
 
 async function submit(): Promise<void> {
-  busy.value = true; error.value = ''; notice.value = ''
+  busy.value = true; error.value = ''; amountError.value = ''; notice.value = ''
   try {
-    donation.value = await createDonation(amount.value.trim().replace(',', '.'))
+    const result = await createDonation(amount.value.trim().replace(',', '.'))
+    if (isDonationInputError(result)) {
+      if (result.field === 'amount') amountError.value = result.message
+      else error.value = result.message
+      return
+    }
+    donation.value = result
     notice.value = donationCreatedNotice(donation.value.status)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Não foi possível retomar o pagamento agora'
   } finally { busy.value = false }
+}
+
+function isDonationInputError(result: DonationOrderSummary | DonationInputError): result is DonationInputError {
+  return 'kind' in result && result.kind === 'invalid_input'
 }
 
 async function retry(): Promise<void> {
@@ -59,6 +70,7 @@ function newIntent(): void {
   donation.value = null
   amount.value = ''
   error.value = ''
+  amountError.value = ''
   notice.value = 'Informe outra quantia para criar uma nova intenção de doação.'
 }
 
@@ -75,8 +87,10 @@ onMounted(() => { void refresh() })
       <span class="test-badge">AMBIENTE DE TESTES</span>
       <form v-if="!donation" class="donation-form" @submit.prevent="submit">
         <label for="donation-amount">Valor da doação (BRL)</label>
-        <div class="amount-field"><span>R$</span><input id="donation-amount" v-model="amount" inputmode="decimal" autocomplete="off" aria-describedby="amount-help" /></div>
+        <div class="amount-field"><span>R$</span><input id="donation-amount" v-model="amount" inputmode="decimal" autocomplete="off"
+          :aria-invalid="Boolean(amountError)" :aria-describedby="amountError ? 'amount-help amount-error' : 'amount-help'" @input="amountError = ''" /></div>
         <small id="amount-help">Mínimo de R$ 0,50 e até duas casas decimais.</small>
+        <small v-if="amountError" id="amount-error" class="error" role="alert">{{ amountError }}</small>
         <button class="button primary" type="submit" :disabled="busy">{{ busy ? 'Enviando…' : 'Criar pedido de doação' }}</button>
       </form>
 

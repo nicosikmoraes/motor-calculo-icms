@@ -140,6 +140,12 @@ export interface CreateDonationInput {
   currency: 'BRL'
 }
 
+export interface DonationInputError {
+  kind: 'invalid_input'
+  field: 'amount' | 'currency'
+  message: string
+}
+
 /** Contrato de edição versionada, usado quando a migration de revisões estiver ativa. */
 export interface RegistrationMutationInput {
   id: string
@@ -943,7 +949,7 @@ export interface BackupStatus {
 
 export interface DesktopApi {
   getCurrentDonation(intent: string): Promise<DonationOrderSummary | null>
-  createDonation(input: CreateDonationInput): Promise<DonationOrderSummary>
+  createDonation(input: CreateDonationInput): Promise<DonationOrderSummary | DonationInputError>
   retryDonation(input: { orderId: string; intent: string; operation: string }): Promise<DonationOrderSummary>
   openDonationCheckout(url: string): Promise<void>
   listDocumentConflicts(): Promise<readonly DocumentConflictSummary[]>

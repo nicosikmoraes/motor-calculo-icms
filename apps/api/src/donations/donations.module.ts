@@ -41,7 +41,8 @@ const prismaProvider = {
       useFactory: (repository: PrismaDonationRepository, gateway: StripeCheckoutGateway) => new HandleStripeEvent(repository, gateway) },
     { provide: RetryDonation, inject: [DONATION_CREATION_REPOSITORY, STRIPE_CHECKOUT_GATEWAY, ConfigService],
       useFactory: (repository: PrismaDonationCreationRepository, gateway: StripeCheckoutGateway, config: ConfigService) =>
-        new RetryDonation(repository, gateway, config.get<string>('DONATION_IDENTITY_SECRET') ?? config.get<string>('STRIPE_SECRET_KEY') ?? 'unconfigured') },
+        new RetryDonation(repository, gateway, config.get<string>('DONATION_IDENTITY_SECRET') ?? config.get<string>('STRIPE_SECRET_KEY') ?? 'unconfigured',
+          config.get<string>('STRIPE_SECRET_KEY')) },
     {
       provide: CreateDonation,
       inject: [DONATION_CREATION_REPOSITORY, STRIPE_CHECKOUT_GATEWAY, ConfigService],

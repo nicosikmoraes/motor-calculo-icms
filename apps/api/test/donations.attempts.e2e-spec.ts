@@ -51,7 +51,7 @@ describe('tentativas de doação', () => {
     const event = {
       id: `evt_${randomUUID().replaceAll('-', '')}`, object: 'event', api_version: '2025-08-27.basil',
       created: 1794140000, data: { object: {
-        id: 'pi_attempt', object: 'payment_intent', livemode: false,
+        id: 'pi_attempt', object: 'payment_intent', amount: 1234, currency: 'brl', livemode: false,
         metadata: { donation_order_id: orderId, donation_payment_id: paymentId },
       } }, livemode: false, pending_webhooks: 1, request: null, type: 'payment_intent.payment_failed',
     };
@@ -70,6 +70,25 @@ describe('tentativas de doação', () => {
       .send(payload);
     expect(unsigned.status).toBe(400);
     expect(repo.recordPaymentFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [{ amount: 1200, currency: 'brl' }, 'VALOR_DIVERGENTE'],
+    [{ amount: 1234, currency: 'usd' }, 'MOEDA_DIVERGENTE'],
+  ])('registra divergência e ignora recusa com valor/moeda incompatível: %s', async (details, reason) => {
+    const event = { id: `evt_${randomUUID().replaceAll('-', '')}`, object: 'event', api_version: '2025-08-27.basil',
+      created: 1794140000, data: { object: { id: 'pi_attempt', object: 'payment_intent', ...details, livemode: false,
+        metadata: { donation_order_id: orderId, donation_payment_id: paymentId } } },
+      livemode: false, pending_webhooks: 1, request: null, type: 'payment_intent.payment_failed' };
+    const payload = JSON.stringify(event);
+    const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: webhookSecret });
+    const accepted = await request(app.getHttpServer()).post('/webhooks/stripe').set('Content-Type', 'application/json')
+      .set('Stripe-Signature', signature).send(payload);
+    expect(accepted.status).toBe(200);
+    expect(repo.recordWebhookDivergence).toHaveBeenCalledWith(expect.objectContaining({
+      orderId, paymentId, stripeEventId: event.id, reason,
+    }));
+    expect(repo.recordPaymentFailure).not.toHaveBeenCalled();
   });
 
   it('aceita expiração somente após consultar sessão associada no Stripe', async () => {
@@ -150,8 +169,19 @@ describe('retomada autenticada da tentativa', () => {
       if (options.payDuringCreation) donation.status = 'pago';
       return { ...session, id: 'cs_retry_next', url: 'https://checkout.stripe.com/c/pay/cs_retry_next', paymentId: nextPaymentId, status: 'open' };
     }) };
-    return { service: new RetryDonation(repository, gateway, 'identity-test-secret'), repository, gateway, donation };
+    return { service: new RetryDonation(repository, gateway, 'identity-test-secret', 'sk_test_attempts'), repository, gateway, donation };
   }
+
+  it('bloqueia consulta e retry quando a chave configurada é de produção', async () => {
+    const { repository, gateway } = fixture({ status: 'falha_na_criacao', reason: 'GATEWAY_REJEITOU_CRIACAO',
+      checkoutSessionId: null, checkoutUrl: null });
+    const liveService = new RetryDonation(repository, gateway, 'identity-test-secret', 'sk_live_never_use');
+    await expect(liveService.retry(orderId, intent, randomUUID())).rejects.toMatchObject({ code: 'service_unavailable' });
+    await expect(liveService.inspectCurrent(intent)).rejects.toMatchObject({ code: 'service_unavailable' });
+    expect(repository.getAuthorizedDonation).not.toHaveBeenCalled();
+    expect(gateway.createCheckout).not.toHaveBeenCalled();
+    expect(gateway.retrieveCheckout).not.toHaveBeenCalled();
+  });
 
   it('reutiliza a mesma sessão quando a consulta autenticada a encontra aberta', async () => {
     const { service, repository, gateway } = fixture();
@@ -210,6 +240,25 @@ describe('retomada autenticada da tentativa', () => {
     expect(different.gateway.createCheckout).not.toHaveBeenCalled();
   });
 
+  it('permite recuperar replay dentro das primeiras 24 horas e bloqueia no limite', async () => {
+    const priorOperationHash = createHmac('sha256', 'identity-test-secret').update(operation).digest('hex');
+    const params = { amountInCents: '1234', currency: 'brl', successUrl: 'https://example.test/success',
+      cancelUrl: 'https://example.test/cancel' };
+    const within = fixture({ status: 'recusada', reason: 'RECUSA_CARTAO', checkoutSessionId: null, checkoutUrl: null,
+      operationKeyHash: priorOperationHash, firstSentAt: new Date(Date.now() - 24 * 60 * 60_000 + 60_000), checkoutParameters: params });
+    within.donation.attempts[0].stripeIdempotencyKey = 'stripe-same-attempt';
+    within.gateway.createCheckout.mockResolvedValueOnce({ id: 'cs_24h', url: 'https://checkout.stripe.com/c/pay/cs_24h',
+      paymentIntentId: null, orderId, paymentId, amountInCents: '1234', currency: 'brl', livemode: false,
+      status: 'open', paymentStatus: 'unpaid' } as any);
+    await expect(within.service.retry(orderId, intent, operation)).resolves.toMatchObject({ paymentId, reused: true });
+    expect(within.gateway.createCheckout).toHaveBeenCalledTimes(1);
+
+    const boundary = fixture({ status: 'recusada', reason: 'RECUSA_CARTAO', checkoutSessionId: null, checkoutUrl: null,
+      operationKeyHash: priorOperationHash, firstSentAt: new Date(Date.now() - 24 * 60 * 60_000), checkoutParameters: params });
+    await expect(boundary.service.retry(orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
+    expect(boundary.gateway.createCheckout).not.toHaveBeenCalled();
+  });
+
   it('permite nova identidade após rejeição conclusiva sem sessão, mas repete a operação original sem duplicar', async () => {
     const priorOperationHash = createHmac('sha256', 'identity-test-secret').update(operation).digest('hex');
     const conclusiveFailure = { status: 'falha_na_criacao', reason: 'GATEWAY_REJEITOU_CRIACAO', checkoutSessionId: null,
@@ -233,6 +282,7 @@ describe('retomada autenticada da tentativa', () => {
     expect(gateway.retrieveCheckout).toHaveBeenCalledWith('cs_retry');
     expect(repository.markSessionExpired).toHaveBeenCalledWith({ orderId, paymentId, sessionId: 'cs_retry' });
     expect(result?.attempts[0]).toMatchObject({ paymentId, status: 'expirada' });
+    expect(result?.attempts[0]?.checkoutUrl).toBeNull();
   });
 
   it('expira sessão aberta excedente quando a confirmação do pedido vence a corrida', async () => {
@@ -254,7 +304,7 @@ describe('retomada autenticada da tentativa', () => {
   it('ao consultar nova tentativa de pedido pago, pede expiração de sessão ainda aberta e mantém pago se falhar', async () => {
     const { gateway, repository, donation } = fixture({}, 'open', { expireFails: true });
     donation.status = 'pago';
-    const serviceForPaid = new RetryDonation(repository, gateway, 'identity-test-secret');
+    const serviceForPaid = new RetryDonation(repository, gateway, 'identity-test-secret', 'sk_test_attempts');
     const result = await serviceForPaid.retry(orderId, intent, operation);
     expect(result).toMatchObject({ status: 'pago' });
     expect(gateway.expireCheckout).toHaveBeenCalledWith('cs_retry');

@@ -39,7 +39,8 @@ export class StripeWebhookController {
 }
 
 function toVerifiedStripeEvent(event: Stripe.Event): VerifiedStripeEvent {
-  const object = event.data.object as unknown as { id: string; object: string; metadata?: Record<string, string> | null };
+  const object = event.data.object as unknown as { id: string; object: string; metadata?: Record<string, string> | null;
+    amount?: unknown; currency?: unknown };
   const session = object;
   return {
     id: event.id,
@@ -52,6 +53,9 @@ function toVerifiedStripeEvent(event: Stripe.Event): VerifiedStripeEvent {
       orderId: session.metadata?.donation_order_id ?? null,
       paymentId: session.metadata?.donation_payment_id ?? null,
       paymentIntentId: event.type === 'payment_intent.payment_failed' ? object.id : null,
+      amountInCents: event.type === 'payment_intent.payment_failed' && typeof object.amount === 'number'
+        && Number.isSafeInteger(object.amount) ? String(object.amount) : null,
+      currency: event.type === 'payment_intent.payment_failed' && typeof object.currency === 'string' ? object.currency : null,
     },
   };
 }

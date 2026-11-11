@@ -84,7 +84,7 @@ export class CreateDonation {
     const secret = this.config.stripeSecretKey;
     const successUrl = this.config.successUrl;
     const cancelUrl = this.config.cancelUrl;
-    if (!secret || !/^sk_test_[A-Za-z0-9_]+$/.test(secret) || !successUrl || !cancelUrl
+    if (typeof secret !== 'string' || !isTestStripeKey(secret) || !successUrl || !cancelUrl
       || !isSafeReturnUrl(successUrl) || !isSafeReturnUrl(cancelUrl)) {
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
@@ -179,6 +179,10 @@ export class CreateDonation {
       });
     }
   }
+}
+
+export function isTestStripeKey(secret: string | undefined): boolean {
+  return typeof secret === 'string' && /^sk_test_[A-Za-z0-9_]+$/.test(secret)
 }
 
 export function isSafeReturnUrl(value: string): boolean {

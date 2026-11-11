@@ -1,16 +1,17 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { DonationCreationRepository } from '../ports/donation-creation-repository.js';
 import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
-import { DonationCreationError } from './create-donation.js';
+import { DonationCreationError, isTestStripeKey } from './create-donation.js';
 
 const unavailableMessage = 'Não foi possível retomar o pagamento agora';
 const blockedMessage = 'Pagamento em verificação; nenhuma nova tentativa foi aberta';
 
 export class RetryDonation {
   constructor(private readonly repository: DonationCreationRepository, private readonly gateway: StripeCheckoutGateway,
-    private readonly identitySecret: string) {}
+    private readonly identitySecret: string, private readonly stripeSecretKey?: string) {}
 
   async inspectCurrent(intent: unknown) {
+    this.assertTestStripeMode()
     if (typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
     let orderId: string | null;
     try { orderId = await this.repository.getOrderIdByIntentHash(createHash('sha256').update(intent).digest('hex')); }
@@ -19,6 +20,7 @@ export class RetryDonation {
   }
 
   async inspect(orderId: string, intent: unknown) {
+    this.assertTestStripeMode()
     const donation = await this.authorized(orderId, intent);
     if (!donation) return null;
     const attempts = donation.attempts;
@@ -37,6 +39,7 @@ export class RetryDonation {
   }
 
   async retry(orderId: string, intent: unknown, operation: unknown) {
+    this.assertTestStripeMode()
     if (typeof operation !== 'string' || operation.length < 16 || operation.length > 256) {
       throw new DonationCreationError('invalid_input', { message: 'Informe uma identidade de operação válida' });
     }
@@ -89,7 +92,7 @@ export class RetryDonation {
         const replayable = priorOperation?.paymentId === latest.paymentId
           && ['indeterminada', 'pendente', 'recusada'].includes(latest.status)
           && latest.firstSentAt !== null
-          && Date.now() - latest.firstSentAt.getTime() < 23 * 60 * 60 * 1000
+          && Date.now() - latest.firstSentAt.getTime() < 24 * 60 * 60 * 1000
           && latest.checkoutParameters !== null;
         if (!replayable) throw new DonationCreationError('result_uncertain', { message: blockedMessage });
         try {
@@ -153,6 +156,14 @@ export class RetryDonation {
     catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
   }
 
+  private assertTestStripeMode(): void {
+    if (!isTestStripeKey(this.stripeSecretKey)) {
+      throw new DonationCreationError('service_unavailable', {
+        message: 'Serviço de doações indisponível. Tente novamente mais tarde',
+      })
+    }
+  }
+
   private matches(donation: NonNullable<Awaited<ReturnType<DonationCreationRepository['getAuthorizedDonation']>>>,
     attempt: NonNullable<typeof donation>['attempts'][number], session: Awaited<ReturnType<StripeCheckoutGateway['retrieveCheckout']>>) {
     const params = attempt.checkoutParameters;
@@ -163,7 +174,8 @@ export class RetryDonation {
   private publicState(donation: NonNullable<Awaited<ReturnType<DonationCreationRepository['getAuthorizedDonation']>>>) {
     return { orderId: donation.orderId, amount: donation.amount, currency: donation.currency,
       status: donation.status, attempts: donation.attempts.map(({ paymentId, status, reason, checkoutSessionId, checkoutUrl }) =>
-        ({ paymentId, status, reason, checkoutSessionId, checkoutUrl: donation.status === 'pago' ? null : checkoutUrl })), events: donation.events };
+        ({ paymentId, status, reason, checkoutSessionId,
+          checkoutUrl: donation.status === 'pago' || status === 'expirada' ? null : checkoutUrl })), events: donation.events };
   }
 }
 
