@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { IPC_CHANNELS, type CreateDonationInput } from '@motor/contracts'
+import appIcon from '../../build/icon.png?asset'
 import { AppErrorMessage } from '@motor/domain'
 import { registerInterchangeHandlers } from './interchange-handlers'
 import { registerCatalogHandlers } from './catalog-handlers'
@@ -38,6 +39,7 @@ function createWindow(): void {
     return
   }
   const window = new BrowserWindow({
+    icon: appIcon,
     width: 1280,
     height: 800,
     minWidth: 960,

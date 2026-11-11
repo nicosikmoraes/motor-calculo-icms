@@ -68,7 +68,20 @@ describe('conferência automática dos tratamentos declarados', () => {
     expect(result.status).toBe('UNSUPPORTED')
     expect(result.result).toBeUndefined()
     expect(result.reason).toContain('devolução')
-    expect(calculateAutomaticXmlItem({ ...note, issuer: { ...note.issuer, state: 'SP' } }, item({ group: 'ICMS60', cst: '60' }))).toBeUndefined()
+    expect(calculateAutomaticXmlItem({ ...note, issuer: { ...note.issuer, state: 'SP' } }, item({ group: 'ICMS60', cst: '60' }, { cfop: '6102' }))?.status).toBe('PENDING_RULE')
+  })
+  it.each([{ group: 'ICMS60', cst: '60' }, { group: 'ICMSSN500', csosn: '500' }])('reconhece ST anterior em entrada interestadual sem criar novo imposto: $group', tax => {
+    const interstate = { ...note, issuer: { ...note.issuer, state: 'SP' }, finalConsumerIndicator: '1' }
+    const product = item({ ...tax, retainedStBaseAmount: '100', retainedStAmount: '19.50' }, { cfop: '6106' })
+    const result = calculateAutomaticXmlItem(interstate, product)!
+    expect(result.status).toBe('PENDING_RULE')
+    expect(result.result).toBeUndefined()
+    expect(result.steps).toEqual([])
+    expect(result.inputs.find(input => input.name === 'xmlTreatment')?.value).toBe('PREVIOUS_ST')
+    expect(result.inputs.find(input => input.name === 'retainedStAmount')).toMatchObject({ value: '19.50', treatment: 'EXCLUDED' })
+    expect(calculateAutomaticXmlItem({ ...interstate, recipient: { ...interstate.recipient!, state: 'SC' } }, product)).toBeUndefined()
+    expect(calculateAutomaticXmlItem(interstate, { ...product, cfop: '5102' })).toBeUndefined()
+    expect(calculateAutomaticXmlItem(interstate, item({ group: 'ICMSSN102', csosn: '102' }, { cfop: '6102' }))).toBeUndefined()
   })
   it('preserva na normalização os campos de retenção e de diferimento sem modificar os decimais', () => {
     const retained = normalizeNfeXml(xml.replace(/<ICMS10>[\s\S]*?<\/ICMS10>/, '<ICMS60><orig>0</orig><CST>60</CST><vBCSTRet>119.20</vBCSTRet><vICMSSTRet>25.08</vICMSSTRet><vFCPSTRet>2.38</vFCPSTRet></ICMS60>'))

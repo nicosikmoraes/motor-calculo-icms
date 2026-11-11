@@ -139,6 +139,7 @@ const api: DesktopApi = {
     batchId: input.batchId, documentId: input.documentId, itemNumber: input.itemNumber,
     requestId: input.requestId, expectedRunId: input.expectedRunId, answers: { ...input.answers },
     calculationMode: input.calculationMode,
+    requireCalculated: input.requireCalculated,
     reuseScope: input.reuseScope, expectedDefinitionId: input.expectedDefinitionId,
   }),
   applyReusableFiscalAnswers: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.APPLY_REUSABLE_FISCAL_ANSWERS, batchId),

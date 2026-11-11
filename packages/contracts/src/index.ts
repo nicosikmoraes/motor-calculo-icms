@@ -524,6 +524,7 @@ export interface ItemRuleAssessment {
 }
 
 export interface FiscalItemSummary {
+  entryAutomationReview?: EntryAutomationReview
   entryCalculationEligible?: boolean
   entryCalculationExclusionReason?: string
   entryReviewReasons?: readonly string[]
@@ -640,6 +641,12 @@ export function itemCalculationStatus(calculation: ItemCalculationSummary): `${C
 }
 
 export interface ItemFiscalAnswers {
+  purchaseDestinationUnknown?: boolean
+  purchaseProductConfirmation?: 'MATCHES' | 'DIFFERENT' | 'UNKNOWN'
+  purchasePaymentStatus?: 'HAS_EVIDENCE' | 'UNKNOWN'
+  purchasePaymentReference?: string
+  purchaseReviewPending?: boolean
+  purchaseReviewReason?: string
   entryMethod?: 'RATE_DIFFERENCE' | 'ICMS_ST' | 'NO_DEBIT' | 'CONSUMER_DIFAL'
   entryNoDebitConfirmed?: boolean
   entryNoDebitReason?: string
@@ -683,6 +690,7 @@ export interface ItemFiscalAnswers {
 }
 
 export interface ItemFiscalQuestion {
+  blockedAnswer?: { value: string; reason: string }
   field: keyof ItemFiscalAnswers
   label: string
   options?: readonly { value: string; label: string }[]
@@ -697,6 +705,9 @@ export interface SpecificStMvaSummary {
   legalBasis: string; sourceUrl: string
 }
 export interface ItemFiscalContext {
+  entryAutomationReview?: EntryAutomationReview
+  /** Simulação isolada: não integra os totais nem confirma classificação ou obrigação fiscal. */
+  entryClassificationPreview?: ItemCalculationSummary
   xmlFinalConsumerIndicator?: string
   entryLegislationHint?: { reason: string; sourceUrl: string }
   consumerDifalSuggestions?: { operationAmount?: string; internalRate?: string; interstateRate?: string }
@@ -730,7 +741,19 @@ export interface ItemFiscalContext {
   calculation: ItemCalculationSummary
 }
 
+export interface EntryAutomationReview {
+  category: 'PREVIOUS_ST' | 'DESTINATION' | 'REVOKED_ST' | 'CLASSIFICATION_SUGGESTION' | 'MISSING_CEST' | 'OUTSIDE_CATALOG'
+  title: string
+  reason: string
+  nextAction: string
+  sourceUrl?: string
+  proposedCatalogRowId?: string
+  proposedCest?: string
+}
+
 export interface SaveItemFiscalAnswersInput {
+  /** A confirmação final só pode gravar se todos os componentes dos itens escolhidos estiverem calculados. */
+  requireCalculated?: boolean
   calculationMode?: 'FISCAL_RULE' | 'XML' | 'AUTOMATIC'
   reuseScope?: 'CURRENT_ITEM' | 'MATCHING_NOTE_ITEMS' | 'MATCHING_BATCH_ITEMS' | 'FUTURE_NOTES'
   expectedDefinitionId?: string
@@ -741,6 +764,8 @@ export interface SaveItemFiscalAnswersInput {
   expectedRunId?: string
   answers: ItemFiscalAnswers
 }
+
+export const CALCULATION_INCOMPLETE_PREFIX = 'Cálculo não concluído:'
 
 export type DocumentReviewAction = 'ASSOCIATE' | 'APPROVE_CCE' | 'REOPEN_CCE'
 export interface DocumentReviewAudit {

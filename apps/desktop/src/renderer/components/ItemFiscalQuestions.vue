@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { documentaryTaxReview, itemCalculationStatus, itemCalculationComponents, type ItemFiscalAnswers, type ItemFiscalContext, type SaveItemFiscalAnswersInput } from '@motor/contracts'
+import { CALCULATION_INCOMPLETE_PREFIX, documentaryTaxReview, itemCalculationStatus, itemCalculationComponents, type ItemFiscalAnswers, type ItemFiscalContext, type SaveItemFiscalAnswersInput } from '@motor/contracts'
 import { desktopErrorMessage } from '../error-messages'
 import CalculationMemoryDetails from './CalculationMemoryDetails.vue'
 import { fiscalReviewErrors } from '../fiscal-review-validation'
+import { fiscalSaveFeedback } from '../fiscal-save-feedback'
+import { PURCHASE_STEPS, PURCHASE_DESTINATIONS, changePurchaseDestination, invalidatePurchaseFactReview, purchaseHoldReason, purchaseDestinationLabel, isPurchaseQuestion, type PurchaseStep } from '../purchase-review-flow'
 
 const props = defineProps<{ batchId: string; documentId: string; itemNumber: string; expanded?: boolean }>()
 const emit = defineEmits<{ saved: [outcome: { status: string; message: string; divergent?: boolean }] }>()
@@ -20,6 +22,10 @@ const showManualReview = ref(false)
 const attemptedCalculation = ref(false)
 const showAllFields = ref(false)
 const fieldsToComplete = ref(new Set<string>())
+const reviewStep = ref<PurchaseStep>('purchase')
+const advancedOpen = ref(false)
+const wizardElement = ref<HTMLFormElement | null>(null)
+watch(reviewStep, async () => { await nextTick(); wizardElement.value?.scrollIntoView({ block: 'start', behavior: 'auto' }) })
 const reviewBlock = computed(() => context.value?.entryRateDifferenceAvailable ? undefined : showManualReview.value ? context.value?.manualReviewBlockedReason ?? context.value?.blockedReason : context.value?.blockedReason)
 const showingAutomaticResult = computed(() => context.value?.automaticCalculationNotice && itemCalculationStatus(context.value.calculation) === 'CALCULATED' && !showManualReview.value)
 const matchingItems = computed(() => {
@@ -60,11 +66,6 @@ const invalidFcpRate = computed(() => selections.value.fcpStApplicableConfirmed 
   && Number(selections.value.stInternalRate.replace(',', '.')) <= 2
   ? 'A alíquota total deve ser maior que 2%, pois inclui os 2 pontos de FECOP. O campo pICMSST do XML informa somente o ICMS; para usar esse valor, marque que ele não inclui FECOP.' : '')
 const commonReview = computed(() => Boolean(context.value?.commonScenario) && !showIndividualQuestions.value)
-const destinationHint = computed(() => context.value?.commonScenario?.finalConsumerIndicator === '1'
-  ? 'A nota identifica consumidor final. Confira se a destinação é uso/consumo ou ativo imobilizado.'
-  : context.value?.commonScenario?.finalConsumerIndicator === '0'
-    ? 'A nota identifica uma operação sem consumidor final. Confira se a destinação é revenda ou industrialização.'
-    : 'A destinação precisa ser confirmada pelo comprador; ela determina se há diferimento parcial.')
 const destinationConflict = computed(() => {
   if (!commonReview.value || !selections.value.destination) return ''
   const consumer = ['OWN_USE', 'FIXED_ASSET'].includes(selections.value.destination)
@@ -73,6 +74,7 @@ const destinationConflict = computed(() => {
     ? 'Esta destinação não corresponde à indicação de consumidor final do XML. Confira a escolha e a nota antes de calcular.' : ''
 })
 function entryFieldVisible(field: string): boolean {
+  if (field.startsWith('purchase')) return true
   if (field === 'destination' || field === 'destinationBasis') return true
   if (field === 'destinationReviewReason') return context.value?.xmlFinalConsumerIndicator === '1' && selections.value.destination === 'RESALE' || context.value?.xmlFinalConsumerIndicator === '0' && ['OWN_USE','FIXED_ASSET'].includes(selections.value.destination ?? '')
   if (field === 'entryMethod') return true
@@ -87,7 +89,12 @@ function classificationChanged(field: string): void {
   selections.value.stMvaMode = modes.some(o=>o.value==='CATALOG_INTERSTATE') ? selections.value.stOwnOperationRate === '4' ? 'CATALOG_IMPORT_4' : 'CATALOG_INTERSTATE' : 'CATALOG_ORIGINAL'
 }
 function treatmentChanged(field: string): void {
-  if (field === 'stCatalogRowId') { classificationChanged(field); return }
+  if (field === 'stCatalogRowId') {
+    selections.value.purchaseProductConfirmation = ''
+    selections.value.stClassificationConfirmed = ''
+    selections.value.stClassificationReason = ''
+    classificationChanged(field); return
+  }
   if (field !== 'entryMethod') return
   selections.value.entryApplicationConfirmed = ''
   selections.value.entryBaseConfirmed = ''
@@ -97,12 +104,10 @@ function treatmentChanged(field: string): void {
     selections.value.entryInterstateRate = context.value?.consumerDifalSuggestions?.interstateRate ?? ''
   }
 }
-function destinationChanged(): void {
-  selections.value.destinationBasis = 'CONFIRMED'
-  if (context.value?.entryRateDifferenceAvailable) {
-    selections.value.entryMethod = ['OWN_USE','FIXED_ASSET'].includes(selections.value.destination ?? '') ? 'CONSUMER_DIFAL' : 'ICMS_ST'
-    treatmentChanged('entryMethod')
-  }
+function selectDestination(value: string): void {
+  if (!context.value) return
+  selections.value = changePurchaseDestination(selections.value, value, context.value)
+  error.value = ''
 }
 function displayedQuestionLabel(field: string,label: string): string {
   if (selections.value.entryMethod !== 'CONSUMER_DIFAL') return label
@@ -115,8 +120,8 @@ const allVisibleQuestions = computed(() => context.value?.questions.map(question
   && (question.field !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
   && (question.field !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true')) ?? [])
 const fieldErrors = computed(() => fiscalReviewErrors(allVisibleQuestions.value, selections.value))
-const visibleQuestions = computed(() => allVisibleQuestions.value.filter(question => showAllFields.value
-  || fieldsToComplete.value.has(question.field) || fieldErrors.value[question.field]))
+const visibleQuestions = computed(() => allVisibleQuestions.value.filter(question => !isPurchaseQuestion(question.field) && (showAllFields.value
+  || fieldsToComplete.value.has(question.field) || fieldErrors.value[question.field])))
 const identifiedFieldCount = computed(() => allVisibleQuestions.value.filter(question => !fieldsToComplete.value.has(question.field) && !fieldErrors.value[question.field]).length)
 watch(allVisibleQuestions, questions => {
   const missing = questions.filter(question => !selections.value[question.field]?.trim()).map(question => question.field)
@@ -130,15 +135,79 @@ function questionTitle(field: string, label: string): string {
     stMvaFallbackConfirmed: 'Condições para usar a MVA', destination: 'Destinação da mercadoria', entryMethod: 'Tratamento da entrada' } as Record<string, string>)[field] ?? label
 }
 function fieldError(field: keyof ItemFiscalAnswers): string | undefined {
-  return attemptedCalculation.value ? fieldErrors.value[field] : field === 'stInternalRate' ? invalidFcpRate.value || undefined : undefined
+  return attemptedCalculation.value || Boolean(selections.value[field]?.trim()) ? fieldErrors.value[field] : field === 'stInternalRate' ? invalidFcpRate.value || undefined : undefined
 }
 function setSelections(value: ItemFiscalContext): void {
   selections.value = Object.fromEntries([
     ...value.questions.map(question => [question.field, question.suggestedValue ?? '']),
     ...Object.entries(value.answers).map(([key, entry]) => [key, String(entry)]),
   ])
+  if (value.answers.destinationBasis === 'ASSUMED_RESALE') {
+    delete selections.value.destination
+    delete selections.value.destinationBasis
+  }
   if (value.stSpecificMva) selections.value.stMvaMode = 'SPECIFIC_RULE'
   if (!value.answers.stCatalogRowId && selectedClassification.value) classificationChanged('stCatalogRowId')
+}
+
+function prepareClassificationReview(): void {
+  const proposal = context.value?.entryAutomationReview
+  if (!proposal?.proposedCatalogRowId) return
+  selections.value.entryMethod = 'ICMS_ST'
+  selections.value.stCatalogRowId = proposal.proposedCatalogRowId
+  classificationChanged('stCatalogRowId')
+  showManualReview.value = true
+  showAllFields.value = true
+  advancedOpen.value = true
+  reviewStep.value = 'analysis'
+}
+
+const destinationChoice = computed(() => selections.value.purchaseDestinationUnknown === 'true' ? 'UNKNOWN' : selections.value.destination ?? '')
+const needsProductConfirmation = computed(() => Boolean(context.value?.entryAutomationReview?.proposedCest))
+const productDescription = computed(() => selectedClassification.value?.description.split(' (')[0] ?? 'Maquiagem para os lábios')
+const needsPaymentReview = computed(() => context.value?.entryAutomationReview?.category === 'PREVIOUS_ST' || documentary.value?.kind === 'PREVIOUS_ST')
+const holdReason = computed(() => purchaseHoldReason(selections.value)
+  ?? (needsProductConfirmation.value && !selections.value.purchaseProductConfirmation ? 'Falta conferir a descrição sugerida para o produto.' : undefined)
+  ?? (needsPaymentReview.value && !selections.value.purchasePaymentStatus ? 'Falta informar se há comprovante para conferir o imposto anterior.' : undefined))
+const technicalMissingCount = computed(() => Object.keys(fieldErrors.value).filter(field => !isPurchaseQuestion(field as keyof ItemFiscalAnswers)).length)
+const blockingQuestions = computed(() => allVisibleQuestions.value.filter(question => selections.value[question.field]?.trim() && fieldErrors.value[question.field]))
+const methodLabel = computed(() => ({ ICMS_ST: 'Substituição tributária na entrada', CONSUMER_DIFAL: 'Diferença de imposto para uso ou bem da empresa', RATE_DIFFERENCE: 'Antecipação do imposto na entrada', NO_DEBIT: 'Entrada sem novo débito, mediante fundamento' } as Record<string,string>)[selections.value.entryMethod ?? ''] ?? 'Enquadramento ainda precisa de revisão fiscal')
+const individualReviewReason = computed(() => selections.value.entryMethod === 'NO_DEBIT'
+  ? 'A decisão de não gerar novo débito exige fundamento para este produto e esta operação. Ela não é aplicada aos demais produtos apenas porque apresentam o mesmo alerta.'
+  : ['CONSUMER_DIFAL', 'RATE_DIFFERENCE'].includes(selections.value.entryMethod ?? '')
+    ? 'Este tratamento usa uma base em reais conferida para o próprio produto. As respostas são aplicadas somente neste item.'
+    : selections.value.purchasePaymentStatus || selections.value.purchasePaymentReference
+      ? 'A referência do comprovante pertence a esta compra e exige revisão individual.'
+      : 'Não há outros produtos compatíveis disponíveis para esta revisão. Ter o mesmo motivo de pendência não garante a mesma classificação ou regra fiscal.')
+const analysisMessage = computed(() => ({
+  CLASSIFICATION_SUGGESTION: 'Encontramos uma referência para este tipo de produto. Confira a descrição e as condições da compra antes de usar a simulação.',
+  DESTINATION: 'O uso do produto determina o caminho da análise. Informar a destinação ajuda a avaliar o imposto correto.',
+  PREVIOUS_ST: 'A nota informa imposto cobrado anteriormente. É preciso conferir a retenção e eventuais pagamentos antes de gerar outra cobrança.',
+  REVOKED_ST: 'A regra antiga de substituição tributária deste grupo foi revogada. A entrada precisa de revisão para verificar se existe outra obrigação.',
+  MISSING_CEST: 'A nota não informa uma classificação suficiente para escolher a regra deste produto. Guarde para revisão se você não souber o enquadramento.',
+  OUTSIDE_CATALOG: 'O catálogo do aplicativo ainda não tem uma regra completa para este produto. É necessária uma revisão fiscal antes de concluir.',
+} as Record<string,string>)[context.value?.entryAutomationReview?.category ?? ''])
+const destinationNeedsReason = computed(() => entryFieldVisible('destinationReviewReason'))
+function continueReview(): void {
+  error.value = ''
+  if (reviewStep.value === 'purchase') {
+    if (!destinationChoice.value) { error.value = 'Escolha o uso do produto. Se ainda não souber, marque “Não sei ainda”.'; return }
+    reviewStep.value = 'analysis'
+  } else reviewStep.value = 'apply'
+}
+
+async function reviewQuestion(field?: keyof ItemFiscalAnswers): Promise<void> {
+  const first = field ?? allVisibleQuestions.value.find(question => fieldErrors.value[question.field])?.field
+  reviewStep.value = holdReason.value || first && isPurchaseQuestion(first) ? 'purchase' : 'analysis'
+  attemptedCalculation.value = true
+  error.value = ''
+  advancedOpen.value = reviewStep.value === 'analysis'
+  if (!first) return
+  fieldsToComplete.value.add(first)
+  await nextTick()
+  const element = document.getElementById(`fiscal-${props.documentId}-${props.itemNumber}-${first}`)
+  element?.scrollIntoView({ block: 'center', behavior: 'auto' })
+  element?.querySelector<HTMLElement>('input, select, textarea')?.focus()
 }
 
 async function load(): Promise<void> {
@@ -152,8 +221,10 @@ async function load(): Promise<void> {
     showIndividualQuestions.value = !context.value.commonScenario
     setSelections(context.value)
     showAllFields.value = false
+    advancedOpen.value = false
+    reviewStep.value = 'purchase'
     fieldsToComplete.value = new Set(Object.keys(fiscalReviewErrors(allVisibleQuestions.value, selections.value)))
-    reuseScope.value = matchingBatchItems.value.length ? 'MATCHING_BATCH_ITEMS' : matchingItems.value.length ? 'MATCHING_NOTE_ITEMS' : 'CURRENT_ITEM'
+    reuseScope.value = 'CURRENT_ITEM'
   } catch (cause) { error.value = desktopErrorMessage(cause, 'Não foi possível carregar as perguntas. Feche e abra as perguntas para tentar novamente.') }
   finally { loading.value = false }
 }
@@ -163,13 +234,16 @@ async function save(draft = false): Promise<void> {
   error.value = ''
   notice.value = ''
   attemptedCalculation.value = !draft
+  if (!draft && holdReason.value) { error.value = holdReason.value; reviewStep.value = 'purchase'; return }
   if (!draft && Object.keys(fieldErrors.value).length) {
-    error.value = 'O cálculo não foi enviado. Corrija os campos destacados abaixo. Você também pode salvar um rascunho para continuar depois.'
-    const first = visibleQuestions.value.find(question => fieldErrors.value[question.field])!
+    error.value = 'Faltam confirmações para concluir. Confira os campos destacados na revisão avançada ou guarde este item para revisão.'
+    const first = allVisibleQuestions.value.find(question => fieldErrors.value[question.field])!
+    reviewStep.value = isPurchaseQuestion(first.field) ? 'purchase' : 'analysis'
+    advancedOpen.value = true
     await nextTick()
     const element = document.getElementById(`fiscal-${props.documentId}-${props.itemNumber}-${first.field}`)
     element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    element?.querySelector<HTMLElement>('input, select')?.focus()
+    element?.querySelector<HTMLElement>('input, select, textarea')?.focus()
     return
   }
   if (!draft && commonReview.value && (!selections.value.destination || destinationConflict.value)) {
@@ -189,22 +263,21 @@ async function save(draft = false): Promise<void> {
       && (key !== 'stMvaPercent' || selections.value.stMvaMode === 'MANUAL_APPLIED')
       && (key !== 'stVehicleImportPriceFloorConfirmed' || selections.value.stVehicleImportedConfirmed === 'true')
       && (key !== 'stInternalRateIncludesFcp' || selections.value.fcpStApplicableConfirmed === 'true'))
-      .map(([key, value]) => [key, ['entryNoDebitReason', 'stClassificationReason', 'destinationReviewReason'].includes(key) ? value!.trim() : value === 'true' ? true : value === 'false' ? false
+      .map(([key, value]) => [key, ['entryNoDebitReason', 'stClassificationReason', 'destinationReviewReason', 'purchasePaymentReference', 'purchaseReviewReason'].includes(key) ? value!.trim() : value === 'true' ? true : value === 'false' ? false
         : ['stMvaPercent', 'stInternalRate', 'stOwnOperationRate', 'stSpecificEffectiveRate', 'entryInternalRate', 'entryInterstateRate', 'entryBaseAmount'].includes(key)
           ? value!.trim().replace(',', '.') : value])) as ItemFiscalAnswers
+    answers.purchaseReviewPending = draft
+    if (draft) answers.purchaseReviewReason = holdReason.value ?? 'Revisão fiscal solicitada. Conferir o enquadramento e as confirmações antes de calcular.'
+    else delete answers.purchaseReviewReason
     context.value = await window.desktopApi.saveItemFiscalAnswers({
       batchId: props.batchId, documentId: props.documentId, itemNumber: props.itemNumber,
       requestId: crypto.randomUUID(), ...(context.value.runId ? { expectedRunId: context.value.runId } : {}), answers,
-      reuseScope: reuseScope.value,
+      reuseScope: draft ? 'CURRENT_ITEM' : reuseScope.value,
+      requireCalculated: !draft,
       ...(context.value.definitionId ? { expectedDefinitionId: context.value.definitionId } : {}),
     })
-    notice.value = context.value.appliedBatchItems ? `Respostas aplicadas a ${context.value.appliedBatchItems} itens equivalentes do lote, com cálculo individual de cada produto.` : context.value.appliedItemNumbers && context.value.appliedItemNumbers.length > 1
-      ? `Respostas aplicadas a ${context.value.appliedItemNumbers.length} itens compatíveis desta nota; cada cálculo foi atualizado com os valores do próprio produto.`
-      : itemCalculationStatus(context.value.calculation) === 'CALCULATED'
-      ? context.value.answers.entryMethod === 'NO_DEBIT' ? 'Decisão de entrada sem novo débito salva com justificativa.' : context.value.calculation.result?.component === 'ICMS_ST'
-        ? 'Respostas salvas e tributos da entrada calculados.' : context.value.calculation.result?.component === 'ICMS_ENTRY'
-          ? context.value.answers.entryMethod === 'CONSUMER_DIFAL' ? 'Respostas salvas e DIFAL de uso/ativo calculado.' : 'Respostas salvas e antecipação da entrada calculada.' : 'Respostas salvas e ICMS da operação calculado.'
-      : `Rascunho salvo. Cálculo pendente: ${context.value.calculation.reason ?? itemCalculationComponents(context.value.calculation).find(component => component.status !== 'CALCULATED')?.reason ?? 'O item continua pendente.'}`
+    notice.value = fiscalSaveFeedback(context.value, draft)
+    reviewStep.value = 'apply'
     const divergent = itemCalculationComponents(context.value.calculation).some(component => component.comparisons?.some(comparison => comparison.status === 'DIFFERENT'))
     if (itemCalculationStatus(context.value.calculation) === 'CALCULATED' && divergent) notice.value += ' Há divergências com os valores declarados no XML; elas permanecem disponíveis para conferência.'
     if (reuseScope.value === 'MATCHING_NOTE_ITEMS') {
@@ -213,6 +286,15 @@ async function save(draft = false): Promise<void> {
     emit('saved', { status: itemCalculationStatus(context.value.calculation), message: notice.value, divergent })
   } catch (cause) {
     const message = desktopErrorMessage(cause, 'Não foi possível salvar as respostas. O que você preencheu foi mantido; tente salvar novamente.')
+    if (message.startsWith(CALCULATION_INCOMPLETE_PREFIX)) {
+      error.value = message
+      reviewStep.value = 'analysis'
+      advancedOpen.value = true
+      showAllFields.value = true
+      await nextTick()
+      wizardElement.value?.scrollIntoView({ block: 'start', behavior: 'auto' })
+      return
+    }
     const noteChanged = message === 'As respostas foram alteradas em outra tela. Reabra as perguntas antes de salvar.'
     const definitionChanged = message === 'A definição para próximas notas mudou em outra tela. Reabra as perguntas antes de salvar.'
     if (noteChanged || definitionChanged) {
@@ -242,7 +324,7 @@ async function calculateFromXml(): Promise<void> {
   try {
     context.value = await window.desktopApi.saveItemFiscalAnswers({ batchId: props.batchId, documentId: props.documentId,
       itemNumber: props.itemNumber, requestId: crypto.randomUUID(), ...(context.value.runId ? { expectedRunId: context.value.runId } : {}),
-      answers: {}, calculationMode: 'AUTOMATIC' })
+      answers: {}, calculationMode: 'AUTOMATIC', requireCalculated: true })
     setSelections(context.value)
     attemptedCalculation.value = false
     showManualReview.value = false
@@ -258,15 +340,6 @@ async function calculateFromXml(): Promise<void> {
 function toggleQuestions(event: Event): void {
   if ((event.currentTarget as HTMLDetailsElement).open && !context.value) void load()
 }
-function compatibleDestination(value: string): boolean {
-  const indicator = context.value?.commonScenario?.finalConsumerIndicator
-  const consumer = ['OWN_USE', 'FIXED_ASSET'].includes(value)
-  return indicator === '1' ? consumer : indicator === '0' ? !consumer : true
-}
-const destinationDescriptions: Record<string, string> = {
-  RESALE: 'Venda a outro comprador', INDUSTRIALIZATION: 'Uso na fabricação de produtos',
-  OWN_USE: 'Utilização ou consumo pela empresa', FIXED_ASSET: 'Bem do patrimônio da empresa',
-}
 const savedProblem = computed(() => context.value && itemCalculationStatus(context.value.calculation) !== 'CALCULATED'
   ? context.value.calculation.reason ?? itemCalculationComponents(context.value.calculation).find(component => component.status !== 'CALCULATED')?.reason : undefined)
 onMounted(() => { if (props.expanded) void load() })
@@ -281,19 +354,11 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
 
 <template>
   <component :is="expanded ? 'section' : 'details'" class="fiscal-questions" :class="{ 'review-expanded': expanded }" @toggle="toggleQuestions">
-    <summary v-if="!expanded">Conferir dados e calcular</summary>
-    <div v-if="loading" class="review-loading" role="status">Carregando as perguntas e os dados deste item…</div>
-    <div v-if="!context && !loading && error" class="review-message is-error" role="alert"><p>{{ error }}</p><button type="button" class="button secondary" @click="load">Carregar novamente</button></div>
+    <summary v-if="!expanded">Conferir compra e calcular</summary>
+    <div v-if="loading" class="review-loading" role="status">Carregando os dados desta compra…</div>
+    <div v-if="!context && !loading && error" class="review-message is-error" role="alert"><p>{{ error }}</p><button type="button" class="button secondary" @click="load">Tentar novamente</button></div>
     <div v-if="context && !loading" class="review-layout">
-      <section v-if="documentary && !showManualReview" class="review-main documentary-assessment">
-        <header class="review-heading"><span class="review-eyebrow">Tratamento informado no XML</span><h4>{{ documentary.title }}</h4><p>{{ documentary.reason }}</p></header>
-        <div class="unassessed-result"><span>Imposto devido nesta operação</span><strong>Não apurado</strong><p>A ausência de destaque não foi transformada em um cálculo de R$ 0,00.</p></div>
-        <dl v-if="documentaryFacts.length" class="reference-data"><div v-for="fact in documentaryFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.unit === 'R$' ? 'R$ ' : '' }}{{ fact.value?.replace('.', ',') }}{{ fact.unit === '%' ? '%' : '' }}</dd></div></dl>
-        <p class="review-message is-warning">Os valores acima pertencem à retenção anterior ou ao benefício declarado. Mesmo quando o XML informa zero, isso não confirma ausência de imposto devido nesta operação.</p>
-        <CalculationMemoryDetails :calculation="context.calculation" />
-        <button type="button" class="button secondary" @click="showManualReview = true">Conferir enquadramento fiscal</button>
-      </section>
-      <section v-else-if="showingAutomaticResult" class="review-main">
+      <section v-if="showingAutomaticResult" class="review-main">
         <header class="review-heading"><h4>Conferência automática concluída</h4><p>{{ context.automaticCalculationNotice }}</p></header>
         <dl v-if="automaticValues.length" class="reference-data"><div v-for="fact in automaticValues" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.value?.replace('.', ',') }}% · {{ fact.source }}</dd></div></dl>
         <p v-if="mvaDivergence" class="review-message is-warning">A MVA declarada no XML ({{ mvaDivergence.declared?.replace('.', ',') }}%) difere da aplicada pelo catálogo ({{ mvaDivergence.calculated.replace('.', ',') }}%). O cálculo foi concluído com a referência do catálogo.</p>
@@ -302,35 +367,63 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
         <button type="button" class="button secondary" @click="showManualReview = true">Revisar enquadramento fiscal</button>
         <RouterLink v-if="context.purchaseReviewCompany" class="button secondary" :to="{ path: '/lotes/novo', query: { companyCnpj: context.purchaseReviewCompany.cnpj } }">Importar para a empresa compradora</RouterLink>
       </section>
-      <form v-else-if="!reviewBlock" class="review-main" novalidate @submit.prevent="save()">
-        <header class="review-heading"><span class="review-eyebrow">Completar a exceção</span><h4>Confirme apenas o que falta</h4><p>Os valores disponíveis no XML já estão preenchidos. Confira o que falta e escolha o alcance das respostas quando houver produtos compatíveis.</p></header>
-        <p v-if="context.destinationAssumption && selections.destinationBasis === 'ASSUMED_RESALE'" class="review-message is-warning">{{ context.destinationAssumption }}</p>
-        <div v-if="error" class="review-message is-error" role="alert"><strong>A confirmação não foi enviada</strong><p>{{ error }}</p></div>
-        <div v-if="notice" class="review-message" :class="itemCalculationStatus(context.calculation) === 'CALCULATED' ? 'is-success' : 'is-warning'" role="status"><p>{{ notice }}</p></div>
-        <div v-if="savedProblem && !notice" class="review-message is-warning"><strong>O que falta para concluir este item</strong><p>{{ savedProblem }}</p><small>Os valores disponíveis no XML estão preenchidos abaixo. Revise os campos e clique em Salvar e calcular, ou use o cálculo pelos dados do XML.</small></div>
-        <button v-if="context.xmlCalculationAvailable" type="button" class="button secondary" :disabled="saving" @click="calculateFromXml">Calcular automaticamente com os dados identificados</button>
+      <form v-else-if="!reviewBlock" ref="wizardElement" class="review-main purchase-wizard" novalidate @submit.prevent="reviewStep === 'apply' ? save() : continueReview()">
+        <nav class="purchase-steps" aria-label="Etapas da conferência">
+          <button v-for="(step, index) in PURCHASE_STEPS" :key="step.id" type="button" :aria-current="reviewStep === step.id ? 'step' : undefined" :class="{ active: reviewStep === step.id }" :disabled="saving" @click="reviewStep = step.id; error = ''"><span>{{ index + 1 }}</span>{{ step.label }}</button>
+        </nav>
+        <div v-if="error" class="review-message is-error" role="alert">{{ error }}</div>
+        <div v-if="notice" class="review-message" :class="itemCalculationStatus(context.calculation) === 'CALCULATED' ? 'is-success' : 'is-warning'" role="status">{{ notice }}</div>
 
-        <div v-if="context.commonScenario" class="review-modes" aria-label="Forma de confirmar o tratamento">
-          <button type="button" :aria-pressed="commonReview" :class="{ active: commonReview }" :disabled="saving" @click="showIndividualQuestions = false">Cenário comum</button>
-          <button type="button" :aria-pressed="!commonReview" :class="{ active: !commonReview }" :disabled="saving" @click="showIndividualQuestions = true">Conferir exceções</button>
-        </div>
+        <section v-if="reviewStep === 'purchase'" aria-label="Sobre a compra">
+          <header class="review-heading"><span class="review-eyebrow">Etapa 1 de 3</span><h4>Conte o que você sabe sobre a compra</h4><p>Os dados da nota já foram lidos. Aqui você informa o uso do produto; as regras do imposto ficam na próxima etapa.</p></header>
+          <fieldset :id="`fiscal-${documentId}-${itemNumber}-destination`" class="review-field">
+            <legend>Para que você comprou este produto?</legend>
+            <div class="destination-options">
+              <label v-for="option in PURCHASE_DESTINATIONS" :key="option.value" class="choice-card" :class="{ selected: destinationChoice === option.value }"><input type="radio" :name="`destination-${documentId}-${itemNumber}`" :value="option.value" :checked="destinationChoice === option.value" :disabled="saving" @change="selectDestination(option.value)"><span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span></label>
+            </div>
+            <p v-if="context.destinationAssumption && !selections.destination" class="field-help">A análise anterior considerava revenda. Escolha acima o uso real desta compra.</p>
+            <p v-else-if="context.xmlFinalConsumerIndicator === '1'" class="field-help">A nota foi emitida como consumidor final. Informe o uso real; qualquer divergência será registrada para conferência.</p>
+          </fieldset>
+          <fieldset v-if="destinationNeedsReason" :id="`fiscal-${documentId}-${itemNumber}-destinationReviewReason`" class="review-field">
+            <legend>O uso informado é diferente da indicação da nota</legend><p class="field-help">Explique o motivo. Essa informação ajuda a conferir a operação e preserva a nota original.</p><textarea v-model="selections.destinationReviewReason" :disabled="saving" maxlength="1000" rows="3" aria-label="Motivo do uso diferente da nota" placeholder="Ex.: comprado para revender, conforme pedido de compra"></textarea>
+            <p v-if="fieldError('destinationReviewReason')" class="field-error">{{ fieldError('destinationReviewReason') }}</p>
+          </fieldset>
+          <fieldset v-if="needsProductConfirmation" class="review-field">
+            <legend>Este produto corresponde à descrição sugerida?</legend><p class="suggested-product">{{ productDescription }}</p>
+            <div class="binary-options"><label v-for="option in [{ value: 'MATCHES', label: 'Sim, é esse tipo de produto' }, { value: 'DIFFERENT', label: 'Não, é outro produto' }, { value: 'UNKNOWN', label: 'Não sei — conferir depois' }]" :key="option.value" class="choice-card" :class="{ selected: selections.purchaseProductConfirmation === option.value }"><input v-model="selections.purchaseProductConfirmation" @change="selections = invalidatePurchaseFactReview(selections, 'product')" type="radio" :name="`product-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving"><span>{{ option.label }}</span></label></div>
+            <p class="field-help">Essa resposta identifica o produto. O enquadramento do imposto ainda será conferido.</p>
+          </fieldset>
+          <fieldset v-if="needsPaymentReview" class="review-field">
+            <legend>Você tem comprovante de imposto recolhido para esta compra?</legend><p class="field-help">A nota informa imposto cobrado anteriormente. O código da nota, sozinho, não confirma o recolhimento desta entrada.</p>
+            <div class="binary-options"><label v-for="option in [{ value: 'HAS_EVIDENCE', label: 'Tenho comprovante para conferir' }, { value: 'UNKNOWN', label: 'Não tenho informação — encaminhar para revisão' }]" :key="option.value" class="choice-card" :class="{ selected: selections.purchasePaymentStatus === option.value }"><input v-model="selections.purchasePaymentStatus" @change="selections = invalidatePurchaseFactReview(selections, 'payment')" type="radio" :name="`payment-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving"><span>{{ option.label }}</span></label></div>
+            <label v-if="selections.purchasePaymentStatus === 'HAS_EVIDENCE'" class="payment-reference">Identifique o comprovante ou onde encontrá-lo<textarea v-model="selections.purchasePaymentReference" @input="selections = invalidatePurchaseFactReview(selections, 'payment')" :disabled="saving" maxlength="1000" rows="2" placeholder="Número da guia, data ou referência do documento"></textarea></label>
+            <p class="field-help">O comprovante será uma referência para a análise; informar sua existência não conclui o imposto automaticamente.</p>
+          </fieldset>
+        </section>
 
-        <section v-if="context.entryLegislationHint" class="classification-suggestion"><strong>Referência de legislação encontrada</strong><p>{{ context.entryLegislationHint.reason }}</p><a :href="context.entryLegislationHint.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar ato oficial</a></section>
-        <section v-if="selectedClassification && selections.entryMethod === 'ICMS_ST'" class="classification-suggestion"><strong>Referência encontrada para revisão</strong><p>CEST {{ selectedClassification.cest }} · MVA original {{ selectedClassification.originalMvaPercent }}%</p><p>{{ selectedClassification.description }}</p><small>Confira a descrição e registre o fundamento. O CEST original do XML será preservado.</small></section>
-        <div class="identified-fields"><div><strong>{{ identifiedFieldCount }} campos já identificados</strong><p>{{ visibleQuestions.length }} {{ visibleQuestions.length === 1 ? 'campo em exibição' : 'campos em exibição' }} para esta conferência.</p></div><button type="button" class="button secondary" :aria-pressed="showAllFields" @click="showAllFields = !showAllFields">{{ showAllFields ? 'Mostrar apenas o que falta' : 'Conferir todos os campos' }}</button></div>
+        <section v-else-if="reviewStep === 'analysis'" aria-label="Confira a análise">
+          <header class="review-heading"><span class="review-eyebrow">Etapa 2 de 3</span><h4>Confira o que encontramos</h4><p>Veja a sugestão e o que ainda precisa de conferência. Você pode guardar o item para revisão a qualquer momento.</p></header>
+          <dl class="purchase-summary"><div><dt>Uso informado</dt><dd>{{ purchaseDestinationLabel(destinationChoice) }}</dd></div><div><dt>Caminho da análise</dt><dd>{{ methodLabel }}</dd></div></dl>
+          <div v-if="holdReason" class="review-message is-warning"><strong>Ainda falta uma informação da compra</strong><p>{{ holdReason }}</p><button type="button" class="text-button" @click="reviewStep = 'purchase'">Rever minhas respostas</button></div>
+          <section v-if="analysisMessage" class="classification-suggestion"><strong>O que a análise encontrou</strong><p>{{ analysisMessage }}</p></section>
+          <section v-if="context.entryClassificationPreview && !['DIFFERENT','UNKNOWN'].includes(selections.purchaseProductConfirmation || '') && !['OWN_USE','FIXED_ASSET'].includes(selections.destination || '') && selections.purchaseDestinationUnknown !== 'true'" class="simulation-card">
+            <strong>Simulação para revenda com a classificação sugerida</strong><p v-for="component in itemCalculationComponents(context.entryClassificationPreview)" :key="component.component">{{ component.component === 'FCP_ST' ? 'Adicional do imposto' : 'Substituição tributária' }}: <strong>R$ {{ component.result?.amount?.replace('.', ',') }}</strong></p><small>Valor estimado, fora dos totais. Confirmar a descrição do produto não aprova as condições fiscais desta simulação.</small><details><summary>Ver como a simulação foi calculada</summary><CalculationMemoryDetails :calculation="context.entryClassificationPreview" /></details>
+            <button type="button" class="button secondary" :disabled="saving" @click="prepareClassificationReview">Revisar a classificação sugerida</button>
+          </section>
+          <section v-if="documentary" class="review-message is-warning"><strong>{{ documentary.title }}</strong><p>{{ documentary.reason }}</p><dl v-if="documentaryFacts.length" class="reference-data"><div v-for="fact in documentaryFacts" :key="fact.label"><dt>{{ fact.label }}</dt><dd>{{ fact.unit === 'R$' ? 'R$ ' : '' }}{{ fact.value?.replace('.', ',') }}{{ fact.unit === '%' ? '%' : '' }}</dd></div></dl></section>
+          <div class="review-message" :class="technicalMissingCount ? 'is-warning' : 'is-success'"><strong>{{ technicalMissingCount ? 'Precisa de revisão fiscal' : 'Respostas preenchidas para a conferência' }}</strong><p>{{ technicalMissingCount ? `${technicalMissingCount} ponto(s) ainda precisam de confirmação na revisão avançada. Se você não souber responder, guarde o item para revisão.` : 'Confira o resumo e escolha onde aplicar. O cálculo ainda validará as regras e as condições informadas.' }}</p></div>
+          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }} <button type="button" class="text-button" @click="reviewQuestion(question.field)">Revisar resposta</button></li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
+          <details class="advanced-review" :open="advancedOpen" @toggle="advancedOpen = ($event.currentTarget as HTMLDetailsElement).open">
+            <summary>Revisão fiscal avançada <span>{{ technicalMissingCount ? `${technicalMissingCount} para conferir` : 'Ver parâmetros' }}</span></summary>
+            <p class="field-help">Classificação fiscal, alíquotas e condições legais precisam de conferência do responsável. As respostas sobre a compra não preenchem essas confirmações.</p><section v-if="context.entryAutomationReview" class="classification-suggestion"><strong>{{ context.entryAutomationReview.title }}</strong><p>{{ context.entryAutomationReview.reason }}</p><p>{{ context.entryAutomationReview.nextAction }}</p><a v-if="context.entryAutomationReview.sourceUrl" :href="context.entryAutomationReview.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar referência oficial</a></section>
+            <div v-if="context.commonScenario" class="review-modes"><button type="button" :class="{ active: commonReview }" :disabled="saving" @click="showIndividualQuestions = false">Conferir cenário comum</button><button type="button" :class="{ active: !commonReview }" :disabled="saving" @click="showIndividualQuestions = true">Conferir condições individuais</button></div>
+            <p v-if="context.entryLegislationHint" class="review-message is-warning">{{ context.entryLegislationHint.reason }} <a :href="context.entryLegislationHint.sourceUrl" target="_blank" rel="noopener noreferrer">Consultar ato oficial</a></p>
+            <p v-if="savedProblem" class="field-help">Última análise salva: {{ savedProblem }}</p>
+            <div class="identified-fields"><div><strong>{{ identifiedFieldCount }} campos identificados</strong><p>Valores da nota e sugestões permanecem disponíveis para conferência.</p></div><button type="button" class="button secondary" :aria-pressed="showAllFields" @click="showAllFields = !showAllFields">{{ showAllFields ? 'Mostrar apenas o que falta' : 'Conferir todos os campos' }}</button></div>
         <section class="review-fields" aria-label="Respostas da revisão">
           <fieldset v-for="question in visibleQuestions" :id="`fiscal-${documentId}-${itemNumber}-${question.field}`" :key="question.field" class="review-field" :class="{ 'has-error': fieldError(question.field), 'is-number': question.inputType === 'decimal' }">
             <legend>{{ questionTitle(question.field, question.label) }}</legend><p v-if="questionTitle(question.field, question.label) !== question.label" class="field-help">{{ question.label }}</p>
-            <template v-if="question.field === 'destination'">
-              <p v-if="context.commonScenario" class="field-help">{{ destinationHint }}</p>
-              <div class="destination-options">
-                <label v-for="option in question.options" :key="option.value" class="choice-card" :class="{ selected: selections.destination === option.value, unavailable: !compatibleDestination(option.value) }">
-                  <input v-model="selections.destination" type="radio" :name="`destination-${documentId}-${itemNumber}`" :value="option.value" :disabled="saving || !compatibleDestination(option.value)" @change="destinationChanged">
-                  <span><strong>{{ option.label }}</strong><small>{{ compatibleDestination(option.value) ? destinationDescriptions[option.value] : 'Não corresponde ao consumidor final informado no XML' }}</small></span>
-                </label>
-              </div>
-            </template>
-            <textarea v-else-if="question.inputType === 'text'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :disabled="saving" maxlength="1000" rows="3" placeholder="Registre o fundamento da decisão"></textarea>
+            <textarea v-if="question.inputType === 'text'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :disabled="saving" maxlength="1000" rows="3" placeholder="Registre o fundamento da decisão"></textarea>
             <input v-else-if="question.inputType === 'decimal'" v-model="selections[question.field]" :aria-label="question.label" :aria-invalid="Boolean(fieldError(question.field))" :aria-describedby="fieldError(question.field) ? `error-${documentId}-${itemNumber}-${question.field}` : undefined" type="text" inputmode="decimal" :disabled="saving" :placeholder="question.field === 'entryBaseAmount' ? 'Informe o valor em reais' : 'Informe o percentual'">
             <div v-else-if="question.options?.length === 2" class="binary-options">
               <label v-for="option in question.options" :key="option.value" class="choice-card" :class="{ selected: selections[question.field] === option.value }">
@@ -344,20 +437,36 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
           <p v-if="destinationConflict" class="review-message is-error" role="status">{{ destinationConflict }}</p>
         </section>
 
-        <section v-if="commonReview" class="treatment-summary" aria-label="Condições que serão confirmadas">
-          <h5>Tratamento que você vai confirmar</h5>
-          <dl><div><dt>Destinatário</dt><dd>Fora da construção civil</dd></div><div><dt>Produto</dt><dd>Não é petróleo ou combustível</dd></div><div><dt>Regra de ICMS</dt><dd>Comum de 19,5%, com diferimento quando aplicável</dd></div></dl>
-          <p>Ao clicar em <strong>Confirmar e calcular</strong>, você confirma essas condições, sem ST, FCP, redução de base ou outro tratamento específico. Para revisar outra hipótese, escolha <strong>Conferir exceções</strong>.</p>
+            <button v-if="context.xmlCalculationAvailable && !holdReason" type="button" class="button secondary" :disabled="saving" @click="calculateFromXml">Refazer conferência com os dados identificados</button>
+          </details>
         </section>
 
-        <section v-if="context.reuseAvailable || matchingItems.length || matchingBatchItems.length" class="answer-scope">
+        <section v-else aria-label="Aplicar e calcular">
+          <header class="review-heading"><span class="review-eyebrow">Etapa 3 de 3</span><h4>Escolha onde aplicar</h4><p>Confira suas respostas antes de enviar. Cada produto será calculado com os próprios valores.</p></header>
+          <dl class="purchase-summary"><div><dt>Uso do produto</dt><dd>{{ purchaseDestinationLabel(destinationChoice) }}</dd></div><div><dt>Análise escolhida</dt><dd>{{ methodLabel }}</dd></div></dl>
+          <div v-if="holdReason || technicalMissingCount" class="review-message is-warning"><strong>{{ holdReason ? 'Informação da compra pendente' : 'Revisão fiscal pendente' }}</strong><p>{{ holdReason || `Ainda há ${technicalMissingCount} ponto(s) para conferir. Você pode guardar suas respostas sem concluir o imposto.` }}</p><button type="button" class="text-button" @click="reviewQuestion()">{{ holdReason ? 'Rever informações da compra' : 'Abrir revisão avançada' }}</button></div>
+        <section v-if="!holdReason && (context.reuseAvailable || matchingItems.length || matchingBatchItems.length)" class="answer-scope">
           <h5>Aplicação das respostas</h5>
+          <p class="field-help">O filtro pelo motivo do alerta não define onde aplicar a resposta. Para revisar vários produtos, selecione abaixo os equivalentes e confira a lista.</p>
           <label>Onde aplicar esta confirmação?<select v-model="reuseScope" :disabled="saving"><option value="CURRENT_ITEM">Somente neste item</option><option v-if="matchingBatchItems.length" value="MATCHING_BATCH_ITEMS">Automaticamente nos {{ matchingBatchItems.length }} itens equivalentes do lote</option><option v-if="matchingItems.length" value="MATCHING_NOTE_ITEMS">Automaticamente nos {{ matchingItems.length }} itens compatíveis desta nota</option><option v-if="context.reuseAvailable" value="FUTURE_NOTES">Também nas próximas notas deste mesmo produto</option></select></label>
           <div v-if="reuseScope === 'MATCHING_BATCH_ITEMS'" class="scope-products"><p>Produtos que receberão esta revisão:</p><ul><li v-for="item in matchingBatchItems" :key="`${item.documentId}-${item.itemNumber}`"><strong>Nota {{ item.documentNumber }} · item {{ item.itemNumber }}</strong><span>{{ item.description }}</span></li></ul><small>Mesmo fornecedor, período e perfil fiscal. Revisões anteriores são preservadas.</small></div><div v-else-if="reuseScope === 'MATCHING_NOTE_ITEMS'" class="scope-products"><p>Confira os produtos que receberão estas respostas:</p><ul><li v-for="item in matchingItems" :key="item.itemNumber"><strong>Item {{ item.itemNumber }}</strong><span>{{ item.productCode || item.description || 'Produto sem código' }}</span></li></ul><small>O valor, a base e o rateio são calculados separadamente para cada produto.</small></div>
           <p v-else-if="reuseScope === 'FUTURE_NOTES'" class="field-help">A definição será reaproveitada nas próximas notas deste produto quando o contexto fiscal corresponder ao que foi confirmado.</p>
         </section>
+          <section v-else-if="!holdReason" class="answer-scope"><h5>Aplicação desta revisão: somente neste item</h5><p class="field-help">{{ individualReviewReason }}</p></section>
+          <div v-if="selections.entryMethod === 'NO_DEBIT'" class="review-message is-warning"><strong>Decisão de entrada sem novo débito</strong><p>Você está registrando R$ 0,00 para este item, com o fundamento informado. Essa decisão não corrige o CEST ausente nem apura o imposto dos demais produtos.</p></div>
 
-        <footer class="review-submit"><div><strong>{{ commonReview ? 'Tudo conferido?' : 'Enviar a revisão' }}</strong><p>Calcular exige os campos destacados. Salvar rascunho permite continuar depois.</p></div><button type="button" class="button secondary" :disabled="saving" @click="save(true)">Salvar rascunho</button><button type="submit" class="button primary" :disabled="saving">{{ saving ? 'Calculando…' : commonReview ? 'Confirmar e calcular' : 'Salvar e calcular' }}</button></footer>
+          <div v-if="blockingQuestions.length" class="review-message is-warning"><strong>Respostas que impedem o cálculo</strong><ul><li v-for="question in blockingQuestions" :key="question.field">{{ fieldErrors[question.field] }} <button type="button" class="text-button" @click="reviewQuestion(question.field)">Revisar resposta</button></li></ul><p>Confira o tratamento correto ou guarde para revisão. Confirmar a etapa não muda essas respostas.</p></div>
+          <section v-if="commonReview" class="treatment-summary"><h5>Condições que você confirma ao calcular</h5><p>Destinatário fora da construção civil, produto que não é petróleo ou combustível e tributação comum de 19,5%, com diferimento quando aplicável, sem ST, FCP, redução de base ou tratamento específico. Se não puder confirmar, volte à revisão avançada ou guarde para revisão.</p></section>
+          <p v-if="!holdReason && !technicalMissingCount" class="field-help">Ao confirmar, as respostas fiscais serão registradas e o cálculo será validado. Nenhuma informação do XML original será alterada.</p>
+        </section>
+
+        <footer class="review-submit">
+          <button v-if="reviewStep !== 'purchase'" type="button" class="button secondary" :disabled="saving" @click="reviewStep = reviewStep === 'apply' ? 'analysis' : 'purchase'; error = ''">Voltar</button>
+          <button type="button" class="button secondary" :disabled="saving" @click="save(true)">{{ saving ? 'Salvando…' : 'Guardar para revisão' }}</button>
+          <button v-if="reviewStep !== 'apply'" type="button" class="button primary" :disabled="saving" @click="continueReview">{{ reviewStep === 'purchase' ? 'Conferir análise' : 'Escolher onde aplicar' }}</button>
+          <button v-else-if="holdReason || technicalMissingCount > 0" type="button" class="button primary" :disabled="saving" @click="reviewQuestion()">{{ holdReason ? 'Completar informações da compra' : 'Revisar impedimentos do cálculo' }}</button>
+          <button v-else type="submit" class="button primary" :disabled="saving">{{ saving ? 'Salvando…' : selections.entryMethod === 'NO_DEBIT' ? 'Registrar decisão sem novo débito' : 'Confirmar e calcular' }}</button>
+        </footer>
       </form>
       <section v-else class="review-main">
         <header class="review-heading"><h4>{{ context.purchaseReviewCompany ? 'Confira a empresa escolhida para este lote' : 'Esta operação exige outra análise' }}</h4><p>{{ context.purchaseReviewCompany ? 'A empresa analisada determina se a nota representa uma compra ou uma venda.' : 'O motivo abaixo precisa ser resolvido antes do cálculo.' }}</p></header>
@@ -382,6 +491,28 @@ watch(() => props.expanded, expanded => { if (expanded && !context.value) void l
 </template>
 
 <style scoped>
+.purchase-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 6px; margin-bottom: 26px; border-radius: 14px; background: #edf2fa; }
+.purchase-steps button { display: flex; align-items: center; gap: 9px; border: 0; border-radius: 10px; background: transparent; padding: 13px 12px; text-align: left; font: inherit; font-size: 13px; color: #52647f; cursor: pointer; }
+.purchase-steps button span { display: grid; place-items: center; flex: none; width: 25px; height: 25px; border-radius: 50%; background: #dfe7f4; font-weight: 700; }
+.purchase-steps button.active { background: #fff; color: #2c49b3; font-weight: 700; box-shadow: 0 2px 8px #24365012; }
+.purchase-steps button.active span { background: #455fdb; color: white; }
+.purchase-wizard > section > .review-field { margin: 20px 0; }
+.purchase-wizard .text-button { padding: 8px 0; color: #3449aa; border: 0; background: transparent; font: inherit; text-decoration: underline; cursor: pointer; }
+.purchase-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px; margin: 20px 0; background: #f5f7fb; border-radius: 12px; }
+.purchase-summary dt { color: #52647f; font-size: 12px; }
+.purchase-summary dd { margin: 7px 0 0; font-size: 14px; font-weight: 650; }
+.suggested-product { margin: 0 0 16px; color: #354b70; }
+.payment-reference { display: block; margin-top: 18px; font-size: 13px; }
+.simulation-card { margin: 20px 0; padding: 20px; border: 1px solid #cbd9f2; border-radius: 12px; background: #f2f6ff; }
+.simulation-card small { display: block; color: #52647f; line-height: 1.6; margin: 12px 0; }
+.simulation-card details { margin: 16px 0; }
+.simulation-card summary, .advanced-review > summary { cursor: pointer; color: #3449aa; font-weight: 650; }
+.advanced-review { margin-top: 20px; border: 1px solid #dce5f3; border-radius: 12px; padding: 18px 20px; }
+.advanced-review > summary { line-height: 1.6; }
+.advanced-review > summary span { display: inline-block; margin-left: 12px; font-size: 12px; font-weight: 400; color: #52647f; }
+.advanced-review[open] > summary { margin-bottom: 20px; }
+.purchase-wizard .button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 650px) { .purchase-steps { grid-template-columns: 1fr; } .purchase-steps button { padding: 10px; } .purchase-summary { grid-template-columns: 1fr; } }
 .classification-suggestion { margin: 0 0 22px; padding: 18px 20px; border: 1px solid #cbd9f2; border-radius: 12px; background: #f2f6ff; }
 .classification-suggestion p { margin: 8px 0; }
 .classification-suggestion small { display: block; margin-top: 12px; color: #52647f; }

@@ -39,6 +39,7 @@
     "appId": "br.com.contabilinico.desktop",
     "productName": "ContabiliNico",
     "directories": {
+      "buildResources": "build",
       "output": "release"
     },
     "asar": false,
@@ -48,6 +49,7 @@
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -59,6 +61,8 @@
       "artifactName": "ContabiliNico-${version}-Windows-${arch}-Setup.${ext}"
     },
     "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

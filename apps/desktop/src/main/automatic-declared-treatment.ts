@@ -1,5 +1,5 @@
 import { documentaryTaxReview } from '@motor/contracts'
-import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
+import { paranaInterstateEntryExclusionReason, type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
 import { compareDecimals, compareDeclared, divideDecimals, multiplyDecimals, pendingCalculation,
   roundMoney, subtractDecimals, type CalculationMemory, type CalculationInput } from '@motor/tax-engine'
 
@@ -7,7 +7,11 @@ import { compareDecimals, compareDeclared, divideDecimals, multiplyDecimals, pen
 export function calculateDeclaredTreatment(nfe: NormalizedNfe, item: NormalizedNfeItem,
   marker: CalculationInput, rule: NonNullable<CalculationMemory['rule']>): CalculationMemory | undefined {
   const tax = item.declaredIcms
-  if (!tax || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR' || nfe.operationDirection !== '1') return undefined
+  if (!tax || nfe.operationDirection !== '1') return undefined
+  const previousSt = tax.cst === '60' && ['ICMS60', 'ICMSST'].includes(tax.group ?? '') || tax.csosn === '500' && tax.group === 'ICMSSN500'
+  const internal = nfe.issuer.state === 'PR' && nfe.recipient?.state === 'PR'
+  // Reconhecer retenção anterior não confirma a obrigação da entrada nem autoriza novo débito.
+  if (!internal && !(previousSt && !paranaInterstateEntryExclusionReason(nfe, item.cfop, nfe.recipient?.taxId))) return undefined
   const inputs: CalculationInput[] = [marker, ...Object.entries(tax).filter(([key]) => !['group', 'originCode'].includes(key))
     .map(([name, value]) => ({ name, value, source: 'XML/ICMS', treatment: 'INCLUDED' as const }))]
   const pending = (reason: string): CalculationMemory => ({ ...pendingCalculation('PENDING_DATA', reason, inputs), rule })
@@ -18,7 +22,6 @@ export function calculateDeclaredTreatment(nfe: NormalizedNfe, item: NormalizedN
   if ([tax.monophaseAmount, tax.monophaseRetainedAmount, tax.monophasePreviouslyRetainedAmount].some(v => v !== undefined)) return undefined
   if (['102', '103', '300', '400'].includes(tax.csosn ?? '') && tax.group === 'ICMSSN102' && nfe.issuer.taxRegimeCode !== '1')
     return pending('O XML informa código do Simples sem destaque, mas o regime do emitente não é CRT 1. Confira a inconsistência de regime e código tributário.')
-  const previousSt = tax.cst === '60' && ['ICMS60', 'ICMSST'].includes(tax.group ?? '') || tax.csosn === '500' && tax.group === 'ICMSSN500'
   const simple = ['102', '103', '300', '400'].includes(tax.csosn ?? '') && tax.group === 'ICMSSN102' && nfe.issuer.taxRegimeCode === '1'
   const exempt = tax.cst === '40' && tax.group === 'ICMS40'
   if (previousSt || simple || exempt) {

@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { BatchCompanyCandidate, BatchOperationProgress, BatchPreparation, CreatedBatchSummary, SelectedSource, WorkspaceState } from '@motor/contracts'
 import { serializableSources } from '../serializable-sources'
-import { suggestCompanyForDocument } from '../company-assignment'
+import { assignBatchCompanies, inferBatchCompanyCnpj, pendingCompanyRegistrations } from '../company-assignment'
 
 const sources = ref<SelectedSource[]>([])
 const router = useRouter()
@@ -14,6 +14,8 @@ const inspecting = ref(false)
 const hasSources = computed(() => sources.value.length > 0)
 const workspace = ref<WorkspaceState>({ companies: [] })
 const assignments = ref<Record<string, string>>({})
+const manualAssignments = ref<Record<string, string>>({})
+const batchCompanyCnpj = ref('')
 const selectedEnvironmentCode = ref<'1' | '2' | ''>('')
 const artifactCompanyId = ref('')
 const preparation = ref<BatchPreparation | null>(null)
@@ -56,6 +58,17 @@ async function cancelOperation(): Promise<void> {
 }
 
 const remainingCount = computed(() => preparation.value?.documents.filter((document) => !assignments.value[document.source]).length ?? 0)
+const batchCompanies = computed(() => (preparation.value?.candidates ?? []).map(candidate => ({
+  ...candidate,
+  company: workspace.value.companies.find(company => company.cnpj === candidate.cnpj),
+  noteCount: preparation.value!.documents.filter(document =>
+    document.issuerCnpj === candidate.cnpj || document.recipientCnpj === candidate.cnpj).length,
+})).sort((left, right) => right.noteCount - left.noteCount || left.cnpj.localeCompare(right.cnpj)))
+const selectedBatchCandidate = computed(() => batchCompanies.value.find(candidate => candidate.cnpj === batchCompanyCnpj.value))
+const registrationCandidates = computed(() => pendingCompanyRegistrations(
+  preparation.value?.documents ?? [], preparation.value?.candidates ?? [], workspace.value.companies,
+  assignments.value, batchCompanyCnpj.value,
+))
 
 function availableCompanies(document: BatchPreparation['documents'][number]) {
   return workspace.value.companies.filter((company) =>
@@ -67,16 +80,34 @@ function documentLabel(source: string): string {
   return source.split('#').at(-1)?.split('/').at(-1) ?? source
 }
 
+function partyLabel(cnpj?: string): string {
+  if (!cnpj) return 'CNPJ não informado no XML'
+  const name = preparation.value?.candidates.find(candidate => candidate.cnpj === cnpj)?.legalName
+  return name ? `${name} — ${cnpj}` : cnpj
+}
+
+function updateAssignments(): void {
+  assignments.value = assignBatchCompanies(preparation.value?.documents ?? [], workspace.value.companies,
+    batchCompanyCnpj.value, manualAssignments.value)
+}
+
+function rememberAssignment(source: string): void {
+  manualAssignments.value[source] = assignments.value[source] ?? ''
+}
+
+function resetAssignment(source: string): void {
+  delete manualAssignments.value[source]
+  updateAssignments()
+}
+
 function setPreparation(value: BatchPreparation): void {
+  const firstInspection = preparation.value === null
   preparation.value = value
-  const next: Record<string, string> = {}
-  for (const document of value.documents) {
-    const requestedCompany = workspace.value.companies.find(company => company.active && company.cnpj === route.query.companyCnpj
-      && (company.cnpj === document.issuerCnpj || company.cnpj === document.recipientCnpj))
-    const prior = assignments.value[document.source] || requestedCompany?.id
-    next[document.source] = suggestCompanyForDocument(document, workspace.value.companies, prior)
+  if (firstInspection) {
+    batchCompanyCnpj.value = inferBatchCompanyCnpj(value.documents,
+      typeof route.query.companyCnpj === 'string' ? route.query.companyCnpj : '')
   }
-  assignments.value = next
+  updateAssignments()
   const activeCompanies = workspace.value.companies.filter((company) => company.active)
   artifactCompanyId.value = activeCompanies.length === 1 ? activeCompanies[0]!.id : artifactCompanyId.value
   selectedEnvironmentCode.value = selectedEnvironmentCode.value || (value.environmentCodes.length === 1
@@ -97,10 +128,14 @@ async function selectSources(): Promise<void> {
     preparation.value = null
     selectedEnvironmentCode.value = ''
     assignments.value = {}
+    manualAssignments.value = {}
+    batchCompanyCnpj.value = ''
     artifactCompanyId.value = ''
+    registrationCandidate.value = null
     createdBatch.value = null
     if (sources.value.length > 0) {
       inspecting.value = true
+      await loadWorkspace()
       activeOperationId.value = crypto.randomUUID()
       setPreparation(await window.desktopApi.inspectSources(serializableSources(sources.value), activeOperationId.value))
     }
@@ -145,14 +180,6 @@ async function createBatch(): Promise<void> {
   }
 }
 
-function needsRegistration(candidate: BatchCompanyCandidate): boolean {
-  return !candidate.matchedCompanyId && !!preparation.value?.documents.some((document) =>
-    !assignments.value[document.source] &&
-    (document.suggestedCompanyCnpj ? document.suggestedCompanyCnpj === candidate.cnpj
-      : document.issuerCnpj === candidate.cnpj || document.recipientCnpj === candidate.cnpj),
-  )
-}
-
 function startRegistration(candidate: BatchCompanyCandidate): void {
   registrationCandidate.value = candidate
   registrationLegalName.value = candidate.legalName ?? ''
@@ -176,8 +203,11 @@ async function registerCandidate(): Promise<void> {
     await loadWorkspace()
     if (preparation.value) {
       for (const document of preparation.value.documents) {
-        if (!assignments.value[document.source] && (document.issuerCnpj === company.cnpj || document.recipientCnpj === company.cnpj)) {
-          assignments.value[document.source] = company.id
+        if (!assignments.value[document.source] && batchCompanyCnpj.value !== company.cnpj
+          && (document.issuerCnpj === company.cnpj || document.recipientCnpj === company.cnpj)
+          && (!batchCompanyCnpj.value || (document.issuerCnpj !== batchCompanyCnpj.value && document.recipientCnpj !== batchCompanyCnpj.value))) {
+          // O cadastro é uma escolha explícita; não substitui outra associação feita pelo usuário.
+          manualAssignments.value[document.source] = company.id
         }
       }
       setPreparation({
@@ -304,50 +334,76 @@ onUnmounted(() => unsubscribeProgress?.())
 
       <div class="review-heading">
         <div>
-          <p class="eyebrow">Associação por nota</p>
-          <h3>Revise as empresas</h3>
-          <p>O CNPJ da empresa analisada precisa estar cadastrado em cada XML. Clientes e fornecedores não precisam ser cadastrados se não forem a empresa analisada.</p>
-          <p>Para conferir uma compra emitida pelo fornecedor, escolha a empresa destinatária. Para conferir a operação do emitente, escolha a empresa emitente.</p>
+          <p class="eyebrow">Participantes identificados automaticamente</p>
+          <h3>Empresa analisada neste lote</h3>
+          <p>Os dados do emitente e do destinatário são lidos do XML e guardados com cada nota. Fornecedores e clientes não precisam ser cadastrados como empresas da sua carteira.</p>
         </div>
         <span class="review-count" :class="{ incomplete: remainingCount }">{{ preparation.documents.length - remainingCount }}/{{ preparation.documents.length }} prontas</span>
       </div>
 
-      <div class="document-review-list">
+      <div v-if="preparation.documents.length" class="batch-company-selection">
+        <label class="standalone-field">
+          <span>De qual empresa você está conferindo as operações?</span>
+          <select v-model="batchCompanyCnpj" :disabled="creatingBatch || registering" @change="updateAssignments">
+            <option value="">Definir a empresa individualmente por nota</option>
+            <option v-for="candidate in batchCompanies" :key="candidate.cnpj" :value="candidate.cnpj">
+              {{ candidate.legalName || candidate.cnpj }} — {{ candidate.cnpj }} · {{ candidate.noteCount }} nota(s){{ !candidate.company ? ' · cadastrar' : !candidate.company.active ? ' · inativa' : '' }}
+            </option>
+          </select>
+        </label>
+        <p v-if="selectedBatchCandidate">Esta empresa consta em {{ selectedBatchCandidate.noteCount }} de {{ preparation.documents.length }} notas, como emitente ou destinatária. A seleção preenche as notas compatíveis e preserva os ajustes individuais. Revise a empresa antes de confirmar o lote.</p>
+        <p v-else>Escolha uma empresa acima para preencher as notas compatíveis de uma vez. Quando não há um único CNPJ comum, a escolha fica para você.</p>
+        <button v-if="selectedBatchCandidate && !selectedBatchCandidate.company" class="button secondary" type="button"
+          :disabled="registering || creatingBatch" @click="startRegistration(selectedBatchCandidate)">Cadastrar empresa analisada com os dados do XML</button>
+        <p v-else-if="selectedBatchCandidate?.company && !selectedBatchCandidate.company.active" class="form-error" role="status">
+          Esta empresa já existe, mas está inativa. <RouterLink :to="{ path: '/empresas', query: { companyId: selectedBatchCandidate.company.id } }">Abra o cadastro para reativá-la</RouterLink> e selecione os arquivos novamente.
+        </p>
+      </div>
+
+      <p v-if="remainingCount" class="association-notice" role="status">{{ remainingCount }} nota(s) aguardam a escolha ou o cadastro da empresa analisada. Os CNPJs encontrados no XML estão listados abaixo.</p>
+
+      <details v-if="preparation.documents.length" class="individual-review" :open="remainingCount > 0">
+        <summary>Revisar as {{ preparation.documents.length }} notas individualmente</summary>
+        <div class="document-review-list">
         <div v-for="document in preparation.documents" :key="document.source" class="document-review-row">
           <div class="document-review-info">
             <strong>NF-e {{ document.number }}</strong>
             <span :title="document.source">{{ documentLabel(document.source) }}</span>
-            <small>Emitente {{ document.issuerCnpj || 'sem CNPJ' }} · Destinatário {{ document.recipientCnpj || 'sem CNPJ' }}</small>
+            <small>Emitente: {{ partyLabel(document.issuerCnpj) }}</small>
+            <small>Destinatário: {{ partyLabel(document.recipientCnpj) }}</small>
           </div>
           <label class="standalone-field">
             <span>Empresa analisada</span>
-            <select v-model="assignments[document.source]">
-              <option value="">Cadastrar ou escolher empresa</option>
+            <select v-model="assignments[document.source]" :disabled="creatingBatch || registering" @change="rememberAssignment(document.source)">
+              <option value="">{{ availableCompanies(document).length ? 'Escolha a empresa analisada' : 'Cadastre ou reative a empresa analisada' }}</option>
               <option v-for="company in availableCompanies(document)" :key="company.id" :value="company.id">
                 {{ company.legalName }} — {{ company.cnpj }} · {{ company.cnpj === document.issuerCnpj && company.cnpj === document.recipientCnpj ? 'Emitente e destinatário' : company.cnpj === document.issuerCnpj ? 'Emitente' : 'Destinatário' }}
               </option>
             </select>
+            <button v-if="Object.hasOwn(manualAssignments, document.source)" class="reset-assignment" type="button"
+              :disabled="creatingBatch || registering" @click="resetAssignment(document.source)">Usar sugestão do lote</button>
           </label>
         </div>
-        <p v-if="preparation.documents.length === 0" class="empty-state">Nenhuma nota fiscal reconhecida.</p>
-      </div>
+        </div>
+      </details>
+      <p v-else class="empty-state">Nenhuma nota fiscal reconhecida.</p>
 
-      <details v-if="remainingCount" class="company-candidates" open>
-        <summary>{{ remainingCount }} nota(s) aguardando empresa cadastrada</summary>
+      <details v-if="registrationCandidates.length" class="company-candidates" open>
+        <summary>{{ registrationCandidates.length }} empresa(s) identificada(s) que podem ser cadastradas para as notas pendentes</summary>
         <div class="candidate-list">
-          <div v-for="candidate in preparation.candidates.filter(needsRegistration)" :key="candidate.cnpj" class="candidate-row">
+          <div v-for="candidate in registrationCandidates" :key="candidate.cnpj" class="candidate-row">
             <div>
               <strong>{{ candidate.legalName || candidate.cnpj }}</strong>
               <span>{{ candidate.cnpj }} · {{ candidate.state || 'UF não informada' }} · {{ candidate.documentCount }} nota(s)</span>
             </div>
-            <button class="button secondary" type="button" @click="startRegistration(candidate)">Cadastrar CNPJ</button>
+            <button class="button secondary" type="button" :disabled="registering || creatingBatch" @click="startRegistration(candidate)">Cadastrar CNPJ</button>
           </div>
         </div>
       </details>
 
       <p v-if="preparation.documents.length && !remainingCount" class="form-success">Todas as notas têm uma empresa associada.</p>
       <button v-if="!createdBatch" class="button primary confirm-batch" type="button"
-        :disabled="creatingBatch || !selectedEnvironmentCode || !!remainingCount || (!preparation.documents.length && (!preparation.artifacts.length || !artifactCompanyId))"
+        :disabled="creatingBatch || registering || !selectedEnvironmentCode || !!remainingCount || (!preparation.documents.length && (!preparation.artifacts.length || !artifactCompanyId))"
         @click="createBatch">
         {{ creatingBatch ? 'Processando lote…' : 'Confirmar e processar lote' }}
       </button>
@@ -408,6 +464,14 @@ onUnmounted(() => unsubscribeProgress?.())
 .batch-company-card h3, .preparation-card h3 { margin: 8px 0 20px; font: 700 24px Georgia, serif; }
 .standalone-field { display: grid; gap: 8px; color: #46524b; font-size: 14px; font-weight: 700; }
 .candidate-list { display: grid; gap: 10px; }
+.batch-company-selection { display: grid; gap: 12px; margin: 18px 0; padding: 18px; border: 1px solid #dce2ec; border-radius: 10px; background: #f5f7fb; }
+.batch-company-selection p { margin: 0; color: #606b64; font-size: 13px; line-height: 1.6; }
+.batch-company-selection .button { justify-self: start; }
+.batch-company-selection .form-error { color: #a52c34; }
+.association-notice { padding: 12px 16px; border-radius: 8px; background: #fff4dc; color: #77551c; font-size: 13px; line-height: 1.6; }
+.individual-review { margin: 18px 0; }
+.individual-review > summary { margin-bottom: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.reset-assignment { justify-self: start; padding: 0; border: 0; background: transparent; color: #455fdb; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
 .candidate-list > p { color: #606b64; }
 .candidate-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; border-radius: 9px; background: #f4f1e8; }
 .candidate-row > div { display: grid; gap: 4px; }
