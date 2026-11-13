@@ -26,7 +26,8 @@ pagamentos; as operações de negócio dessa API ainda serão implementadas.
 - **Qualidade:** Vitest 3 no desktop/pacotes fiscais, Vitest 4 e Oxlint na API.
 
 O desktop processa documentos e cálculos localmente, sem depender da API. O
-PostgreSQL é exclusivo da futura área de doações/pagamentos e nasce sem tabelas.
+PostgreSQL é exclusivo da área de doações e pagamentos. A migration inicial cria
+as tabelas de persistência das doações.
 A integração com o gateway ainda não está implementada.
 
 ## Em produção
@@ -46,12 +47,14 @@ pnpm dev
 `pnpm dev` inicia o aplicativo desktop. Para conferir tipos, testes e os builds
 separados do desktop e da API, execute `pnpm check`.
 
-Para o ambiente opcional da API:
+Depois de instalar as dependências, prepare o ambiente opcional da API na raiz:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
 pnpm db:up
 pnpm db:validate
+pnpm --filter @motor/api prisma:generate
+pnpm --filter @motor/api prisma:migrate-deploy
 pnpm --filter @motor/api prisma:check-db
 pnpm test:db
 pnpm dev:api

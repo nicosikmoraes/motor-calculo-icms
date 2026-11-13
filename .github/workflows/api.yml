@@ -1,4 +1,4 @@
-name: API - scaffold e PostgreSQL
+name: API - PostgreSQL
 
 on:
   push:
@@ -41,12 +41,15 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: pnpm test:tooling
+      - run: pnpm --filter @motor/api prisma:generate
       - run: pnpm --filter @motor/api lint
       - run: pnpm --filter @motor/api typecheck
       - run: pnpm --filter @motor/api test
       - run: pnpm db:validate
-      - name: Conectar pelo Prisma e conferir o banco vazio
+      - name: Aplicar migrations no PostgreSQL descartável
+        run: pnpm --filter @motor/api prisma:migrate-deploy
+      - name: Conferir o schema de doações pelo Prisma
         run: pnpm --filter @motor/api prisma:check-db
-      - name: Testar a conexão externa pela DATABASE_URL
-        run: pnpm --filter @motor/api test:db
+      - name: Testar a conexão e a persistência pela DATABASE_URL
+        run: pnpm test:db
       - run: pnpm --filter @motor/api build

@@ -15,4 +15,5 @@ Thumbs.db
 !.env.example
 /apps/desktop/release/
 /apps/api/generated/
+/apps/api/src/generated/
 *.tsbuildinfo

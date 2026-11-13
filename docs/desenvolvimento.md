@@ -22,10 +22,14 @@ executa lint da API, verificação de tipos, testes e builds separados de API e 
 O aplicativo fiscal funciona sem a API ou o PostgreSQL. A API ainda oferece
 somente o `GET /` de demonstração, sem operações de doação ou pagamento.
 
+Depois de instalar as dependências, execute na raiz do repositório:
+
 ```bash
 cp apps/api/.env.example apps/api/.env
 pnpm db:up
 pnpm db:validate
+pnpm --filter @motor/api prisma:generate
+pnpm --filter @motor/api prisma:migrate-deploy
 pnpm --filter @motor/api prisma:check-db
 pnpm test:db
 pnpm dev:api
@@ -37,10 +41,10 @@ pnpm dev:api
 `Hello World!` em `http://127.0.0.1:3000`.
 
 `pnpm test:api` roda os testes unitários, de fronteiras e HTTP sem depender do
-banco. `pnpm test:db` é separado e exige o Compose ativo; ele testa a URL externa
-real e comprova que o schema público está vazio. A verificação `prisma:check-db`
-executa SQL de leitura pela própria CLI Prisma. Não execute migrations nem crie
-modelos antes da primeira spec aprovada da área de pagamentos.
+banco. `pnpm test:db` usa a `DATABASE_URL` para verificar a conexão e testar a
+persistência de doações com o cliente gerado e a migration aplicada.
+`prisma:check-db` usa a CLI Prisma para conferir que o schema `public` contém
+apenas as tabelas de doação e o histórico de migrations.
 
 `pnpm db:down` remove o container exclusivo da API e conserva o volume. O banco
 SQLite do aplicativo não é montado nem acessado por esse container.

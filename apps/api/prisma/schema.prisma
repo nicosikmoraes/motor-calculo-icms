@@ -1,8 +1,110 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum DonationCurrency {
+  BRL
+}
+
+enum DonationOrderStatus {
+  pendente
+  pago
+}
+
+enum PaymentStatus {
+  pendente
+  recusada
+  expirada
+  falha_na_criacao
+  indeterminada
+  paga
+}
+
+enum PaymentEventOrigin {
+  webhook
+  gateway
+  api
+}
+
+// Os campos DateTime sem fuso representam instantes em UTC.
+model DonationOrder {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  intentKeyHash String              @unique @map("intent_key_hash")
+  // PostgreSQL NUMERIC without typmod; exact text writes use the Prisma adapter's SQL boundary.
+  amount        Unsupported("numeric")
+  currency      DonationCurrency    @default(BRL)
+  status        DonationOrderStatus @default(pendente)
+  createdAt     DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
+  confirmedAt   DateTime?           @map("confirmed_at") @db.Timestamp(3)
+  payments      Payment[]
+
+  @@map("donation_orders")
+}
+
+model Payment {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId              String              @map("order_id") @db.Uuid
+  status               PaymentStatus       @default(pendente)
+  checkoutSessionId    String?             @unique @map("checkout_session_id")
+  checkoutUrl          String?             @map("checkout_url")
+  paymentIntentId      String?             @unique @map("payment_intent_id")
+  stripeIdempotencyKey String              @unique @map("stripe_idempotency_key")
+  firstSentAt          DateTime?           @map("first_sent_at") @db.Timestamp(3)
+  checkoutParameters Json? @map("checkout_parameters") @db.JsonB
+  reason               String?
+  createdAt            DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  updatedAt            DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
+  confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamp(3)
+  order                DonationOrder       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  operations           DonationOperation[]
+  events               PaymentEvent[]
+
+  @@unique([orderId, id])
+  @@map("payments")
+}
+
+model DonationOperation {
+  orderId      String                       @map("order_id") @db.Uuid
+  operationKey String                       @map("operation_key")
+  fingerprint  String
+  paymentId    String                       @map("payment_id") @db.Uuid
+  resultCode   String?                      @map("result_code")
+  createdAt    DateTime                     @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  payment      Payment                      @relation(fields: [orderId, paymentId], references: [orderId, id], onDelete: Restrict)
+  reservations DonationOpeningReservation[]
+
+  @@id([orderId, operationKey])
+  @@index([orderId, paymentId])
+  @@map("donation_operations")
+}
+
+model DonationOpeningReservation {
+  orderId      String            @id @map("order_id") @db.Uuid
+  operationKey String            @map("operation_key")
+  createdAt    DateTime          @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  operation    DonationOperation @relation(fields: [orderId, operationKey], references: [orderId, operationKey], onDelete: Restrict)
+
+  @@map("donation_opening_reservations")
+}
+
+model PaymentEvent {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String             @map("order_id") @db.Uuid
+  paymentId     String             @map("payment_id") @db.Uuid
+  stripeEventId String?            @unique @map("stripe_event_id")
+  origin        PaymentEventOrigin
+  toStatus      PaymentStatus?     @map("to_status")
+  reason        String?
+  occurredAt    DateTime           @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("occurred_at") @db.Timestamp(3)
+  payment       Payment            @relation(fields: [orderId, paymentId], references: [orderId, id], onDelete: Restrict)
+
+  @@index([orderId, paymentId, occurredAt])
+  @@map("payment_events")
 }

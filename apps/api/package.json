@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build",
+    "build": "pnpm prisma:generate && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -19,10 +19,12 @@
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "pnpm prisma:generate && tsc --noEmit --incremental false",
     "test:unit": "vitest run",
     "test:db": "vitest run --config ./vitest.config.db.ts",
+    "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
+    "prisma:migrate-deploy": "prisma migrate deploy",
     "prisma:check-db": "prisma db execute --file ./test/verify-empty-database.sql"
   },
   "dependencies": {
@@ -35,7 +37,8 @@
     "dotenv": "^18.0.9",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "stripe": "23.1.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

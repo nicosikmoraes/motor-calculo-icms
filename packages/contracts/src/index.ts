@@ -11,6 +11,10 @@ export const IPC_CHANNELS = {
   GET_BACKUP_STATUS: 'backup:status',
   CREATE_BACKUP: 'backup:create',
   APP_VERSION: 'app:get-version',
+  OPEN_DONATION_CHECKOUT: 'donations:open-checkout',
+  GET_CURRENT_DONATION: 'donations:get-current',
+  CREATE_DONATION: 'donations:create',
+  RETRY_DONATION: 'donations:retry',
   EXPORT_PACK: 'interchange:export',
   PREVIEW_PACK: 'interchange:preview',
   IMPORT_PACK: 'interchange:import',
@@ -107,6 +111,39 @@ export interface RegistrationAuditFilter {
 export interface WorkspaceState {
   organization?: OrganizationSummary
   companies: readonly CompanySummary[]
+}
+
+export interface DonationAttemptSummary {
+  paymentId: string
+  status: string
+  reason?: string | null
+  checkoutSessionId?: string | null
+  checkoutUrl?: string | null
+}
+
+export interface DonationOrderSummary {
+  orderId: string
+  amount: string
+  currency: 'BRL'
+  status: string
+  reason?: string | null
+  paymentId?: string
+  checkoutUrl?: string | null
+  attempts?: readonly DonationAttemptSummary[]
+  events?: readonly { status?: string | null; reason?: string | null; occurredAt?: string }[]
+}
+
+export interface CreateDonationInput {
+  intent: string
+  operation: string
+  amount: string
+  currency: 'BRL'
+}
+
+export interface DonationInputError {
+  kind: 'invalid_input'
+  field: 'amount' | 'currency'
+  message: string
 }
 
 /** Contrato de edição versionada, usado quando a migration de revisões estiver ativa. */
@@ -936,6 +973,10 @@ export interface BackupStatus {
 }
 
 export interface DesktopApi {
+  getCurrentDonation(intent: string): Promise<DonationOrderSummary | null>
+  createDonation(input: CreateDonationInput): Promise<DonationOrderSummary | DonationInputError>
+  retryDonation(input: { orderId: string; intent: string; operation: string }): Promise<DonationOrderSummary>
+  openDonationCheckout(url: string): Promise<void>
   listDocumentConflicts(): Promise<readonly DocumentConflictSummary[]>
   saveConflictResolution(input: SaveConflictResolutionInput): Promise<DocumentConflictSummary>
   listDocumentReviews(): Promise<readonly DocumentReviewSummary[]>

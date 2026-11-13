@@ -1,0 +1,7 @@
+**REPROVADO**
+
+1. **[P2] O caso de uso depende diretamente do SDK Stripe.** [handle-stripe-event.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/application/handle-stripe-event.ts:1) importa `Stripe` e recebe `Stripe` no construtor; nas linhas 17–23, consulta a sessão pelo SDK. Isso contraria a arquitetura, que exige casos de uso independentes de Stripe e define adaptadores de gateway. Além disso, o controller instancia o caso de uso manualmente em vez de recebê-lo pela injeção Nest ([stripe-webhook.controller.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/adapters/http/stripe-webhook.controller.ts:14)). A consulta poderia usar uma porta de gateway já existente.
+
+As demais verificações solicitadas estão conformes ao escopo da Tarefa 4: `main.ts` habilita `rawBody`; o controller exige segredo e assinatura e responde com mensagens fixas; o caso de uso não importa HTTP/Nest; o repositório Prisma confere pedido, tentativa, sessão, moeda e valor; e o módulo registra o controller e o repositório. Não encontrei registro do corpo do webhook nos trechos revisados.
+
+**Sugestão não bloqueante:** adicionar cobertura para falha transitória na consulta da sessão, verificando que o endpoint responde `503` e permite reentrega. Isso está previsto na spec, mas a tarefa atual não exige esse caso no teste primeiro.

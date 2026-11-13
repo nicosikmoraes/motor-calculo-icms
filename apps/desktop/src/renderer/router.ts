@@ -12,6 +12,7 @@ import BatchDetailView from './views/BatchDetailView.vue'
 import NewBatchView from './views/NewBatchView.vue'
 import BuiltinRulesView from './views/BuiltinRulesView.vue'
 import RegistrationAuditView from './views/RegistrationAuditView.vue'
+import SupportProjectView from './views/SupportProjectView.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -25,6 +26,7 @@ export const router = createRouter({
     { path: '/revisao-documental', component: DocumentReviewView },
     { path: '/conferencia-mensal', component: MonthlyConferenceView },
     { path: '/backup', component: BackupView },
+    { path: '/apoio', component: SupportProjectView },
     { path: '/', component: DashboardView },
     { path: '/empresas', component: CompaniesView },
     { path: '/transferencia', component: InterchangeView },

@@ -67,9 +67,18 @@ describe('Fronteira entre o desktop fiscal e a API', () => {
     expect(violations).toEqual([]);
   });
 
-  it('mantém o schema Prisma sem entidades e sem migrations na Atividade 08', () => {
+  it('limita o schema Prisma à persistência de doações com migration versionada', () => {
     const schema = readFileSync(join(apiRoot, 'prisma/schema.prisma'), 'utf8');
-    expect(schema).not.toMatch(/^\s*(model|view)\s+\w+/m);
-    expect(existsSync(join(apiRoot, 'prisma/migrations'))).toBe(false);
+    const entities = [...schema.matchAll(/^\s*((?:model|view)\s+\w+)/gm)].map((match) => match[1]);
+    expect(entities.sort()).toEqual([
+      'model DonationOpeningReservation',
+      'model DonationOperation',
+      'model DonationOrder',
+      'model Payment',
+      'model PaymentEvent',
+    ]);
+    const migrations = join(apiRoot, 'prisma/migrations');
+    expect(readdirSync(migrations).some((name) => existsSync(join(migrations, name, 'migration.sql'))))
+      .toBe(true);
   });
 });

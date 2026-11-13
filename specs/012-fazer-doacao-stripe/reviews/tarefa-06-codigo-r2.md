@@ -1,0 +1,5 @@
+**REPROVADO**
+
+1. **P1/P2 — Falha conclusiva antes de criar a sessão não permite uma nova tentativa.** Quando a última tentativa está `falha_na_criacao` sem sessão, `RetryDonation.retry` bloqueia uma operação nova nas linhas 75–83. Isso contraria CA4/CA9, que permitem tentar novamente após rejeição conclusiva, exceto para `VALOR_NAO_ACEITO`. O repositório já aceita esse caso em `createRetry`, mas o fluxo da aplicação nunca chega até ele. Evidência: [retry-donation.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/application/retry-donation.ts:75) e [donation-creation-repository.ts](/home/nico/Documentos/ChatGPT/Contabilidade/motor-calculo-icms-atividade-09/apps/api/src/donations/adapters/prisma/donation-creation-repository.ts:152).
+
+A deduplicação de webhooks para recusa e expiração está implementada com `skipDuplicates` e retorno para eventos já registrados. As dependências continuam pelas portas, e o controller mantém o limite HTTP. Não executei testes.
