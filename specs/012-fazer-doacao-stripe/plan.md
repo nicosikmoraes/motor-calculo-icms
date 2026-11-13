@@ -187,17 +187,23 @@ revalidar versão do SDK e contrato de eventos no início da Atividade 10:
   - Teste primeiro: payloads de criação/gateway, logs e registros após sucesso/erro não contêm dados fiscais, cartão, pagador, segredo Stripe ou chave portadora bruta. Banco guarda apenas hash da chave; intenção errada não consulta nem retoma pedido. Webhook é verificado transitoriamente sem persistir seu corpo. Testes de fronteira continuam rejeitando dependência fiscal na API e adaptadores de servidor no desktop.
   - Arquivos previstos: `apps/api/test/donations.privacy.e2e-spec.ts`, `apps/api/test/scaffold.spec.ts`, `apps/api/src/donations/adapters/http/`, `apps/api/src/donations/adapters/prisma/`, `apps/desktop/test/donations-flow.test.ts`.
 
-- [ ] **Tarefa 9 — Demonstrar a história integrada e fechar rastreabilidade**
+- [x] **Tarefa 9 — Demonstrar a história integrada e fechar rastreabilidade**
   - Cobre: CA1–CA13, por verificação de integração e auditoria dos testes das tarefas 1–8, sem substituir os testes específicos.
   - Teste primeiro: cenário integrado com cartão de testes percorre valor, intenção, Checkout, retorno ainda pendente, webhook e consulta paga; outro cenário faz recusa/retomada. Testes automatizados usam gateway controlado, PostgreSQL descartável e assinatura de teste; a demonstração separada usa Stripe de testes com credenciais do ambiente, nunca dinheiro real.
   - Arquivos previstos: `apps/api/test/donations.integration.e2e-spec.ts`, `apps/desktop/test/donations-flow.test.ts`, `docs/manual-do-usuario.md`, `docs/atividade-10.md`, `specs/README.md`.
   - Verificação futura: executar os checks existentes, suítes de doações e integração PostgreSQL; conferir cada CA, histórico de tentativas e continuidade do uso fiscal sem API. Registrar limites/credenciais ausentes sem declarar demonstração executada. Apenas na Atividade 10, após implementação/revisão, atualizar estado do índice para `implementada` e seguir o rito de PR daquela atividade.
 
+- [x] **Tarefa 10 — Abrir o Checkout aceito pela API atual do Stripe**
+  - Origem: defeito encontrado na demonstração manual da Tarefa 9 (Stripe em modo de testes, API `2026-09-30`). A criação do Checkout enviava `payment_method_types`, que o Stripe passou a recusar com HTTP 400; a doação ficava `indeterminada` e o apoiador nunca recebia a URL. Os testes anteriores não pegaram porque o gateway era controlado.
+  - Cobre: CA1 (criar a intenção e abrir o Checkout); não altera os demais critérios.
+  - Teste primeiro: teste unitário do `StripeCheckoutAdapter` com cliente Stripe real e `fetch` controlado captura o corpo enviado a `/v1/checkout/sessions` e exige que ele não contenha `payment_method_types`, mantendo modo `payment`, moeda `brl`, valor em centavos, URLs de retorno, metadados do pedido e chave de idempotência.
+  - Arquivos previstos: `apps/api/src/donations/adapters/stripe/stripe-checkout.adapter.ts`, `apps/api/src/donations/adapters/stripe/stripe-checkout.adapter.spec.ts`.
+
 ## Mapa de cobertura
 
 | Critério | Tarefa principal que entrega o comportamento | Verificações complementares |
 | --- | --- | --- |
-| CA1 | 2 e 7 — API e fluxo do apoiador | 1, 9 |
+| CA1 | 2 e 7 — API e fluxo do apoiador | 1, 9, 10 |
 | CA2 | 2 — validação e limite do gateway | 7, 9 |
 | CA3 | 3 — identidade e concorrência da operação | 1, 6, 9 |
 | CA4 | 3 — resultado incerto e janela de retomada | 7, 9 |

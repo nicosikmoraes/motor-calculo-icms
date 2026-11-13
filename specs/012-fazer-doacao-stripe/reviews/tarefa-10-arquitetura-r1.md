@@ -1,0 +1,15 @@
+# Parecer de arquitetura — Tarefa 10, rodada 1
+
+**APROVADO**
+
+O diff segue a decisão de portas e adaptadores do projeto (docs/architecture.md §3: "domínio e casos de uso independentes de NestJS/Prisma/Stripe; portas para … gateway; adaptadores … gateway Stripe"). A correção fica toda dentro do adaptador `StripeCheckoutAdapter`. A porta `StripeCheckoutGateway` e o tipo `CreateCheckoutInput`/`CheckoutSession` não mudam, e nenhum tipo do SDK passa para o domínio ou para a aplicação. Só três arquivos mudaram, exatamente os da tarefa: os dois "Arquivos previstos" na Tarefa 10 do plan.md e o próprio plan.md. O teste é unitário do adaptador, sem Nest, banco ou HTTP de entrada, e está junto do código em `src/`. Ali o `vitest.config.ts` da API (`include: ['**/*.spec.ts']`) o executa em `test:unit`. Ele não cai nas suítes e2e (`*.e2e-spec.ts`) nem db (`test/**/*.db-spec.ts`), e isso está certo, porque não é e2e nem db. A regra de idioma é respeitada: os identificadores estão em inglês e a descrição do `it` está em português, como nos specs de `apps/api/test/`.
+
+## Apontamentos
+Nenhum.
+
+## Sugestões
+1. `apps/api/src/donations/adapters/stripe/stripe-checkout.adapter.spec.ts:13-33`: o helper que monta o cliente com `createStripeClient` e um `fetch` controlado repete um padrão que já existe em `apps/api/test/donations.create.e2e-spec.ts:26` e em `donations.integration.db-spec.ts:35`. Isso não bloqueia. Se o padrão aparecer de novo, vale extrair um utilitário de teste comum.
+2. `specs/012-fazer-doacao-stripe/plan.md:197`: o texto diz que "os testes anteriores não pegaram porque o gateway era controlado". Só que `donations.create.e2e-spec.ts` também usa o cliente Stripe real com `fetch` controlado. A causa mais exata é que nenhum teste afirmava a ausência de `payment_method_types` no corpo enviado, e o servidor falso aceita qualquer corpo. Convém deixar a frase mais precisa, para o registro acadêmico.
+3. `apps/api/src/donations/adapters/stripe/stripe-checkout.adapter.ts:27-28`: o comentário novo está em português e o comentário vizinho (linhas 33-34) está em inglês. O projeto já mistura os dois idiomas em comentários (por exemplo `prisma-donation-repository.ts:79`), então isso não viola regra. Fica só a observação sobre a consistência dentro do arquivo.
+4. `stripe-checkout.adapter.ts:25-43`: dois problemas que já existiam antes deste diff e que ele não piorou. O literal passado a `sessions.create` está mal indentado, e o cast `as unknown as Stripe.Checkout.SessionCreateParams` esconde do compilador qualquer parâmetro inválido. Esse cast é justamente o que deixou passar `payment_method_types` sem alerta de tipagem contra a API atual. Pode ficar como dívida registrada para uma tarefa futura, fora do escopo desta.
+5. O teste não foi executado nesta revisão, que foi somente leitura. A conferência de que `pnpm --filter @motor/api test:unit` e `typecheck` passam fica para o verificador. Pela leitura, a tipagem está compatível: o `tsconfig.json` não usa `noUncheckedIndexedAccess`, e o spec não importa `stripe` diretamente, então o teste de fronteira em `test/scaffold.spec.ts` não é afetado.
