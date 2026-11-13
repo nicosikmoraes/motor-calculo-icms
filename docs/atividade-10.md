@@ -25,37 +25,55 @@ Verificações realizadas até aqui:
 - API: typecheck e lint passaram.
 - PostgreSQL descartável: migrations aplicadas e `pnpm --filter @motor/api test:db` passou (26 testes). O container temporário foi removido ao fim da execução.
 - Build de API e desktop: `pnpm build` passou.
-- A demonstração manual com cartão de teste Stripe ainda não foi executada nesta instalação.
+- Demonstração manual no Stripe de testes executada em 12/11/2026 (ver abaixo).
+
+## Demonstração manual no Stripe (modo de testes)
+
+Ambiente: API compilada rodando em `127.0.0.1:3000`, PostgreSQL 16 descartável
+com as três migrations aplicadas, conta Stripe em modo de testes
+(`livemode: false`) e `stripe listen` encaminhando
+`checkout.session.completed`, `checkout.session.expired` e
+`payment_intent.payment_failed` para `POST /webhooks/stripe`. Nenhuma
+credencial foi gravada no Git e nenhum dinheiro real foi movimentado.
+
+| Passo | Resultado observado |
+| --- | --- |
+| `POST /donation-orders` com R$ 10,00, intenção e `Idempotency-Key` novas | `201`, pedido `pendente` com URL do Checkout `cs_test_…` |
+| Pagamento no Checkout hospedado com o cartão de testes `4242 4242 4242 4242` | Pagamento aceito pelo Stripe |
+| Webhook `checkout.session.completed` | Entregue pelo `stripe listen`; a API respondeu `200` |
+| `GET /donation-orders/current` com a mesma intenção | `200`, pedido `pago`, tentativa `paga`, histórico `pendente → paga` |
+
+O retorno do navegador para `DONATION_SUCCESS_URL` não foi usado como
+confirmação: o estado `pago` só apareceu depois do webhook assinado.
+
+### Defeito encontrado na demonstração
+
+A primeira tentativa terminou em `202 indeterminada` (`RESULTADO_INCERTO`).
+Reproduzindo a chamada direto no Stripe, a causa foi um HTTP 400: a API atual do
+Stripe (`2026-09-30`) não aceita mais `payment_method_types` na criação da
+sessão de Checkout. Os testes automatizados não pegaram porque usam gateway
+controlado. A correção virou a **Tarefa 10** do plano, com teste do adaptador
+escrito antes da mudança e dois pareceres em
+`specs/012-fazer-doacao-stripe/reviews/`. A demonstração acima foi concluída
+com essa correção aplicada.
 
 ## Revisão e estado da entrega
 
-- Tarefa 7 teve duas rodadas independentes. Os achados acionáveis da segunda
-  rodada foram corrigidos e os pareceres/decisões estão em
-  `specs/012-fazer-doacao-stripe/reviews/`; não houve uma terceira revisão
-  formal.
-- Tarefas 7 e 8 estão implementadas e revisadas. A Tarefa 9 está automatizada e
-  revisada; falta a demonstração manual com cartão de testes Stripe e registrar
-  seu resultado antes de marcar a atividade como concluída.
+- Tarefas 1–10 implementadas e revisadas; pareceres e decisões em
+  `specs/012-fazer-doacao-stripe/reviews/`.
 - A integração no PostgreSQL cobre dois percursos por rotas HTTP: criação →
   retorno ainda pendente → webhook de pagamento assinado → GET `/current` pela
-  mesma intenção; e recusa assinada → comprovação de sessão expirada no gateway
-  controlado → nova tentativa → consulta do histórico. Assinatura/gateway são
-  controlados nos testes; isso não substitui a demonstração manual no Stripe.
-- PR #47 foi criada como rascunho para as Tarefas 1–6; a branch atual contém
-  mudanças locais ainda não publicadas. Não afirmar que a PR está mesclada nem
-  que a Issue #12 foi fechada.
-- Não há navegador local/Stripe conectado nesta sessão para iniciar a
-  demonstração manual. Para concluir, conecte o navegador com a conta Stripe em
-  modo de testes; depois executar Checkout, webhook e consulta paga e registrar
-  o resultado aqui.
+  mesma intenção; e recusa assinada → sessão expirada no gateway controlado →
+  nova tentativa → consulta do histórico. A demonstração manual completa o
+  percurso feliz contra o Stripe de testes real.
+- O código das Tarefas 1–9 entrou na `main` pela PR #47. O fechamento
+  (Tarefa 10, demonstração e documentação) entra pela PR que traz
+  `Closes #12`.
 
 ## Limites conhecidos da entrega
 
-- A PR #47 permanece em rascunho até implementação, revisão, documentação e
-  validação estarem concluídas; a Issue #12 ainda não deve ser fechada.
-- A conclusão da demonstração requer credenciais de teste configuradas pelo
-  responsável e confirmação observada via webhook. Não inferir sucesso pelo
-  redirecionamento do Checkout.
+- Recusa e expiração foram provadas com gateway controlado e assinatura de
+  teste; a demonstração manual cobriu apenas o pagamento aprovado.
 - Preservar a operação e a intenção locais ao reiniciar. Em estado incerto,
   consultar o pedido; não abrir outro Checkout automaticamente.
 - O fluxo fiscal deve continuar disponível com a API de doações desligada.

@@ -195,7 +195,7 @@ configuração sem mesclar bancos.
 **Regras relacionadas:** manual, seções 10 e 11.
 
 <a id="us09"></a>
-### US09 — Fazer doação pelo Stripe · `Must Have` · `M` · Status: `🟡 Ready`
+### US09 — Fazer doação pelo Stripe · `Must Have` · `M` · Status: `🟢 Live`
 
 **Como** apoiador do projeto, **eu quero** fazer uma doação pelo Stripe
 **para que** eu possa contribuir com o ContabiliNico de forma simples.

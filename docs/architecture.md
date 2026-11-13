@@ -373,21 +373,54 @@ config:
 ---
 erDiagram
     DONATION_ORDERS ||--o{ PAYMENTS : recebe
+    PAYMENTS ||--o{ DONATION_OPERATIONS : origina
+    DONATION_OPERATIONS ||--o| DONATION_OPENING_RESERVATIONS : reserva
+    PAYMENTS ||--o{ PAYMENT_EVENTS : registra
 
     DONATION_ORDERS {
-        string id PK
-        decimal amount
-        string status
+        uuid id PK
+        string intentKeyHash UK
+        numeric amount
+        enum currency
+        enum status
+        timestamp confirmedAt
     }
     PAYMENTS {
-        string id PK
-        string donationOrderId FK
-        string status
+        uuid id PK
+        uuid orderId FK
+        enum status
+        string checkoutSessionId UK
+        string paymentIntentId UK
+        string stripeIdempotencyKey UK
+        string reason
+        timestamp confirmedAt
+    }
+    DONATION_OPERATIONS {
+        uuid orderId PK
+        string operationKey PK
+        uuid paymentId FK
+        string fingerprint
+        string resultCode
+    }
+    DONATION_OPENING_RESERVATIONS {
+        uuid orderId PK
+        string operationKey FK
+    }
+    PAYMENT_EVENTS {
+        uuid id PK
+        uuid paymentId FK
+        string stripeEventId UK
+        enum origin
+        enum toStatus
+        timestamp occurredAt
     }
 ```
 
-- **`DONATION_ORDERS`:** `id` (PK), `amount`, `currency`, `status`; pedido que pode receber uma ou mais tentativas de pagamento.
-- **`PAYMENTS`:** `id` (PK), `donationOrderId` (FK), `gatewayId`, `status`, `confirmedAt`; tentativa vinculada a um pedido.
+- **`DONATION_ORDERS`:** pedido identificado pelo hash da intenção (`intentKeyHash`), com `amount` exato, `currency` e `status`; recebe uma ou mais tentativas.
+- **`PAYMENTS`:** tentativa vinculada ao pedido, com a sessão do Checkout, o PaymentIntent, a chave de idempotência enviada ao Stripe e `confirmedAt`.
+- **`DONATION_OPERATIONS`:** operação idempotente (`Idempotency-Key`) que criou ou retomou uma tentativa; `fingerprint` impede reaproveitar a chave com outro valor.
+- **`DONATION_OPENING_RESERVATIONS`:** reserva única por pedido enquanto um Checkout está sendo aberto, evitando duas aberturas concorrentes.
+- **`PAYMENT_EVENTS`:** histórico de mudanças da tentativa; `stripeEventId` único deduplica webhooks repetidos.
 
 ### Como as regras aparecem nos dados
 
