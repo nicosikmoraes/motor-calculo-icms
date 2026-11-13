@@ -24,7 +24,8 @@ export class StripeCheckoutAdapter implements StripeCheckoutGateway {
     try {
       session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card'],
+      // Sem payment_method_types: a API atual do Stripe recusa o parâmetro e
+      // os meios de pagamento passam a vir das configurações do Dashboard.
       line_items: [{
         quantity: 1,
         price_data: {
