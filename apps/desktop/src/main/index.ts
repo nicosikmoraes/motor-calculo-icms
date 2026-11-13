@@ -19,6 +19,7 @@ import { registerConflictResolutionHandlers } from './conflict-resolution-handle
 import { registerDocumentReviewHandlers } from './document-review-handlers'
 import { batchOperations, closeDatabase, openDatabase, requiredInputText } from './main-services'
 import { allowedDonationCheckoutUrl } from './donation-checkout'
+import { readDonationResponse, type DonationApiResult } from './donation-api'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | undefined
@@ -75,20 +76,12 @@ function registerIpcHandlers(): void {
     }
     return url
   }
-  const requestDonation = async (path: string, init: RequestInit): Promise<any> => {
+  const requestDonation = async (path: string, init: RequestInit): Promise<DonationApiResult> => {
     try {
       const response = await fetch(new URL(path, donationApi()), init)
-      let body: any = null
+      let body: unknown = null
       try { body = await response.json() } catch { /* Não propague corpo bruto do serviço. */ }
-      if (response.status === 404 && path === '/donation-orders/current') return null
-      if (response.status === 422 && body?.reason === 'VALOR_NAO_ACEITO') return body
-      if (response.status === 422 && (body?.field === 'amount' || body?.field === 'currency')
-        && typeof body?.message === 'string') {
-        return { kind: 'invalid_input', field: body.field, message: body.message }
-      }
-      if (!response.ok || response.status === 202) throw new Error(typeof body?.message === 'string'
-        ? body.message : 'Não foi possível retomar o pagamento agora')
-      return body
+      return readDonationResponse(response.status, path, body)
     } catch (error) {
       if (error instanceof Error && error.message !== 'fetch failed') throw error
       throw new Error('Serviço de doações indisponível. Tente novamente mais tarde')
