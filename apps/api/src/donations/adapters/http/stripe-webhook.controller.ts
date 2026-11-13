@@ -1,11 +1,14 @@
 import { BadRequestException, Body, Controller, Headers, HttpCode, Post, ServiceUnavailableException, Inject, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiErrorEnvelopeDoc, WebhookReceivedEnvelopeDoc } from './donation-api-docs.js';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import type Stripe from 'stripe';
 import { HandleStripeEvent, type VerifiedStripeEvent } from '../../application/handle-stripe-event.js';
 import { STRIPE_CLIENT } from '../stripe/stripe.tokens.js';
 
+@ApiTags('webhooks')
 @Controller('webhooks/stripe')
 export class StripeWebhookController {
   constructor(
@@ -16,6 +19,11 @@ export class StripeWebhookController {
 
   @Post()
   @HttpCode(200)
+  @ApiOperation({ summary: 'Recebe eventos do Stripe; só eventos com assinatura válida confirmam pagamentos' })
+  @ApiHeader({ name: 'Stripe-Signature', required: true, description: 'Assinatura do Stripe sobre o corpo bruto' })
+  @ApiResponse({ status: 200, description: 'Evento processado ou já registrado', type: WebhookReceivedEnvelopeDoc })
+  @ApiResponse({ status: 400, description: 'Assinatura ausente ou inválida', type: ApiErrorEnvelopeDoc })
+  @ApiResponse({ status: 503, description: 'Falha temporária; o Stripe reenvia o evento', type: ApiErrorEnvelopeDoc })
   async receive(
     @Req() request: RawBodyRequest<Request>,
     @Body() _parsedBody: unknown,
