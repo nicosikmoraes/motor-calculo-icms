@@ -97,7 +97,7 @@ describe('POST /donation-orders', () => {
       .send({ amount: '12.34', currency: 'BRL' })
       .expect(503);
 
-    expect(response.body).toMatchObject({ orderId: expect.any(String), paymentId: expect.any(String), status: 'indeterminada', reason: 'STRIPE_HTTP_503' });
+    expect(response.body.error).toMatchObject({ statusCode: 503, orderId: expect.any(String), paymentId: expect.any(String), status: 'indeterminada', reason: 'STRIPE_HTTP_503' });
     expect(donations.createIntent).toHaveBeenCalledTimes(1);
     expect(donations.recordIndeterminate).toHaveBeenCalledTimes(1);
     expect(controlled.callCount()).toBe(1);
@@ -112,7 +112,7 @@ describe('POST /donation-orders', () => {
       .send({ amount: '12.34', currency: 'BRL' })
       .expect(202);
 
-    expect(response.body).toMatchObject({ orderId: expect.any(String), paymentId: expect.any(String), status: 'indeterminada', reason: 'RESULTADO_INCERTO' });
+    expect(response.body.data).toMatchObject({ orderId: expect.any(String), paymentId: expect.any(String), status: 'indeterminada', reason: 'RESULTADO_INCERTO' });
     expect(donations.recordIndeterminate).toHaveBeenCalledTimes(1);
     expect(controlled.callCount()).toBe(1);
   });
@@ -141,7 +141,7 @@ describe('POST /donation-orders', () => {
       .send({ amount: '123456789012345678901234567890.37', currency: 'BRL' })
       .expect(201);
 
-    expect(response.body).toMatchObject({ status: 'pendente', checkoutUrl: validSession.url });
+    expect(response.body.data).toMatchObject({ status: 'pendente', checkoutUrl: validSession.url });
     expect(donations.createIntent).toHaveBeenCalledWith(expect.objectContaining({
       amount: '123456789012345678901234567890.37',
     }));
@@ -260,7 +260,7 @@ describe('POST /donation-orders', () => {
       .send({ amount, currency: 'BRL' })
       .expect(422);
 
-    expect(response.body).toMatchObject({ orderId: expect.any(String), status: 'falha_na_criacao', reason: 'VALOR_NAO_ACEITO' });
+    expect(response.body.error).toMatchObject({ statusCode: 422, orderId: expect.any(String), status: 'falha_na_criacao', reason: 'VALOR_NAO_ACEITO' });
     expect(donations.createIntent).toHaveBeenCalledWith(expect.objectContaining({ amount }));
     expect(donations.recordCreationFailure).toHaveBeenCalledTimes(1);
     const sent = new URLSearchParams(controlled.requestBodies[0]);

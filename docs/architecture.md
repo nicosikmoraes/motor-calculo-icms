@@ -101,8 +101,23 @@ Essas camadas de negócio só serão criadas com as primeiras specs aprovadas. N
 scaffold atual, `AppController` e `AppService` são a demonstração `Hello World!`
 do gerador; não há módulo, DTO, tabela ou operação de pagamento.
 
-Os futuros DTOs validarão a entrada. `ValidationPipe`, filtro global,
-interceptor e Swagger serão adicionados com as histórias correspondentes. O
+Padrões que valem para a API inteira (`apps/api/src/common/http/`, registrados no
+`AppModule` para valerem também nos testes de ponta a ponta):
+- `TransformInterceptor` (`APP_INTERCEPTOR`): toda resposta de sucesso sai como
+  `{ data: ... }`. Rotas que escrevem a resposta com `@Res()` sem `passthrough`
+  (a página HTML de retorno do Checkout) ficam de fora.
+- `AllExceptionsFilter` (`APP_FILTER`): todo erro sai como
+  `{ error: { statusCode, message, ... } }`. `HttpException` mantém o que declarou;
+  Prisma `P2002` vira 409 e `P2025` vira 404 com mensagem própria; qualquer outro
+  erro vira 500 genérico, e o detalhe fica só no log.
+- `ValidationPipe` (`APP_PIPE`) com `transform`, `whitelist` e
+  `forbidNonWhitelisted`.
+- Erros de regra de negócio têm nome e moram no adaptador HTTP do módulo
+  (por exemplo `donations/adapters/http/donation-http-errors.ts`); o caso de uso
+  continua sem depender do NestJS.
+- `main.ts`: `app.useSecurityHeaders()` (cabeçalhos de segurança, sem
+  `X-Powered-By`) e Swagger em `/docs`, gerado dos controllers com o plugin do
+  `nest-cli.json`. O
 servidor confirmará pagamentos por webhook; o desktop consultará o estado.
 Indisponibilidade desse serviço não bloqueará o uso fiscal local.
 
