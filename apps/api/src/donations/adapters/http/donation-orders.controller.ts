@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
 import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CreateDonation, DonationCreationError } from '../../application/create-donation.js';
@@ -56,6 +56,7 @@ export class DonationOrdersController {
   }
 
   @Post(':id/attempts')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Abre uma nova tentativa de pagamento para um pedido recusado ou expirado' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @intentHeader
@@ -118,6 +119,9 @@ export class DonationOrdersController {
         throw new InvalidDonationRequestError(error.message, typeof error.details.field === 'string' ? error.details.field : undefined);
       }
       if (error.code === 'gateway_rejected_amount') throw new DonationAmountRejectedError(error.details);
+      if (error.code === 'service_unavailable' || error.code === 'stripe_unavailable') {
+        throw new DonationServiceUnavailableError(error.details);
+      }
     }
     throw new DonationServiceUnavailableError();
   }

@@ -200,14 +200,15 @@ describe('POST de criação com PostgreSQL real durante HTTP 503 do Stripe', () 
 
       // Guarantee 2: response identifiers must identify those same real rows,
       // and the indeterminate state plus reservation survive the HTTP 503.
-      expect(response.body).toMatchObject({
+      expect(response.body.error).toMatchObject({
+        statusCode: 503,
         orderId: openingObservedDuringStripe?.orderId,
         paymentId: openingObservedDuringStripe?.paymentId,
         status: 'indeterminada',
         reason: 'STRIPE_HTTP_503',
       });
-      const orderId = response.body.orderId as string;
-      const paymentId = response.body.paymentId as string;
+      const orderId = response.body.error.orderId as string;
+      const paymentId = response.body.error.paymentId as string;
       orderIds.push(orderId);
       const [order, payment, reservation, event] = await Promise.all([
         pool.query('SELECT id::text, amount::text, status FROM donation_orders WHERE id = $1::uuid', [orderId]),

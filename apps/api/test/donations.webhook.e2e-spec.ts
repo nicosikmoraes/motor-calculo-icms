@@ -115,7 +115,7 @@ describe('POST /webhooks/stripe', () => {
     const created = await request(app.getHttpServer()).post('/donation-orders')
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
-    expect(created.body).toMatchObject({ orderId: knownOrderId, paymentId: knownPaymentId, status: 'pendente' });
+    expect(created.body.data).toMatchObject({ orderId: knownOrderId, paymentId: knownPaymentId, status: 'pendente' });
 
     const returned = await request(app.getHttpServer()).get('/donations/return?result=success').expect(200);
     expect(returned.text).toContain('Aguardando confirmação do pagamento');
@@ -125,7 +125,7 @@ describe('POST /webhooks/stripe', () => {
     expect((await postEvent(event)).status).toBe(200);
     const current = await request(app.getHttpServer()).get('/donation-orders/current')
       .set('X-Donation-Intent', intent).expect(200);
-    expect(current.body).toMatchObject({ orderId: knownOrderId, status: 'pago' });
+    expect(current.body.data).toMatchObject({ orderId: knownOrderId, status: 'pago' });
     expect(repo.confirmPayment).toHaveBeenCalledTimes(1);
   });
 

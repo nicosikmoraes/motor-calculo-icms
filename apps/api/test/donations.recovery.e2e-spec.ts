@@ -98,7 +98,7 @@ describe('recuperação de operação de doação', () => {
     const second = await send(intent, operation);
     expect(second.status).toBe(200);
     const storedSession = [...stripeSessions.values()][0]?.session;
-    expect(second.body).toMatchObject({ orderId: first.body.orderId, paymentId: first.body.paymentId, checkoutUrl: storedSession?.url });
+    expect(second.body.data).toMatchObject({ orderId: first.body.data.orderId, paymentId: first.body.data.paymentId, checkoutUrl: storedSession?.url });
     expect(calls).toHaveLength(2);
     expect(calls[1]).toEqual(calls[0]);
     expect(stripeSessions.size).toBe(1);
@@ -109,8 +109,8 @@ describe('recuperação de operação de doação', () => {
   it('concorrência compartilha pedido e tentativa e usa uma única chave Stripe idempotente', async () => {
     const intent = randomUUID(); const operation = randomUUID();
     const [a, b] = await Promise.all([send(intent, operation), send(intent, operation)]);
-    expect(a.body.orderId).toBe(b.body.orderId);
-    expect(a.body.paymentId).toBe(b.body.paymentId);
+    expect(a.body.data.orderId).toBe(b.body.data.orderId);
+    expect(a.body.data.paymentId).toBe(b.body.data.paymentId);
     const checkoutPosts = calls.filter((call) => call.body !== 'undefined');
     expect(checkoutPosts.length).toBeGreaterThan(0);
     expect(new Set(checkoutPosts.map((call) => call.idempotencyKey))).toEqual(new Set([checkoutPosts[0].idempotencyKey]));
@@ -121,8 +121,8 @@ describe('recuperação de operação de doação', () => {
     const intent = randomUUID(); const operation = randomUUID();
     const first = await send(intent, operation).expect(201);
     const second = await send(intent, operation).expect(200);
-    expect(second.body).toMatchObject({ orderId: first.body.orderId, paymentId: first.body.paymentId,
-      status: 'pendente', checkoutUrl: first.body.checkoutUrl });
+    expect(second.body.data).toMatchObject({ orderId: first.body.data.orderId, paymentId: first.body.data.paymentId,
+      status: 'pendente', checkoutUrl: first.body.data.checkoutUrl });
     expect(retrieveCalls).toBe(1);
     expect(calls.filter((call) => call.body !== 'undefined')).toHaveLength(1);
     expect(repo.recordCheckout).toHaveBeenCalledTimes(1);
@@ -178,7 +178,7 @@ describe('recuperação de operação de doação', () => {
     vi.setSystemTime(new Date('2026-11-09T12:00:00.000Z'));
     expect(Date.now() - repo.createIntent.mock.calls[0][0].firstSentAt.getTime()).toBe(24 * 60 * 60 * 1000);
     const response = await send(intent, operation);
-    expect(response.body.message).toBe('Pagamento em verificação; nenhuma nova tentativa foi aberta');
+    expect(response.body.data.message).toBe('Pagamento em verificação; nenhuma nova tentativa foi aberta');
     expect(calls.filter((call) => call.body !== 'undefined')).toHaveLength(postsBeforeBoundary);
   });
 });

@@ -92,7 +92,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     const created = await request(app.getHttpServer()).post('/donation-orders')
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
-    const orderId = created.body.orderId as string;
+    const orderId = created.body.data.orderId as string;
     orderIds.push(orderId);
 
     const pendingRows = await pool.query(`SELECT o.status AS order_status, p.id::text AS payment_id, p.status AS payment_status
@@ -112,7 +112,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
 
     const current = await request(app.getHttpServer()).get('/donation-orders/current')
       .set('X-Donation-Intent', intent).expect(200);
-    expect(current.body).toMatchObject({ orderId, status: 'pago', attempts: [
+    expect(current.body.data).toMatchObject({ orderId, status: 'pago', attempts: [
       expect.objectContaining({ paymentId: pendingRows.rows[0].payment_id, status: 'paga' }),
     ] });
     expect((await pool.query('SELECT status FROM donation_orders WHERE id = $1', [orderId])).rows[0].status).toBe('pago');
@@ -123,7 +123,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     const created = await request(app.getHttpServer()).post('/donation-orders')
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
-    const orderId = created.body.orderId as string;
+    const orderId = created.body.data.orderId as string;
     orderIds.push(orderId);
     const originalPaymentId = checkout?.metadata.donation_payment_id as string;
 
@@ -138,12 +138,12 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     const retried = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`)
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .expect(200);
-    expect(retried.body).toMatchObject({ orderId, status: 'pendente', reused: false });
+    expect(retried.body.data).toMatchObject({ orderId, status: 'pendente', reused: false });
     const state = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`)
       .set('X-Donation-Intent', intent).expect(200);
-    expect(state.body.attempts).toHaveLength(2);
-    expect(state.body.attempts[0]).toMatchObject({ status: 'pendente' });
-    expect(state.body.attempts[1]).toMatchObject({ paymentId: originalPaymentId, status: 'expirada' });
+    expect(state.body.data.attempts).toHaveLength(2);
+    expect(state.body.data.attempts[0]).toMatchObject({ status: 'pendente' });
+    expect(state.body.data.attempts[1]).toMatchObject({ paymentId: originalPaymentId, status: 'expirada' });
     expect((await pool.query('SELECT count(*)::int AS attempts FROM payments WHERE order_id = $1', [orderId])).rows[0].attempts).toBe(2);
   });
 });

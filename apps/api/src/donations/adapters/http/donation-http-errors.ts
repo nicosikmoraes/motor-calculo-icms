@@ -29,9 +29,14 @@ export class DonationAmountRejectedError extends HttpException {
   }
 }
 
-/** Banco, configuração ou Stripe indisponíveis; nenhuma cobrança nova foi aberta. */
+/**
+ * Banco, configuração ou Stripe indisponíveis; nenhuma cobrança nova foi aberta.
+ * Quando o pedido já existe, os identificadores e o motivo vão junto (CA13),
+ * para o aplicativo consultar o pedido em vez de abrir outro.
+ */
 export class DonationServiceUnavailableError extends HttpException {
-  constructor() {
-    super({ message: 'Serviço de doações indisponível. Tente novamente mais tarde' }, HttpStatus.SERVICE_UNAVAILABLE);
+  constructor(details: Record<string, unknown> = {}) {
+    super({ ...details, message: String(details.message ?? 'Serviço de doações indisponível. Tente novamente mais tarde') },
+      HttpStatus.SERVICE_UNAVAILABLE);
   }
 }
