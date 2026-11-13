@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Banco descartável: nasce e morre com o job, sem dado real e sem porta
+    # aberta para fora do runner. Por isso a senha pode ficar escrita aqui.
+    # A versão maior tem que ser a mesma do docker-compose.yml (postgres:16).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d appdb"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+
+    env:
+      DATABASE_URL: postgresql://app:app@127.0.0.1:5432/appdb?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      # Equivalente ao `npm ci`: instala exatamente o pnpm-lock.yaml e falha
+      # se ele estiver fora de sincronia com algum package.json.
+      - name: Instalar o projeto inteiro
+        run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Testes das ferramentas do repositório
+        run: pnpm test:tooling
+
+      - name: Gerar o client do Prisma
+        run: pnpm --filter @motor/api prisma:generate
+
+      - name: Compilar a API (confere os tipos)
+        run: pnpm --filter @motor/api build
+
+      # O build só olha src/; isto confere também os tipos dos testes.
+      - name: Conferir os tipos dos testes
+        run: pnpm --filter @motor/api typecheck
+
+      - name: Validar o schema do Prisma
+        run: pnpm db:validate
+
+      # Só aplica as migrations versionadas em prisma/migrations; nunca cria.
+      - name: Aplicar as migrations
+        run: pnpm --filter @motor/api prisma:migrate-deploy
+
+      - name: Conferir o schema de doações pelo Prisma
+        run: pnpm --filter @motor/api prisma:check-db
+
+      - name: Testes unitários
+        run: pnpm --filter @motor/api test:unit
+
+      - name: Testes de ponta a ponta
+        run: pnpm --filter @motor/api test:e2e
+
+      - name: Testes de persistência no PostgreSQL
+        run: pnpm test:db
+
+      - name: Lint
+        run: pnpm --filter @motor/api lint
