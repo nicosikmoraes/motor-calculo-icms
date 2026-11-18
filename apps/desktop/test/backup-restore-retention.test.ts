@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
-import { BackupService } from '../src/main/backup-service'
-import { hashBackup } from '../src/main/backup-files'
-import { installRestore, prepareRestore, recoverInterruptedRestore } from '../src/main/backup-restore'
-import { cleanImportTemporaryFiles, cleanRestoreTemporaryFiles, pruneBackups } from '../src/main/backup-retention'
+import { BackupService } from '../src/main/modules/backup/adapters/files/backup-service'
+import { hashBackup } from '../src/main/modules/backup/adapters/files/backup-files'
+import { installRestore, prepareRestore, recoverInterruptedRestore } from '../src/main/modules/backup/adapters/files/backup-restore'
+import { cleanImportTemporaryFiles, cleanRestoreTemporaryFiles, pruneBackups } from '../src/main/modules/backup/adapters/files/backup-retention'
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup() })
 async function fixture(migrations = CORE_MIGRATIONS) {

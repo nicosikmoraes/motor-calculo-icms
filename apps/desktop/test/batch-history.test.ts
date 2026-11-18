@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompanySummary, DashboardBatchSummary, DashboardCounts } from '@motor/contracts'
-import { filterHistory, groupHistory, historyMonth, historyStatus, summarizeHistory } from '../src/renderer/batch-history'
+import { filterHistory, groupHistory, historyMonth, historyStatus, summarizeHistory } from '../src/renderer/concerns/batches/batch-history'
 
 const companyA: CompanySummary = { id: 'company-a', revision: 1, legalName: 'Comércio Araucária', tradeName: 'Mercado da Praça', cnpj: '11222333000181', state: 'PR', active: false }
 const companyB: CompanySummary = { ...companyA, id: 'company-b', legalName: 'Oficina Horizonte', tradeName: 'Horizonte', cnpj: '11444777000161', active: true }

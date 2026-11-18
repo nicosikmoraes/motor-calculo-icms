@@ -5,7 +5,7 @@ import {
 } from '@motor/database'
 import { AppErrorCode } from '@motor/domain'
 import { RuleLevelCode } from '@motor/tax-engine'
-import { VersionedRuleUseCases } from '../src/main/versioned-rule-use-cases'
+import { VersionedRuleUseCases } from '../src/main/modules/fiscal/application/versioned-rule-use-cases'
 
 const timestamp = '2026-09-29T21:00:00.000Z'
 let database: SqliteDatabase

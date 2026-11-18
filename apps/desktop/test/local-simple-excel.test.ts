@@ -15,14 +15,14 @@ const state = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => 
 vi.mock('electron', () => ({ app: { getVersion: () => 'validation' }, BrowserWindow: { fromWebContents: () => ({}) },
   dialog: { showSaveDialog: async () => ({ canceled: false, filePath: state.destination }) },
   ipcMain: { handle: (name: string, handler: (...args: any[]) => any) => state.handlers.set(name, handler) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: () => state.database, batchOperations: { busy: false },
-  requiredInputText: (value: string) => value }))
-import { importBatch } from '../src/main/import-batch'
-import { BatchOperationRegistry } from '../src/main/batch-operation'
-import { applyAutomaticXmlCalculations, getItemFiscalContext } from '../src/main/item-fiscal-use-cases'
-import { entryReviewFindings } from '../src/main/entry-review-findings'
-import { queryBatchDetail } from '../src/main/batch-query-handlers'
-import { registerReportHandlers } from '../src/main/report-handlers'
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: () => state.database }))
+vi.mock('../src/main/platform/operations/batch-operations', () => ({ batchOperations: { busy: false } }))
+import { importBatch } from '../src/main/modules/batches/adapters/sqlite/import-batch'
+import { BatchOperationRegistry } from '../src/main/modules/batches/application/batch-operation'
+import { applyAutomaticXmlCalculations, getItemFiscalContext } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { entryReviewFindings } from '../src/main/modules/fiscal/domain/entry-review-findings'
+import { queryBatchDetail } from '../src/main/modules/batches/queries/batch-queries'
+import { registerReportHandlers } from '../src/main/ipc/controllers/reports/reports-controller'
 
 it.skipIf(!manifest)('importa XMLs reais em base isolada e confere cada produto no Excel salvo pelo IPC', async () => {
   const config = JSON.parse(await readFile(manifest!, 'utf8')) as { sources: string[]; outputDirectory: string; expectedItems: number }
@@ -62,7 +62,7 @@ it.skipIf(!manifest)('importa XMLs reais em base isolada e confere cada produto 
     const documentsBefore = new SqliteBatchRepository(database).listNormalizedDocuments(imported.id).map(document => document.normalized)
     await mkdir(config.outputDirectory, { recursive: true })
     state.destination = join(config.outputDirectory, 'Conferencia-aplicativo-92-produtos.xlsx')
-    registerReportHandlers()
+    registerReportHandlers(state.handlers.set.bind(state.handlers))
     const sender = { mainFrame: {}, isDestroyed: () => false }
     expect(await state.handlers.get(IPC_CHANNELS.EXPORT_BATCH_EXCEL)!({ sender, senderFrame: sender.mainFrame }, imported.id)).toEqual({ path: state.destination })
     const book = new ExcelJS.Workbook(); await book.xlsx.load(await readFile(state.destination) as never)

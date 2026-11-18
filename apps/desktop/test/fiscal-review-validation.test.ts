@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemFiscalQuestion } from '@motor/contracts'
-import { fiscalReviewErrors } from '../src/renderer/fiscal-review-validation'
+import { fiscalReviewErrors } from '../src/renderer/concerns/fiscal/fiscal-review-validation'
 
 const rate: ItemFiscalQuestion = { field: 'stInternalRate', label: 'Alíquota interna', inputType: 'decimal', suggestedValue: '19.5' }
 describe('erros por campo na revisão fiscal', () => {

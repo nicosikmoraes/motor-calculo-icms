@@ -11,12 +11,8 @@ vi.mock('electron', () => ({ app: { getVersion: () => 'test' },
   BrowserWindow: { fromWebContents: () => state.window },
   dialog: { showOpenDialog: state.openDialog, showSaveDialog: state.saveDialog },
   ipcMain: { handle: (channel: string, handler: (...args: any[]) => any) => state.handlers.set(channel, handler) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: () => state.database,
-  inputRecord: (raw: unknown) => {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Entrada inválida')
-    return raw
-  } }))
-import { registerInterchangeHandlers } from '../src/main/interchange-handlers'
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: () => state.database }))
+import { registerInterchangeHandlers } from '../src/main/ipc/controllers/interchange/interchange-controller'
 const now = '2026-10-01T23:00:00.000Z'
 let directory: string, path: string
 const frame = {}, event = { sender: { id: 1, mainFrame: frame, isDestroyed: () => false, once: vi.fn() }, senderFrame: frame }
@@ -31,7 +27,7 @@ beforeEach(async () => {
   new SqliteOrganizationRepository(state.database).createSingle({ id: '00000000-0000-4000-8000-000000000001',
     name: 'Destino', active: true, createdAt: now, updatedAt: now })
   state.handlers.clear(); state.openDialog.mockReset(); state.saveDialog.mockReset()
-  registerInterchangeHandlers()
+  registerInterchangeHandlers(state.handlers.set.bind(state.handlers))
   await writeFile(path, packageJson())
   state.openDialog.mockResolvedValue({ canceled: false, filePaths: [path] })
 })

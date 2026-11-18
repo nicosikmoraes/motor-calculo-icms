@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteCompanyRepository, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
 import { createExcelWorkbook } from '@motor/reporting'
-vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: vi.fn(), requiredInputText: vi.fn() }))
-import { queryMonthlyConference, queryMonthlyReport, validateMonthlyInput } from '../src/main/monthly-conference'
+import { queryMonthlyConference, queryMonthlyReport, validateMonthlyInput } from '../src/main/modules/reports/queries/monthly-conference'
 let database: SqliteDatabase, organizationId: string, companyId: string
 const now = '2026-10-06T12:00:00.000Z'
 beforeEach(() => {

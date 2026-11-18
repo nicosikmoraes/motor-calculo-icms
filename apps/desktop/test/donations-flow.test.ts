@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopApi, DonationOrderSummary } from '@motor/contracts'
 import { createDonation, loadCurrentDonation, retryDonation, startNewDonationIntent } from '../src/renderer/services/donations'
-import { authSession } from '../src/renderer/services/auth'
-import { donationCanRetry, donationCreatedNotice, donationRequiresNewIntent, donationStatusMessage } from '../src/renderer/donation-status'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '../src/renderer/stores/auth'
+import { donationCanRetry, donationCreatedNotice, donationRequiresNewIntent, donationStatusMessage } from '../src/renderer/concerns/donations/donation-status'
 
 const store = new Map<string, string>()
 const donation: DonationOrderSummary = { orderId: '00000000-0000-4000-8000-000000000001', amount: '10.00', currency: 'BRL', status: 'pendente' }
@@ -11,6 +12,7 @@ const api = {
 } as unknown as DesktopApi
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   store.clear()
   vi.clearAllMocks()
   vi.stubGlobal('localStorage', {
@@ -100,7 +102,24 @@ describe('mensagens e ações de pagamento', () => {
 })
 
 describe('chave de intenção por conta (revisão da US11)', () => {
-  afterEach(() => { authSession.value = null })
+  it('só limpa a operação da conta que iniciou a solicitação', async () => {
+    const auth = useAuthStore()
+    auth.session = { email: 'ana@example.test', role: 'SUPPORTER' }
+    const result = Promise.withResolvers<DonationOrderSummary>()
+    vi.mocked(api.createDonation).mockReturnValueOnce(result.promise)
+    const firstRequest = createDonation('10.00')
+
+    auth.session = { email: 'bia@example.test', role: 'SUPPORTER' }
+    vi.mocked(api.createDonation).mockRejectedValueOnce(new Error('offline'))
+    await expect(createDonation('10.00')).rejects.toThrow('offline')
+    const secondIdentity = store.get('contabilinico.donations.intent.v1:bia@example.test')
+
+    result.resolve(donation)
+    await firstRequest
+    expect(store.get('contabilinico.donations.intent.v1:ana@example.test')).not.toContain('"operation"')
+    expect(secondIdentity).toContain('"operation"')
+    expect(store.get('contabilinico.donations.intent.v1:bia@example.test')).toBe(secondIdentity)
+  })
 
   it('cada conta tem a própria chave na mesma máquina, e a chave antiga, sem conta, não é reaproveitada', async () => {
     vi.stubGlobal('crypto', { randomUUID: vi.fn()
@@ -108,9 +127,9 @@ describe('chave de intenção por conta (revisão da US11)', () => {
       .mockReturnValueOnce('intencao-da-bia-1234567890').mockReturnValue('operacao-qualquer-12345678') })
     store.set('contabilinico.donations.intent.v1', JSON.stringify({ intent: 'intencao-antiga-sem-conta-123' }))
 
-    authSession.value = { email: 'ana@example.test', role: 'SUPPORTER' }
+    useAuthStore().session = { email: 'ana@example.test', role: 'SUPPORTER' }
     await createDonation('10.00')
-    authSession.value = { email: 'bia@example.test', role: 'SUPPORTER' }
+    useAuthStore().session = { email: 'bia@example.test', role: 'SUPPORTER' }
     await createDonation('10.00')
 
     const intents = vi.mocked(api.createDonation).mock.calls.map(([input]) => input.intent)

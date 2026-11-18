@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { entryClassificationFindings } from '../src/main/entry-classification-findings'
+import { entryClassificationFindings } from '../src/main/modules/fiscal/domain/entry-classification-findings'
 
 const source = { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe' }
 const findings = (description: string, ncm = '33059000', cest = '2002100') =>

@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNfe } from '@motor/domain'
-import { ImportStaging } from '../src/main/import-staging'
+import { ImportStaging } from '../src/main/modules/batches/adapters/files/import-staging'
 
 const note: NormalizedNfe = {
   kind: 'NFE', layoutVersion: '4.00', model: '55', accessKey: '1'.repeat(44),

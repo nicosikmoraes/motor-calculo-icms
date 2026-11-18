@@ -4,11 +4,12 @@ const state = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => 
   busy: false, database: vi.fn(), list: vi.fn(), save: vi.fn() }))
 vi.mock('electron', () => ({ BrowserWindow: { fromWebContents: () => state.window },
   ipcMain: { handle: (id: string, fn: (...args: any[]) => any) => state.handlers.set(id, fn) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: state.database, batchOperations: { get busy() { return state.busy } } }))
-vi.mock('../src/main/document-review-use-cases', () => ({ listDocumentReviews: state.list, saveDocumentReview: state.save }))
-import { registerDocumentReviewHandlers } from '../src/main/document-review-handlers'
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: state.database }))
+vi.mock('../src/main/platform/operations/batch-operations', () => ({ batchOperations: { get busy() { return state.busy } } }))
+vi.mock('../src/main/modules/fiscal/adapters/sqlite/document-review-use-cases', () => ({ listDocumentReviews: state.list, saveDocumentReview: state.save }))
+import { registerDocumentReviewHandlers } from '../src/main/ipc/controllers/fiscal/document-review-controller'
 const sender = { mainFrame: {} }, event = { sender, senderFrame: sender.mainFrame }
-beforeEach(() => { vi.clearAllMocks(); state.handlers.clear(); state.window = {}; state.busy = false; registerDocumentReviewHandlers() })
+beforeEach(() => { vi.clearAllMocks(); state.handlers.clear(); state.window = {}; state.busy = false; registerDocumentReviewHandlers(state.handlers.set.bind(state.handlers)) })
 describe('limites da ponte de revisão documental', () => {
   it('rejeita subframes, janela ausente e importação em andamento antes de acessar o banco', () => {
     for (const channel of [IPC_CHANNELS.LIST_DOCUMENT_REVIEWS, IPC_CHANNELS.SAVE_DOCUMENT_REVIEW]) {

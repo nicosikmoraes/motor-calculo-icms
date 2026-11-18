@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allowedDonationCheckoutUrl } from '../src/main/donation-checkout'
+import { allowedDonationCheckoutUrl } from '../src/main/modules/donations/domain/donation-checkout'
 
 describe('abertura restrita de Checkout', () => {
   it('aceita apenas links HTTPS de Checkout hospedado do Stripe', () => {

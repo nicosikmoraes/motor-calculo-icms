@@ -10,7 +10,7 @@ assert.ok(executable, 'Informe o executável instalado')
 const port = 19223
 const environment = { ...process.env }
 delete environment.ELECTRON_RUN_AS_NODE
-const child = spawn(executable, [`--remote-debugging-port=${port}`], { env: environment, stdio: 'pipe' })
+const child = spawn(executable, [`--remote-debugging-port=${port}`], { env: environment, stdio: 'pipe', windowsHide: true })
 let output = '', launchError
 child.stdout.on('data', (data) => { output += data })
 child.stderr.on('data', (data) => { output += data })
@@ -55,7 +55,16 @@ try {
   assert.ok(state.text.includes('ContabiliNico'), JSON.stringify(state))
   assert.ok(state.text.includes('Restaurar'), JSON.stringify(state))
   assert.equal(state.bridge, 'object', 'Preload instalado indisponível')
-  console.log(JSON.stringify({ installedRenderer: 'ok', platform: process.platform, page: page.url, ready: state.ready }))
+  const ipc = await evaluate(`(async () => {
+    const api = window.desktopApi
+    const [version, workspace, batches, backup] = await Promise.all([
+      api.getVersion(), api.getWorkspace(), api.listBatches(), api.getBackupStatus(),
+    ])
+    return { version, companies: Array.isArray(workspace.companies), batches: Array.isArray(batches), backup: typeof backup.enabled === 'boolean' }
+  })()`)
+  assert.match(ipc.version, /^\d+\.\d+\.\d+/)
+  assert.equal(ipc.companies && ipc.batches && ipc.backup, true, JSON.stringify(ipc))
+  console.log(JSON.stringify({ installedRenderer: 'ok', installedIpc: 'ok', platform: process.platform, ready: state.ready }))
 } finally {
   socket?.close()
   if (child.pid) {

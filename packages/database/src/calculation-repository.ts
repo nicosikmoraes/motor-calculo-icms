@@ -24,6 +24,21 @@ export interface SaveCalculationRunInput {
   items: readonly { itemNumber: string; memory: CalculationMemory }[]
 }
 
+type CalculationRunRow = {
+  id: string; solicitacao_id: string; lote_id: string; documento_id: string
+  execucao_anterior_id: string | null; versao_motor: string; criado_em: string
+}
+type CalculationItem = CalculationRunRecord['items'][number]
+type CalculationRunHeader = Omit<CalculationRunRecord, 'items'>
+
+function readRunHeader(row: CalculationRunRow): CalculationRunHeader {
+  return {
+    id: row.id, requestId: row.solicitacao_id, batchId: row.lote_id,
+    documentId: row.documento_id, engineVersion: row.versao_motor, createdAt: row.criado_em,
+    ...(row.execucao_anterior_id ? { previousRunId: row.execucao_anterior_id } : {}),
+  }
+}
+
 export class SqliteCalculationRepository {
   constructor(private readonly database: SqliteDatabase) {}
 
@@ -105,19 +120,14 @@ export class SqliteCalculationRepository {
   }
 
   findByRequest(requestId: string, documentId: string): CalculationRunRecord | undefined {
-    const row = this.database.get<{
-      id: string; solicitacao_id: string; lote_id: string; documento_id: string;
-      execucao_anterior_id: string | null; versao_motor: string; criado_em: string
-    }>(`SELECT id, solicitacao_id, lote_id, documento_id, execucao_anterior_id, versao_motor, criado_em
+    const row = this.database.get<CalculationRunRow>(`SELECT id, solicitacao_id, lote_id, documento_id, execucao_anterior_id, versao_motor, criado_em
         FROM execucoes_calculo WHERE solicitacao_id = ? AND documento_id = ?`, requestId, documentId)
     if (!row) return undefined
     const items = this.database.all<{ numero_item: string; memoria_json: string }>(
       'SELECT numero_item, memoria_json FROM resultados_item_calculo WHERE execucao_id = ? ORDER BY numero_item', row.id,
     )
     return {
-      id: row.id, requestId: row.solicitacao_id, batchId: row.lote_id,
-      documentId: row.documento_id, engineVersion: row.versao_motor, createdAt: row.criado_em,
-      ...(row.execucao_anterior_id ? { previousRunId: row.execucao_anterior_id } : {}),
+      ...readRunHeader(row),
       items: items.map((item) => ({ itemNumber: item.numero_item, memory: JSON.parse(item.memoria_json) as CalculationMemory })),
     }
   }
@@ -128,5 +138,35 @@ export class SqliteCalculationRepository {
        ORDER BY criado_em DESC, rowid DESC LIMIT 1`, documentId,
     )
     return row ? this.findByRequest(row.solicitacao_id, documentId) : undefined
+  }
+
+  /** Lê só a última execução de cada documento. Um parâmetro JSON evita o limite de variáveis do SQLite. */
+  latestByDocuments(documentIds: readonly string[]): ReadonlyMap<string, CalculationRunRecord> {
+    const runs = new Map<string, CalculationRunHeader & { items: CalculationItem[] }>()
+    if (documentIds.length === 0) return runs
+
+    const rows = this.database.all<CalculationRunRow & { numero_item: string | null; memoria_json: string | null }>(
+      `SELECT r.id, r.solicitacao_id, r.lote_id, r.documento_id, r.execucao_anterior_id, r.versao_motor, r.criado_em,
+              i.numero_item, i.memoria_json
+       FROM json_each(?) requested
+       JOIN execucoes_calculo r ON r.rowid = (
+         SELECT rowid FROM execucoes_calculo WHERE documento_id = requested.value
+         ORDER BY criado_em DESC, rowid DESC LIMIT 1
+       )
+       LEFT JOIN resultados_item_calculo i ON i.execucao_id = r.id
+       ORDER BY r.documento_id, i.numero_item`,
+      JSON.stringify([...new Set(documentIds)]),
+    )
+    for (const row of rows) {
+      let run = runs.get(row.documento_id)
+      if (!run) {
+        run = { ...readRunHeader(row), items: [] }
+        runs.set(row.documento_id, run)
+      }
+      if (row.numero_item !== null && row.memoria_json !== null) {
+        run.items.push({ itemNumber: row.numero_item, memory: JSON.parse(row.memoria_json) as CalculationMemory })
+      }
+    }
+    return runs
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AppErrorCode } from '@motor/domain'
-import { BatchOperationCancelledError, BatchOperationRegistry } from '../src/main/batch-operation'
+import { BatchOperationCancelledError, BatchOperationRegistry } from '../src/main/modules/batches/application/batch-operation'
 
 describe('operação de importação', () => {
   it('publica progresso serializável e cancela apenas pela janela dona', () => {

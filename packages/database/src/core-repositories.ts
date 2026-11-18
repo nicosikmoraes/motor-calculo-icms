@@ -617,7 +617,7 @@ export class SqliteBatchRepository {
     )?.total ?? 0
   }
 
-  listNormalizedDocuments(batchId: string): readonly NormalizedFiscalDocumentRecord[] {
+  listNormalizedDocuments(batchId: string, options: { includeRuleAssessments?: boolean } = {}): readonly NormalizedFiscalDocumentRecord[] {
     return this.database.all<{
       id: string; lote_id: string; ocorrencia_arquivo_id: string; hash_xml: string;
       dados_normalizados_json: string; elegivel_processamento: number;
@@ -631,7 +631,7 @@ export class SqliteBatchRepository {
       id: row.id,
       batchId: row.lote_id,
       occurrenceId: row.ocorrencia_arquivo_id,
-      ruleAssessments: this.readRuleAssessments(row.id),
+      ...(options.includeRuleAssessments === false ? {} : { ruleAssessments: this.readRuleAssessments(row.id) }),
       ...(row.empresa_id ? { companyId: row.empresa_id } : {}),
       contentHash: row.hash_xml,
       normalized: JSON.parse(row.dados_normalizados_json) as NormalizedNfe,

@@ -1,0 +1,279 @@
+import type { ItemCalculationSummary, ItemFiscalAnswers, ItemFiscalContext, ItemFiscalQuestion } from '@motor/contracts'
+import { calculationCfopExclusionReason, isCalculationEligibleCfop, paranaInterstateEntryExclusionReason,
+  type NormalizedNfe, type NormalizedNfeItem } from '@motor/domain'
+import { addDecimals, calculateParanaCommonIcms, compareDecimals, compareDeclared, pendingCalculation, specificStSector,
+  subtractDecimals, type CalculationMemory } from '@motor/tax-engine'
+import { buildPurchaseStContext, purchaseStScope } from './purchase-st-context'
+import { buildEntryNoDebitContext, buildEntryRateContext, entryRateDifferenceAvailable, entryRateQuestions } from './entry-rate-context'
+import { buildConsumerDifalContext } from './consumer-difal-context'
+import { entryReviewFindings } from './entry-review-findings'
+import { purchaseDestinationAnswers, RESALE_DEFAULT_NOTICE } from './purchase-destination-policy'
+import { allocatedDocument, allocatedFields, positive } from './document-charge-allocation'
+import { FISCAL_ANSWERS_INPUT_NAME, purchaseReviewRequired, readItemFiscalAnswers } from './item-fiscal-answers'
+import { entryAutomationReview } from './entry-automation-review'
+import { calculateAutomaticInterstateEntry } from './automatic-interstate-entry'
+import { calculateAutomaticItem } from './automatic-xml-calculation'
+
+function declared(item: NormalizedNfeItem, component: 'ICMS' | 'ICMS_ST' = 'ICMS'): NonNullable<CalculationMemory['declared']> {
+  if (component === 'ICMS_ST') return {
+    ...(item.declaredIcms?.stBaseAmount !== undefined ? { base: item.declaredIcms.stBaseAmount } : {}),
+    ...(item.declaredIcms?.stRate !== undefined ? { rate: item.declaredIcms.stRate } : {}),
+    ...(item.declaredIcms?.stAmount !== undefined ? { amount: item.declaredIcms.stAmount } : {}),
+  }
+  return {
+    ...(item.declaredIcms?.baseAmount !== undefined ? { base: item.declaredIcms.baseAmount } : {}),
+    ...(item.declaredIcms?.rate !== undefined ? { rate: item.declaredIcms.rate } : {}),
+    ...(item.declaredIcms?.amount !== undefined ? { amount: item.declaredIcms.amount } : {}),
+  }
+}
+
+const yesNo = [{ value: 'true', label: 'Sim' }, { value: 'false', label: 'Não' }]
+
+export function memorySnapshot(calculation: ItemCalculationSummary): CalculationMemory {
+  const { additionalComponents, reviewReason: _review, reviewStatus: _reviewStatus, ...primary } = calculation
+  return { ...primary, schemaVersion: 1,
+    ...(additionalComponents ? { additionalComponents: additionalComponents.map(component => ({ ...component, schemaVersion: 1 as const })) } : {}) }
+}
+
+/** Registra respostas, rateio e a origem dos valores sem alterar o documento normalizado. */
+function finishContext(context: ItemFiscalContext, originalItem: NormalizedNfeItem, answers: ItemFiscalAnswers,
+  allocationSteps: CalculationMemory['steps'], saved?: CalculationMemory, runId?: string): ItemFiscalContext {
+  const answerFields: Record<string, keyof ItemFiscalAnswers> = {
+    appliedMvaPercent: 'stMvaPercent', internalRate: 'stInternalRate', ownOperationRate: 'stOwnOperationRate',
+    applicationConfirmed: 'stApplicableConfirmed', mvaMode: 'stMvaMode', supplierRegime: 'stSupplierNormalConfirmed',
+    simpleDeductionConfirmed: 'stSimpleDeductionConfirmed',
+    ...(context.calculation.component === 'ICMS_ENTRY' ? { baseAmount: 'entryBaseAmount' as const, internalRate: 'entryInternalRate' as const,
+      applicationConfirmed: 'entryApplicationConfirmed' as const, baseConfirmed: 'entryBaseConfirmed' as const } : {}),
+  }
+  const memory: CalculationMemory = { ...memorySnapshot(context.calculation),
+    steps: [...allocationSteps, ...context.calculation.steps], inputs: [
+      ...(context.calculation.component === 'ICMS_ENTRY' && originalItem.declaredIcms?.baseAmount !== undefined
+        ? [{ name: 'xmlOwnBaseAmount', value: originalItem.declaredIcms.baseAmount, source: 'XML/item', treatment: 'UNDECIDED' as const }] : []),
+      ...context.calculation.inputs.map(entry => {
+        if (context.calculation.component === 'ICMS_ENTRY' && entry.name === 'baseAmount' && answers.entryBaseAmount !== undefined) return { ...entry, source: 'USER/current_item' }
+        if (entry.name === 'destination' && answers.destinationBasis === 'ASSUMED_RESALE') return { ...entry, source: 'USER_POLICY/DEFAULT_RESALE' }
+        if (entry.source.startsWith('CATALOG/') || entry.source.startsWith('DERIVED/') || entry.source.startsWith('RULE/') || entry.source.startsWith('XML/')) return entry
+        const amountField = ['productAmount', ...allocatedFields, 'ipiAmount'] as const
+        const field = amountField.find(field => field === entry.name)
+        const answer = answerFields[entry.name] ?? entry.name
+        return { ...entry, source: entry.source === 'ITEM_VALUES'
+          ? allocationSteps.some(step => step.inputs.field === entry.name) ? 'ALLOCATION/document_total'
+            : field && originalItem[field] === undefined ? 'LAYOUT_ABSENT' : 'XML/item'
+          : Object.hasOwn(answers, answer) ? 'USER/current_item' : 'XML/document' }
+      }),
+      { name: FISCAL_ANSWERS_INPUT_NAME, value: JSON.stringify(answers), source: 'USER/current_item', treatment: 'UNDECIDED' },
+      ...(answers.destinationBasis === 'ASSUMED_RESALE' ? [{ name: 'destinationAssumption', value: JSON.stringify({ destination: 'RESALE', basis: 'USER_POLICY', notice: RESALE_DEFAULT_NOTICE }),
+        source: 'USER_POLICY/DEFAULT_RESALE', treatment: 'UNDECIDED' as const }] : []),
+    ],
+  }
+  if (memory.result && memory.component !== 'ICMS_ENTRY') memory.comparisons = [compareDeclared('BASE', memory.result.base, memory.declared?.base),
+    ...(memory.result.component === 'ICMS_ST' ? [compareDeclared('RATE', memory.result.rate, memory.declared?.rate, '0')] : []),
+    compareDeclared(memory.result.component === 'ICMS_ST' ? 'ICMS_ST' : 'ICMS', memory.result.amount, memory.declared?.amount)]
+  return { ...context, ...(answers.destinationBasis === 'ASSUMED_RESALE' ? { destinationAssumption: RESALE_DEFAULT_NOTICE } : {}), ...(runId ? { runId } : {}),
+    calculation: saved && !context.blockedReason
+      && !(context.stSpecificMva && !saved.inputs.some(input => input.name === 'stSpecificMvaDecision'))
+      && !((saved.component ?? saved.result?.component) === 'ICMS_ST' && readItemFiscalAnswers(saved).fcpStApplicableConfirmed === undefined) ? { ...saved,
+        ...(saved.status === 'CALCULATED' && answers.entryMethod === 'ICMS_ST' && memory.status !== 'CALCULATED'
+          ? { reviewReason: `${memory.reason ?? 'Revise as condições da entrada.'} O resultado anterior está preservado para auditoria.`, reviewStatus: memory.status } : {}),
+        ...(saved.status !== 'CALCULATED' && memory.status === saved.status && memory.reason ? { reason: memory.reason } : {}),
+        ...(runId ? { runId } : {}) } : memory }
+}
+
+function reviewXmlData(nfe: NormalizedNfe, item: NormalizedNfeItem): NonNullable<ItemFiscalContext['xmlData']> {
+  const money = (value?: string) => {
+    if (value === undefined) return 'Não informado'
+    const [integer, fraction = ''] = value.split('.')
+    return `R$ ${integer!.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${fraction.padEnd(2, '0')}`
+  }
+  return [
+    { label: 'NCM', value: item.ncm ?? 'Não informado' },
+    { label: 'CFOP', value: item.cfop ?? 'Não informado' },
+    { label: 'CST / CSOSN', value: item.declaredIcms?.cst ?? item.declaredIcms?.csosn ?? 'Não informado' },
+    { label: 'CEST', value: item.cest ?? 'Não informado' },
+    { label: 'Origem e destino', value: `${nfe.issuer.state ?? 'Não informado'} / ${nfe.recipient?.state ?? 'Não informado'}` },
+    { label: 'Regime do emitente', value: nfe.issuer.taxRegimeCode === '3' ? 'Regime normal (CRT 3)' : nfe.issuer.taxRegimeCode ?? 'Não informado' },
+    { label: 'Valor do produto', value: money(item.productAmount) },
+    { label: 'ICMS declarado', value: money(item.declaredIcms?.amount) },
+    { label: 'Alíquota declarada', value: item.declaredIcms?.rate ? `${item.declaredIcms.rate.replace('.', ',')}%` : 'Não informada' },
+    { label: 'Consumidor final', value: nfe.finalConsumerIndicator === '1' ? 'Sim, conforme XML' : nfe.finalConsumerIndicator === '0' ? 'Não, conforme XML' : 'Não informado' },
+  ]
+}
+
+/** A perspectiva da empresa e os dados fiscais selecionam o componente a conferir. */
+export function buildItemFiscalContext(nfe: NormalizedNfe, item: NormalizedNfeItem,
+  answers: ItemFiscalAnswers = {}, saved?: CalculationMemory, runId?: string, externalBlock?: string,
+  companyCnpj?: string): ItemFiscalContext {
+  answers = purchaseDestinationAnswers(nfe, answers, companyCnpj)
+  const originalItem = item
+  const xmlData = reviewXmlData(nfe, item)
+  let block = externalBlock ?? (companyCnpj ? paranaInterstateEntryExclusionReason(nfe,item.cfop,companyCnpj) : undefined) ?? (!isCalculationEligibleCfop(item.cfop) ? calculationCfopExclusionReason : undefined)
+  const entryAvailable = !block && entryRateDifferenceAvailable(nfe, companyCnpj)
+  if (purchaseReviewRequired(answers)) {
+    const { purchaseProductConfirmation: _product, purchaseDestinationUnknown: _unknown, purchasePaymentStatus: _payment, ...knownAnswers } = answers
+    const draft = buildItemFiscalContext(nfe, item, { ...knownAnswers, purchaseReviewPending: false }, undefined, undefined, externalBlock, companyCnpj)
+    const { blockedReason: _fiscalBlock, destinationAssumption: _assumption, ...available } = draft
+    return finishContext({ ...available, answers, ...(block ? { blockedReason: block } : {}),
+      calculation: { ...pendingCalculation('PENDING_DATA', answers.purchaseReviewReason ?? 'Compra guardada para revisão. Confirme as informações e o enquadramento antes de calcular.'), component: draft.calculation.component ?? 'ICMS_ST' },
+    }, originalItem, answers, [], undefined, runId)
+  }
+  if (answers.entryMethod === 'RATE_DIFFERENCE' || answers.entryMethod === 'NO_DEBIT' || answers.entryMethod === 'CONSUMER_DIFAL') {
+    const entryBlock = block ?? (!entryAvailable ? 'A empresa e a operação não correspondem à aquisição interestadual destinada ao Paraná.' : undefined)
+    const context = answers.entryMethod === 'CONSUMER_DIFAL' ? buildConsumerDifalContext(nfe,item,answers,companyCnpj,entryBlock) : answers.entryMethod === 'NO_DEBIT' ? buildEntryNoDebitContext(item, answers, entryBlock) : buildEntryRateContext(nfe, item, answers, entryBlock)
+    const scope = purchaseStScope(nfe, item, answers, companyCnpj)
+    if (scope) context.questions = [...context.questions, ...buildPurchaseStContext(nfe, item, answers, scope, block).questions]
+    context.xmlFacts = [...context.xmlFacts, ...entryReviewFindings(nfe,item,answers).findings.map(f => f.reason)]
+    return finishContext({ ...context, entryRateDifferenceAvailable: entryAvailable, xmlData }, originalItem, answers, [], saved, runId)
+  }
+  let purchaseReviewCompany: ItemFiscalContext['purchaseReviewCompany']
+  const buyerForReview = nfe.operationDirection === '0' ? nfe.issuer : nfe.recipient
+  const supplierForReview = nfe.operationDirection === '0' ? nfe.recipient : nfe.issuer
+  if (!externalBlock && companyCnpj && companyCnpj === supplierForReview?.taxId && buyerForReview?.state === 'PR' && buyerForReview.taxId) purchaseReviewCompany = {cnpj:buyerForReview.taxId,...(buyerForReview.name?{name:buyerForReview.name}:{})}
+  let allocationSteps: CalculationMemory['steps'] = []
+  try {
+    const allocated = allocatedDocument(nfe).get(item.itemNumber)
+    if (allocated) { item = { ...allocated.item, ...item }; allocationSteps = allocated.steps }
+    const scope = purchaseStScope(nfe, item, answers, companyCnpj)
+    if (scope) {
+      const context = buildPurchaseStContext(nfe, item, answers, scope, block)
+      if (entryAvailable) {
+        context.entryRateDifferenceAvailable = true
+        context.questions = [...entryRateQuestions(item), ...context.questions]
+        context.xmlFacts = [...context.xmlFacts, ...entryReviewFindings(nfe,item,answers).findings.map(f => f.reason)]
+      }
+      return finishContext({ ...context, xmlData }, originalItem, answers, allocationSteps, saved, runId)
+    }
+    // A mesma nota pode pertencer ao fornecedor ou ao comprador. A escolha da
+    // empresa define a perspectiva; nunca a substituímos para liberar um cálculo.
+    const purchase = companyCnpj && !block ? purchaseStScope(nfe, item, answers) : undefined
+    if (purchase?.buyer.taxId && companyCnpj === purchase.supplier.taxId) {
+      block = `Este lote está associado ao fornecedor (CNPJ ${companyCnpj}). A conferência de ICMS-ST disponível atende a compra da empresa destinatária no Paraná (CNPJ ${purchase.buyer.taxId}). Para conferir essa compra, importe as notas para a empresa compradora. A operação do fornecedor exige outro enquadramento.`
+      purchaseReviewCompany = { cnpj: purchase.buyer.taxId, ...(purchase.buyer.name ? { name: purchase.buyer.name } : {}) }
+    }
+  } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o cálculo.' }
+
+  const indicator = nfe.recipient?.stateRegistrationIndicator
+  const xmlTaxpayer = indicator === '1' || indicator === '2' ? true : indicator === '9' ? false : undefined
+  const questions: ItemFiscalQuestion[] = [
+    { field: 'destination', label: 'Qual será a destinação deste produto pelo comprador?', options: [
+      { value: 'RESALE', label: 'Revenda' }, { value: 'INDUSTRIALIZATION', label: 'Industrialização' },
+      { value: 'FIXED_ASSET', label: 'Ativo imobilizado' }, { value: 'OWN_USE', label: 'Uso ou consumo' },
+    ] },
+    ...(xmlTaxpayer === undefined ? [{ field: 'recipientIsIcmsTaxpayer' as const, label: 'O destinatário é contribuinte do ICMS?', options: yesNo }] : []),
+    { field: 'constructionCompany', label: 'O destinatário é empresa de construção civil?', options: yesNo },
+    { field: 'petroleumOrFuel', label: 'Este produto é petróleo ou combustível?', options: yesNo },
+    { field: 'ordinaryTaxTreatmentConfirmed', label: 'Confirma o enquadramento na tributação comum de 19,5%, sem ST, FCP, redução de base ou outro tratamento específico?', options: yesNo },
+  ]
+  if (!block && (nfe.model !== '55' || nfe.issuer.state !== 'PR' || nfe.recipient?.state !== 'PR'
+    || nfe.issuer.taxRegimeCode !== '3' || nfe.operationDirection !== '1' || nfe.purposeCode !== '1'
+    || !['5101', '5102'].includes(item.cfop ?? '') || item.includedInDocumentTotal === false)) {
+    block = 'Este cálculo atende NF-e de operação comum interna PR, CRT 3 e CFOP 5101/5102. Outros enquadramentos permanecem pendentes.'
+  }
+  if (!block && !['00', '51'].includes(item.declaredIcms?.cst ?? '')) block = 'O CST desta nota exige outra regra fiscal antes do cálculo.'
+  const tax = item.declaredIcms
+  try {
+    if (!block && (positive(tax?.baseReductionPercent) || positive(tax?.stBaseAmount) || positive(tax?.stAmount)
+      || positive(tax?.fcpRate) || positive(tax?.fcpAmount) || positive(tax?.fcpStRate) || positive(tax?.fcpStAmount))) block = 'A nota indica redução de base, ST ou FCP; exige tratamento específico.'
+    if (positive(item.discountAmount)) questions.push({ field: 'discountTreatment', label: 'O desconto depende de uma condição futura?', options: [
+      { value: 'CONDITIONAL', label: 'Sim — desconto condicional, não deduzir da base' },
+      { value: 'UNCONDITIONAL', label: 'Não — desconto incondicional, deduzir da base' },
+    ] })
+    if (positive(item.ipiAmount)) questions.push({ field: 'ipiTreatment', label: 'Como o IPI participa da base do ICMS nesta operação?', options: [
+      { value: 'INCLUDED', label: 'Incluir na base' },
+      { value: 'EXCLUDED', label: 'Excluir: entre contribuintes, para revenda/industrialização e fato gerador dos dois impostos' },
+    ] })
+  } catch (cause) { block ??= cause instanceof Error ? cause.message : 'Valores inválidos impedem o cálculo.' }
+  const resolvedTaxpayer = xmlTaxpayer ?? answers.recipientIsIcmsTaxpayer
+  let conflict: string | undefined
+  if (xmlTaxpayer !== undefined && answers.recipientIsIcmsTaxpayer !== undefined && answers.recipientIsIcmsTaxpayer !== xmlTaxpayer) {
+    conflict = 'A resposta sobre o contribuinte conflita com o indicador do XML.'
+  }
+  const consumer = answers.destination === 'OWN_USE' || answers.destination === 'FIXED_ASSET'
+  if (answers.destination && ((nfe.finalConsumerIndicator === '1' && !consumer) || (nfe.finalConsumerIndicator === '0' && consumer))) {
+    conflict = 'A destinação informada conflita com a indicação de consumidor final da nota. Revise a nota antes do cálculo.'
+  }
+  if (answers.ipiTreatment === 'EXCLUDED' && (resolvedTaxpayer !== true || consumer)) {
+    conflict = 'A exclusão do IPI exige operação entre contribuintes destinada à revenda ou industrialização.'
+  }
+  const declaredValues = declared(item)
+  const memory = block ? pendingCalculation('UNSUPPORTED', block, [], declaredValues)
+    : conflict ? pendingCalculation('PENDING_DATA', conflict, [], declaredValues)
+      : calculateParanaCommonIcms({
+        ...answers,
+        ...(nfe.issuedAt ? { operationDate: nfe.issuedAt.slice(0, 10) } : {}),
+        ...(nfe.issuer.state ? { issuerState: nfe.issuer.state } : {}),
+        ...(nfe.recipient?.state ? { recipientState: nfe.recipient.state } : {}),
+        issuerRegime: 'NORMAL', ...(resolvedTaxpayer !== undefined ? { recipientIsIcmsTaxpayer: resolvedTaxpayer } : {}),
+        ...(item.productAmount !== undefined ? { productAmount: item.productAmount } : {}),
+        ...(item.freightAmount !== undefined ? { freightAmount: item.freightAmount } : {}),
+        ...(item.insuranceAmount !== undefined ? { insuranceAmount: item.insuranceAmount } : {}),
+        ...(item.otherAmount !== undefined ? { otherAmount: item.otherAmount } : {}),
+        ...(item.discountAmount !== undefined ? { discountAmount: item.discountAmount } : {}),
+        ...(item.ipiAmount !== undefined ? { ipiAmount: item.ipiAmount } : {}), declared: declaredValues,
+      })
+  const commonScenario = !block && Boolean(nfe.issuedAt && nfe.issuedAt.slice(0, 10) >= '2024-03-18') && !item.fuelAnpCode
+    && !specificStSector(item.ncm, item.cest, item.fuelAnpCode) && !item.ncm?.startsWith('27')
+  return finishContext({ answers, questions, xmlData, ...(purchaseReviewCompany ? { purchaseReviewCompany } : {}),
+    ...(commonScenario ? { commonScenario: { ...(nfe.finalConsumerIndicator ? { finalConsumerIndicator: nfe.finalConsumerIndicator } : {}) } } : {}),
+    ...(block ? { blockedReason: block } : {}), xmlFacts: [
+    `Emitente: ${nfe.issuer.state ?? 'UF ausente'} · CRT ${nfe.issuer.taxRegimeCode ?? 'ausente'}`,
+    `Destinatário: ${nfe.recipient?.state ?? 'UF ausente'} · ${xmlTaxpayer === undefined ? 'condição de contribuinte não informada' : xmlTaxpayer ? 'contribuinte ICMS (XML)' : 'não contribuinte (XML)'}`,
+    `CFOP ${item.cfop ?? 'ausente'} · CST ${tax?.cst ?? 'ausente'} · NCM ${item.ncm ?? 'ausente'}`,
+    'Conferência do ICMS próprio da operação. Crédito de compra e apuração não são calculados aqui.',
+  ], calculation: memory }, originalItem, answers, allocationSteps, conflict ? undefined : saved, runId)
+}
+
+/** Prepara sugestões e prévias do XML para a revisão de um item. */
+export function buildItemFiscalReviewContext(nfe: NormalizedNfe, item: NormalizedNfeItem,
+  saved?: CalculationMemory, runId?: string, externalBlock?: string, companyCnpj?: string): ItemFiscalContext {
+  const context = buildItemFiscalContext(nfe, item, readItemFiscalAnswers(saved), saved, runId, externalBlock, companyCnpj)
+  const tax = item.declaredIcms
+  if (nfe.finalConsumerIndicator !== undefined) context.xmlFinalConsumerIndicator = nfe.finalConsumerIndicator
+  if (!externalBlock) {
+    const proposal = entryAutomationReview(nfe, item, companyCnpj)
+    if (proposal) context.entryAutomationReview = proposal
+    if (proposal?.proposedCest && !saved?.result) {
+      try {
+        const allocated = allocatedDocument(nfe).get(item.itemNumber)!
+        const preview = calculateAutomaticInterstateEntry(nfe, { ...allocated.item, cest: proposal.proposedCest }, companyCnpj)
+        const simulationInputs = (inputs: CalculationMemory['inputs']) => [...inputs.filter(input => !['automaticCatalogCalculation', 'calculationPurpose'].includes(input.name)).map(input => ({ ...input,
+          ...(allocated.steps.some(step => step.inputs.field === input.name) ? { source: 'ALLOCATION/document_total' } : {}),
+          ...(input.name === 'cest' ? { source: 'SUGGESTION/PRODUCT_DESCRIPTION' } : {}),
+          ...(input.name === 'entryCalculationAssumptions' ? { value: JSON.stringify({ ...JSON.parse(input.value ?? '{}'), legalDescription: 'UNCONFIRMED_CLASSIFICATION_SUGGESTION' }) } : {}),
+        })),
+          { name: 'calculationPurpose', value: 'UNCONFIRMED_CLASSIFICATION_SIMULATION', source: 'DERIVED/CLASSIFICATION_SUGGESTION', treatment: 'UNDECIDED' as const },
+          { name: 'originalXmlCest', value: item.cest ?? 'ABSENT', source: 'XML/CEST', treatment: 'UNDECIDED' as const },
+          { name: 'proposedCest', value: proposal.proposedCest!, source: 'SUGGESTION/PRODUCT_DESCRIPTION', treatment: 'UNDECIDED' as const }]
+        if (preview?.status === 'CALCULATED') context.entryClassificationPreview = {
+          ...preview, reason: 'Simulação com classificação sugerida e premissas de revenda por MVA. Não confirma enquadramento, responsabilidade ou ausência de pagamento anterior; não integra os totais.',
+          inputs: simulationInputs(preview.inputs),
+          ...(preview.additionalComponents ? { additionalComponents: preview.additionalComponents.map(component => ({ ...component, inputs: simulationInputs(component.inputs) })) } : {}),
+          steps: [...allocated.steps, ...preview.steps],
+        }
+      } catch { /* Composição inválida não permite simular nem substitui o bloqueio fiscal. */ }
+    }
+  }
+  try {
+    const allocated = allocatedDocument(nfe).get(item.itemNumber)?.item ?? item
+    context.consumerDifalSuggestions = { ...(allocated.productAmount !== undefined ? {operationAmount:subtractDecimals(addDecimals(allocated.productAmount,allocated.ipiAmount ?? '0',allocated.freightAmount ?? '0',allocated.insuranceAmount ?? '0',allocated.otherAmount ?? '0'),allocated.discountAmount ?? '0')} : {}), internalRate:'19.5', ...(tax?.rate !== undefined ? {interstateRate:tax.rate} : {}) }
+  } catch { /* O bloqueio de composição/rateio continua no contexto; não sugerir base incompleta. */ }
+  const date = nfe.issuedAt?.slice(0,10)
+  if (date && date >= '2024-08-01' && date <= '2026-10-12' && item.cest === '1400500' && item.ncm?.startsWith('3924')) context.entryLegislationHint = {
+    reason:'Artefatos de higiene/toucador de plástico para uso doméstico: a seção de ST e sua MVA foram revogadas a partir de 01/08/2024 (Decreto PR 6.048/2024 e Resolução SEFA 852/2024). Confira a descrição, a destinação e eventual antecipação da entrada. Não use a MVA antiga nem a tabela de chupetas/mamadeiras apenas pelo NCM.',
+    sourceUrl:'https://www.legislacao.pr.gov.br/legislacao/exibirAto.do?action=iniciarProcesso&codAto=327771&codItemAto=2074937' }
+  const suggestions: Partial<Record<keyof ItemFiscalAnswers, string>> = {
+    ...(tax?.stRate !== undefined ? { stInternalRate: tax.stRate } : {}),
+    ...(tax?.rate !== undefined ? { stOwnOperationRate: tax.rate } : {}),
+    ...(tax?.stMarginPercent !== undefined ? { stMvaPercent: tax.stMarginPercent } : {}),
+    ...(tax?.cst === '10' && tax.stBaseMode === '4' ? { stApplicableConfirmed: 'true' } : {}),
+    ...([tax?.fcpStAmount, tax?.fcpStRate].some(value => value !== undefined && compareDecimals(value, '0') > 0)
+      ? { fcpStApplicableConfirmed: 'true', stInternalRateIncludesFcp: 'false' } : {}),
+    ...(tax?.stRate !== undefined ? { stSpecificEffectiveRate: addDecimals(tax.stRate, tax.fcpStRate ?? '0') } : {}),
+  }
+  context.questions = context.questions.map(question => ({ ...question,
+    ...(question.suggestedValue === undefined && suggestions[question.field] !== undefined ? { suggestedValue: suggestions[question.field]! } : {}) }))
+  if (!externalBlock) {
+    try { context.xmlCalculationAvailable = calculateAutomaticItem(nfe, allocatedDocument(nfe).get(item.itemNumber)!.item, companyCnpj)?.status === 'CALCULATED' }
+    catch { context.xmlCalculationAvailable = false }
+  }
+  return context
+}

@@ -5,21 +5,22 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CORE_MIGRATIONS, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
 import { IPC_CHANNELS } from '@motor/contracts'
-import { BackupService } from '../src/main/backup-service'
+import { BackupService } from '../src/main/modules/backup/adapters/files/backup-service'
 const state = vi.hoisted(() => ({ root: '', database: null as any, maintenance: false, busy: false,
   handlers: new Map<string, (...args: any[]) => any>(), window: {}, open: vi.fn(), confirm: vi.fn(), relaunch: vi.fn(), exit: vi.fn() }))
 vi.mock('electron', () => ({ app: { getPath: () => state.root, getVersion: () => '0.1.0', relaunch: state.relaunch, exit: state.exit },
   BrowserWindow: { fromWebContents: () => state.window },
   dialog: { showOpenDialog: state.open, showMessageBox: state.confirm, showErrorBox: vi.fn() },
   ipcMain: { handle: (channel: string, handler: (...args: any[]) => any) => state.handlers.set(channel, handler) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: () => {
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: () => {
   if (state.maintenance) throw new Error('Manutenção ativa')
   return state.database
 }, beginDatabaseMaintenance: () => {
   if (state.busy || state.maintenance) throw new Error('Aguarde ou pause o lote')
   state.maintenance = true; return state.database
 }, endDatabaseMaintenance: () => { state.maintenance = false }, closeDatabase: () => state.database.close() }))
-import { registerBackupHandlers, stopBackups } from '../src/main/backup-handlers'
+import { registerBackupHandlers } from '../src/main/ipc/controllers/backup/backup-controller'
+import { stopBackups } from '../src/main/modules/backup/adapters/backup-runtime'
 const frame = {}, event = { sender: { mainFrame: frame }, senderFrame: frame }
 const invoke = (channel: string, ...args: unknown[]) => state.handlers.get(channel)!(event, ...args)
 beforeEach(async () => {
@@ -36,7 +37,7 @@ beforeEach(async () => {
   state.maintenance = false; state.busy = false; state.handlers.clear()
   state.open.mockReset(); state.confirm.mockReset(); state.relaunch.mockReset(); state.exit.mockReset()
   state.open.mockResolvedValue({ canceled: false, filePaths: [backup.lastBackupPath] })
-  await registerBackupHandlers()
+  await registerBackupHandlers(state.handlers.set.bind(state.handlers))
 })
 afterEach(async () => { await stopBackups(); if (state.database.isOpen) state.database.close(); await rm(state.root, { recursive: true, force: true }) })
 describe('restauração por IPC', () => {

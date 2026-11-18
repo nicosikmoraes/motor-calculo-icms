@@ -1,0 +1,46 @@
+import type { RegisterIpcRoute } from '../../route-registry'
+import { IPC_CHANNELS } from '@motor/contracts'
+import { activeDatabase } from '../../../platform/sqlite/database-runtime'
+import { batchOperations } from '../../../platform/operations/batch-operations'
+import { inputRecord, requiredInputText } from '../../validation/input'
+import { applyReusableFiscalAnswers, getItemFiscalContext, saveItemFiscalAnswers } from '../../../modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { validateItemFiscalAnswers } from '../../../modules/fiscal/domain/item-fiscal-answers'
+
+function text(raw: unknown, label: string): string {
+  const value = requiredInputText(raw, label)
+  if (value.length > 128) throw new Error(`${label} excede o limite permitido.`)
+  return value
+}
+
+export function registerItemFiscalHandlers(register: RegisterIpcRoute): void {
+  register(IPC_CHANNELS.APPLY_REUSABLE_FISCAL_ANSWERS, (_event, batchId: unknown) => {
+    if (batchOperations.busy) throw new Error('Aguarde ou pause a importação antes de atualizar os cálculos.')
+    return applyReusableFiscalAnswers(activeDatabase(), text(batchId, 'Lote'))
+  })
+  register(IPC_CHANNELS.GET_ITEM_FISCAL_CONTEXT, (_event, batchId: unknown, documentId: unknown, itemNumber: unknown) =>
+    getItemFiscalContext(activeDatabase(), text(batchId, 'Lote'), text(documentId, 'Documento'), text(itemNumber, 'Item')))
+  register(IPC_CHANNELS.SAVE_ITEM_FISCAL_ANSWERS, (_event, raw: unknown) => {
+    if (batchOperations.busy) throw new Error('Aguarde ou pause a importação antes de salvar as respostas.')
+    const input = inputRecord(raw)
+    return saveItemFiscalAnswers(activeDatabase(), {
+      batchId: text(input.batchId, 'Lote'), documentId: text(input.documentId, 'Documento'),
+      itemNumber: text(input.itemNumber, 'Item'), requestId: text(input.requestId, 'Solicitação'),
+      ...(input.expectedRunId !== undefined ? { expectedRunId: text(input.expectedRunId, 'Execução anterior') } : {}),
+      answers: validateItemFiscalAnswers(input.answers),
+      ...(input.requireCalculated !== undefined ? { requireCalculated: (() => {
+        if (typeof input.requireCalculated !== 'boolean') throw new Error('Confirmação de cálculo inválida.')
+        return input.requireCalculated
+      })() } : {}),
+      ...(input.calculationMode !== undefined ? { calculationMode: (() => {
+        if (input.calculationMode !== 'XML' && input.calculationMode !== 'FISCAL_RULE' && input.calculationMode !== 'AUTOMATIC') throw new Error('Modo de cálculo inválido.')
+        return input.calculationMode
+      })() } : {}),
+      ...(input.reuseScope !== undefined ? { reuseScope: (() => {
+        if (input.reuseScope === 'MATCHING_NOTE_ITEMS' || input.reuseScope === 'MATCHING_BATCH_ITEMS') return input.reuseScope
+        if (input.reuseScope !== 'CURRENT_ITEM' && input.reuseScope !== 'FUTURE_NOTES') throw new Error('Alcance das respostas inválido.')
+        return input.reuseScope
+      })() } : {}),
+      ...(input.expectedDefinitionId !== undefined ? { expectedDefinitionId: text(input.expectedDefinitionId, 'Definição anterior') } : {}),
+    })
+  })
+}

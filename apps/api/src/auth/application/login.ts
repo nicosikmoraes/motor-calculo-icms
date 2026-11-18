@@ -1,6 +1,6 @@
-import { JWT_EXPIRES_IN_SECONDS } from '../auth-config.js';
 import type { UserRepository } from '../ports/user-repository.js';
-import type { AccessTokenIssuer } from './access-token-issuer.js';
+import { JWT_EXPIRES_IN_SECONDS, type AccessTokenIssuer } from './access-token-issuer.js';
+import { InvalidCredentialsError } from './invalid-credentials.error.js';
 import { normalizeEmail } from './normalize-email.js';
 import type { PasswordHasher } from './password-hasher.js';
 
@@ -10,14 +10,6 @@ export interface LoginResult {
   accessToken: string;
   tokenType: 'Bearer';
   expiresIn: number;
-}
-
-/** A mesma mensagem para e-mail inexistente e senha errada: o login não revela quais e-mails existem. */
-export class InvalidCredentialsError extends Error {
-  constructor() {
-    super('E-mail ou senha inválidos');
-    this.name = 'InvalidCredentialsError';
-  }
 }
 
 export class Login {

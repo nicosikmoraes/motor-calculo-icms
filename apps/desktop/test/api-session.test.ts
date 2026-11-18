@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createApiSession, SESSION_EXPIRED_MESSAGE, SIGNED_OUT_MESSAGE } from '../src/main/api-session'
+import { createApiSession, SESSION_EXPIRED_MESSAGE, SIGNED_OUT_MESSAGE } from '../src/main/modules/accounts/adapters/http/api-session'
 
 type Reply = { status: number; body?: unknown }
 

@@ -4,9 +4,10 @@ import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCompanyRepository, Sqlite
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
 import type { ItemFiscalAnswers } from '@motor/contracts'
 import { paranaStMvaCandidates } from '@motor/tax-engine'
-import { buildItemFiscalContext, validateItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
-import { getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
-import { getBatchConsolidation } from '../src/main/batch-consolidation'
+import { getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { getBatchConsolidation } from '../src/main/modules/batches/queries/batch-consolidation'
+import { buildItemFiscalContext } from '../src/main/modules/fiscal/domain/item-fiscal-context'
+import { validateItemFiscalAnswers } from '../src/main/modules/fiscal/domain/item-fiscal-answers'
 
 const source = { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe' }
 const buyer = '11222333000181'

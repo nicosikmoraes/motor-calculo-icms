@@ -64,7 +64,11 @@ e filtros da conferência.
 
 ### Exportar produtos para Excel
 
-No detalhe do lote, use **Exportar Excel**. O arquivo abre em uma única aba,
+No detalhe do lote, use **Atualizar cálculos** para aplicar o cálculo automático
+e reaproveitar respostas fiscais quando os itens forem elegíveis. A exportação
+usa os resultados que já estão salvos no lote.
+
+Para baixar a planilha, use **Exportar Excel**. O arquivo abre em uma única aba,
 **Produtos**, com uma tabela simples: nota, item, produto, ICMS declarado no XML,
 ICMS calculado, FCP calculado e tipo de cálculo. Não há filtros, setas de
 cabeçalho, células mescladas ou painéis congelados. Cada produto ocupa uma linha,

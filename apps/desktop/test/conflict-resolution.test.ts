@@ -5,14 +5,13 @@ import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, Sq
 import type { NormalizedDocumentArtifact, NormalizedNfe } from '@motor/domain'
 import type { DocumentConflictSummary } from '@motor/contracts'
 import { createExcelWorkbook } from '@motor/reporting'
-vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: vi.fn(), requiredInputText: vi.fn() }))
-import { listDocumentConflicts, saveConflictResolution, validateConflictResolutionInput } from '../src/main/conflict-resolution-use-cases'
-import { listDocumentReviews, saveDocumentReview } from '../src/main/document-review-use-cases'
-import { queryMonthlyConference, queryMonthlyReport } from '../src/main/monthly-conference'
-import { queryBatchDetail } from '../src/main/batch-query-handlers'
-import { getItemFiscalContext } from '../src/main/item-fiscal-use-cases'
-import { compareConflictDocuments } from '../src/main/conflict-comparison'
+import { listDocumentConflicts, saveConflictResolution, validateConflictResolutionInput } from '../src/main/modules/fiscal/adapters/sqlite/conflict-resolution-use-cases'
+import { listDocumentReviews, saveDocumentReview } from '../src/main/modules/fiscal/adapters/sqlite/document-review-use-cases'
+import { queryMonthlyConference, queryMonthlyReport } from '../src/main/modules/reports/queries/monthly-conference'
+import { queryBatchDetail } from '../src/main/modules/batches/queries/batch-queries'
+import { queryDashboard } from '../src/main/modules/batches/queries/dashboard-query'
+import { getItemFiscalContext } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { compareConflictDocuments } from '../src/main/modules/fiscal/adapters/sqlite/conflict-comparison'
 let database: SqliteDatabase, organizationId: string, companyId: string
 const now = '2026-10-07T12:00:00.000Z', accessKey = '1'.repeat(44)
 beforeEach(() => {
@@ -95,6 +94,14 @@ describe('resolução auditada de conflitos', () => {
     expect(queryBatchDetail(database, chosen!.batchId).consolidation?.counts).toMatchObject({ calculated: 1, excluded: 2 })
     expect(monthly().summary.evidence.find(e => e.status === 'CALCULATED')?.documentId).toBe(chosen!.id)
     expect(monthly().summary.evidence.find(e => e.documentId === copy!.id)?.status).toBe('EXCLUDED')
+
+    const get = vi.spyOn(database, 'get')
+    const all = vi.spyOn(database, 'all')
+    expect(queryDashboard(database).find(batch => batch.id === chosen!.batchId)?.counts)
+      .toMatchObject({ receivedNotes: 3, calculatedNotes: 1, blockedNotes: 2 })
+    const queries = [...get.mock.calls, ...all.mock.calls]
+    expect(queries.filter(([sql]) => /execucoes_calculo|resultados_item_calculo/.test(sql))).toHaveLength(1)
+    expect(queries.filter(([sql]) => /FROM documentos_fiscais WHERE lote_id/.test(sql))).toHaveLength(1)
   })
   it('evento novo invalida a tela antiga e não é ignorado pela escolha de conteúdo', () => {
     const a = notes(['a'])[0]!; notes(['b']); const before = row()

@@ -9,11 +9,12 @@ const state = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => 
   saveDialog: vi.fn(), window: {} as unknown, busy: false }))
 vi.mock('electron', () => ({ app: { getVersion: () => 'test' }, BrowserWindow: { fromWebContents: () => state.window },
   dialog: { showSaveDialog: state.saveDialog }, ipcMain: { handle: (name: string, fn: (...args: any[]) => any) => state.handlers.set(name, fn) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: () => state.database, batchOperations: { get busy() { return state.busy } },
-  requiredInputText: (raw: unknown) => { if (typeof raw !== 'string' || !raw.trim()) throw new Error('Entrada inválida'); return raw.trim() } }))
-import { registerReportHandlers } from '../src/main/report-handlers'
-import { writeExcelFile } from '../src/main/report-file-io'
-import { queryBatchDetail } from '../src/main/batch-query-handlers'
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: () => state.database }))
+vi.mock('../src/main/platform/operations/batch-operations', () => ({ batchOperations: { get busy() { return state.busy } } }))
+import { registerReportHandlers } from '../src/main/ipc/controllers/reports/reports-controller'
+import { registerItemFiscalHandlers } from '../src/main/ipc/controllers/fiscal/item-fiscal-controller'
+import { writeExcelFile } from '../src/main/modules/reports/adapters/report-file-io'
+import { queryBatchDetail } from '../src/main/modules/batches/queries/batch-queries'
 const org = '00000000-0000-4000-8000-000000000001', batchId = '00000000-0000-4000-8000-000000000002'
 const companyId = '00000000-0000-4000-8000-000000000003', documentId = '00000000-0000-4000-8000-000000000004'
 const fileId = '00000000-0000-4000-8000-000000000005', now = '2026-10-04T12:00:00.000Z'
@@ -35,7 +36,7 @@ beforeEach(async () => {
       recipient: { state: 'PR', taxId: '11444777000161', taxIdType: 'CNPJ' }, declaredTotals: {}, source,
       items: [{ itemNumber: '1', supplierProductCode: '001', productAmount: '1000', declaredIcms: { cst: '51', amount: '120.00' }, source }] } }])
   state.handlers.clear(); state.saveDialog.mockReset(); state.busy = false; state.window = {}
-  state.saveDialog.mockResolvedValue({ canceled: false, filePath: path }); registerReportHandlers()
+  state.saveDialog.mockResolvedValue({ canceled: false, filePath: path }); registerReportHandlers(state.handlers.set.bind(state.handlers))
 })
 afterEach(async () => { state.database.close(); await rm(directory, { recursive: true, force: true }) })
 describe('exportação de lote com destino nativo', () => {
@@ -64,6 +65,45 @@ describe('exportação de lote com destino nativo', () => {
   it('cancela sem alterar o arquivo anterior', async () => {
     await writeFile(path, 'anterior'); state.saveDialog.mockResolvedValue({ canceled: true, filePath: path })
     expect(await invoke()).toBeNull(); expect(await readFile(path, 'utf8')).toBe('anterior')
+  })
+  it.each([true, false])('só grava o cálculo disponível por solicitação explícita (cancelou o Excel: %s)', async (canceled) => {
+    const batches = new SqliteBatchRepository(state.database)
+    const calculations = new SqliteCalculationRepository(state.database)
+    const { normalized } = batches.listNormalizedDocuments(batchId)[0]!
+    const source = { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe' }
+    const eligible = {
+      ...normalized, operationDirection: '1', purposeCode: '1', finalConsumerIndicator: '0',
+      issuer: { state: 'SP', taxId: '11444777000161', taxIdType: 'CNPJ', taxRegimeCode: '3' },
+      recipient: { state: 'PR', taxId: '11222333000181', taxIdType: 'CNPJ', stateRegistrationIndicator: '1' },
+      items: [{ itemNumber: '1', cfop: '6102', productAmount: '1000.00', ncm: '33030010', cest: '2000700', source,
+        declaredIcms: { cst: '10', rate: '12', amount: '120.00', stBaseMode: '4', stMarginPercent: '47.77',
+          stBaseAmount: '1477.70', stRate: '19.5', stAmount: '168.15', fcpStBaseAmount: '1477.70', fcpStRate: '2', fcpStAmount: '29.55' } }],
+    }
+    state.database.run('UPDATE documentos_fiscais SET dados_normalizados_json = ? WHERE id = ?', JSON.stringify(eligible), documentId)
+    state.saveDialog.mockResolvedValueOnce({ canceled, filePath: path })
+
+    expect(queryBatchDetail(state.database, batchId).documents[0]!.items[0]!.calculation.runId).toBeUndefined()
+    expect(await invoke()).toEqual(canceled ? null : { path })
+    expect(calculations.latestByDocument(documentId)).toBeUndefined()
+    if (!canceled) {
+      const pending = new ExcelJS.Workbook()
+      await pending.xlsx.load(await readFile(path) as never)
+      expect(pending.getWorksheet('Produtos')!.getCell('E2').value).toBe('Pendente')
+    }
+
+    registerItemFiscalHandlers(state.handlers.set.bind(state.handlers))
+    const update = state.handlers.get(IPC_CHANNELS.APPLY_REUSABLE_FISCAL_ANSWERS)!
+    state.busy = true
+    expect(() => update(event, batchId)).toThrow('pause a importação')
+    state.busy = false
+    expect(update(event, batchId)).toBe(1)
+    const saved = calculations.latestByDocument(documentId)
+    expect(saved?.items[0]?.memory.result?.amount).toBe('168.15')
+    expect(await invoke()).toEqual({ path })
+    const exported = new ExcelJS.Workbook()
+    await exported.xlsx.load(await readFile(path) as never)
+    expect(exported.getWorksheet('Produtos')!.getCell('E2').value).toBe(168.15)
+    expect(calculations.latestByDocument(documentId)?.id).toBe(saved?.id)
   })
   it('recusa iframe, lote desconhecido e importação em andamento antes do seletor', async () => {
     await expect(invoke(batchId, { ...event, senderFrame: {} })).rejects.toThrow('inválida')

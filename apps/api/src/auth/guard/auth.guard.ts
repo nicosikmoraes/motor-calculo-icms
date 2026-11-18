@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import type { AuthenticatedUser } from './authenticated-user.js';
-import { IS_PUBLIC_KEY } from './public.decorator.js';
+import { IS_PUBLIC_KEY } from '../../http/decorators/public.decorator.js';
 
 const ROLES = new Set(['SUPPORTER', 'ADMIN']);
 

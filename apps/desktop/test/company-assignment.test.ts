@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignBatchCompanies, inferBatchCompanyCnpj, pendingCompanyRegistrations, suggestCompanyForDocument } from '../src/renderer/company-assignment'
+import { assignBatchCompanies, inferBatchCompanyCnpj, pendingCompanyRegistrations, suggestCompanyForDocument } from '../src/renderer/concerns/batches/company-assignment'
 
 const document = {
   source: '/tmp/notas.zip#nota-b.xml',

@@ -6,8 +6,8 @@ import { itemCalculationStatus } from '@motor/contracts'
 import { normalizeNfeXml, validateNfeSchema } from '@motor/nfe-parser'
 import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteCompanyRepository,
   SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
-import { applyAutomaticXmlCalculations, getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
-import { getBatchConsolidation } from '../src/main/batch-consolidation'
+import { applyAutomaticXmlCalculations, getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { getBatchConsolidation } from '../src/main/modules/batches/queries/batch-consolidation'
 
 const xml = readFileSync(new URL('./fixtures/revisao-interestadual-1245.xml', import.meta.url), 'utf8')
 const timestamp = '2026-09-15T15:00:00.000Z'

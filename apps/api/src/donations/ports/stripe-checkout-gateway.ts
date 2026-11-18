@@ -22,9 +22,17 @@ export interface CheckoutSession {
 }
 
 export interface StripeCheckoutGateway {
+  /** @throws {CheckoutAmountRejectedError} Se o provedor recusar o valor ou a moeda. */
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutSession>;
   retrieveCheckout(sessionId: string): Promise<CheckoutSession>;
   expireCheckout(sessionId: string): Promise<CheckoutSession>;
+}
+
+export class CheckoutAmountRejectedError extends Error {
+  constructor() {
+    super('The payment provider rejected the checkout amount or currency');
+    this.name = 'CheckoutAmountRejectedError';
+  }
 }
 
 export class StripeUnavailableError extends Error {

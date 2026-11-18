@@ -60,7 +60,8 @@ pnpm test:db
 pnpm dev:api
 ```
 
-A API responde `Hello World!` em `http://127.0.0.1:3000`. O PostgreSQL de
+A API responde `{"data":{"status":"ok"}}` em `http://127.0.0.1:3000`.
+Consulte as rotas no [README da API](apps/api/README.md#rotas). O PostgreSQL de
 pagamentos usa `127.0.0.1:5433`; os arquivos fiscais continuam no SQLite do app.
 Consulte o [guia de desenvolvimento](docs/desenvolvimento.md) e as
 [evidências e adaptações da Atividade 08](docs/atividade-08.md).
@@ -93,6 +94,7 @@ as Issues apontam para ele.
 
 ### Arquitetura e desenvolvimento
 
+- [Guia de arquitetura do código e regras para novas alterações](docs/arquitetura-do-codigo.md)
 - [Arquitetura inicial](docs/arquitetura-inicial.md)
 - [Modelo de dados inicial](docs/modelo-de-dados.md)
 - [Decisões técnicas aprovadas](docs/decisoes-tecnicas.md)

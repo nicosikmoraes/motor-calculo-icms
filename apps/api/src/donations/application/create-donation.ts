@@ -1,26 +1,13 @@
 import { createHash, createHmac } from 'node:crypto';
 import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
-import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
-import { StripeUnavailableError } from '../ports/stripe-checkout-gateway.js';
+import { CheckoutAmountRejectedError, StripeUnavailableError, type StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
+import { DonationCreationError } from './donation-creation.error.js';
 
 export interface DonationCreationConfiguration {
-  stripeSecretKey?: string;
+  testCheckoutConfigured: boolean;
+  identitySecret: string;
   successUrl?: string;
   cancelUrl?: string;
-  identitySecret?: string;
-}
-
-export type DonationCreationFailureCode =
-  | 'invalid_input'
-  | 'service_unavailable'
-  | 'gateway_rejected_amount'
-  | 'stripe_unavailable'
-  | 'result_uncertain';
-
-export class DonationCreationError extends Error {
-  constructor(readonly code: DonationCreationFailureCode, readonly details: Record<string, unknown>) {
-    super(String(details.message ?? 'Falha ao criar doação'));
-  }
 }
 
 const amountPattern = /^\d+(?:\.\d{1,2})?$/;
@@ -59,15 +46,6 @@ function safeIdentity(secret: string, value: string): string {
   return createHmac('sha256', secret).update(value).digest('hex');
 }
 
-function safeStripeReason(error: unknown): string | null {
-  const value = error as { code?: unknown; raw?: { code?: unknown }; type?: unknown };
-  const code = typeof value?.code === 'string' ? value.code : typeof value?.raw?.code === 'string' ? value.raw.code : '';
-  if (/^amount_(?:too_large|too_small)$/.test(code) || /^currency_(?:not_supported|invalid)$/.test(code)) {
-    return 'VALOR_NAO_ACEITO';
-  }
-  return null;
-}
-
 export class CreateDonation {
   constructor(
     private readonly repository: DonationCreationRepository,
@@ -81,14 +59,13 @@ export class CreateDonation {
       || typeof headers.operation !== 'string' || headers.operation.length < 16 || headers.operation.length > 256) {
       throw new DonationCreationError('invalid_input', { message: 'Informe uma chave de intenção e uma identidade de operação válidas' });
     }
-    const secret = this.config.stripeSecretKey;
     const successUrl = this.config.successUrl;
     const cancelUrl = this.config.cancelUrl;
-    if (typeof secret !== 'string' || !isTestStripeKey(secret) || !successUrl || !cancelUrl
+    if (!this.config.testCheckoutConfigured || !successUrl || !cancelUrl
       || !isSafeReturnUrl(successUrl) || !isSafeReturnUrl(cancelUrl)) {
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
-    const hashSecret = this.config.identitySecret ?? secret;
+    const hashSecret = this.config.identitySecret;
     // O dono entra na chave: duas pessoas com a mesma intenção nunca compartilham uma criação em andamento.
     const flightKey = `${headers.ownerId}:${createHash('sha256').update(headers.intent).digest('hex')}:${safeIdentity(hashSecret, headers.operation)}`;
     const existingFlight = inFlightCreations.get(flightKey);
@@ -166,11 +143,11 @@ export class CreateDonation {
       return { donation: { orderId: opening.orderId, paymentId: opening.paymentId, amount: opening.amount,
         currency: opening.currency, status: 'pendente', checkoutUrl: session.url }, replayed: !opening.isNew };
     } catch (error) {
-      const rejection = safeStripeReason(error);
-      if (rejection) {
-        await this.repository.recordCreationFailure({ ...opening, reason: rejection });
+      if (error instanceof CheckoutAmountRejectedError) {
+        const reason = 'VALOR_NAO_ACEITO';
+        await this.repository.recordCreationFailure({ ...opening, reason });
         throw new DonationCreationError('gateway_rejected_amount', { orderId: opening.orderId, paymentId: opening.paymentId,
-          status: 'falha_na_criacao', reason: rejection, message: 'Valor não aceito pelo serviço de pagamentos' });
+          status: 'falha_na_criacao', reason, message: 'Valor não aceito pelo serviço de pagamentos' });
       }
       const unavailable = error instanceof StripeUnavailableError;
       await this.repository.recordIndeterminate({ ...opening, reason: unavailable ? 'STRIPE_HTTP_503' : 'RESULTADO_INCERTO' });
@@ -182,10 +159,6 @@ export class CreateDonation {
       });
     }
   }
-}
-
-export function isTestStripeKey(secret: string | undefined): boolean {
-  return typeof secret === 'string' && /^sk_test_[A-Za-z0-9_]+$/.test(secret)
 }
 
 export function isSafeReturnUrl(value: string): boolean {

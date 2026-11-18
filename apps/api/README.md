@@ -1,11 +1,63 @@
 # API do ContabiliNico
 
-API NestJS isolada, reservada às contas de apoiador e ao serviço de doações e
-pagamentos pelo Stripe. Toda rota exige `Authorization: Bearer <token>`, exceto
-cadastro, login, `GET /`, o webhook do Stripe e a página de retorno do Checkout.
-Os pedidos de doação têm dono, e só o dono os consulta. A rota
-`GET /admin/donation-orders` exige o papel `ADMIN` (403 para apoiadores). Não
-há acesso a documentos fiscais.
+As regras para organizar e ampliar o código estão no
+[guia de arquitetura do repositório](../../docs/arquitetura-do-codigo.md).
+
+API NestJS para contas de apoiador e doações pelo Stripe. A aplicação fiscal
+usa seu próprio banco local.
+
+## Onde encontrar o código
+
+- [`src/http/controllers/`](src/http/controllers/) reúne os controllers por
+  área. [`auth/`](src/http/controllers/auth/) cuida de contas e login,
+  [`donations/`](src/http/controllers/donations/) reúne pedidos, administração
+  de doações, retorno do checkout e webhook Stripe, e
+  [`health/`](src/http/controllers/health/) verifica se a API responde.
+  O NestJS combina o prefixo em `@Controller(...)` com o caminho em
+  `@Get(...)` ou `@Post(...)`. Por exemplo, `@Controller('auth')` e
+  `@Post('login')` registram `POST /auth/login`.
+- [`src/http/decorators/`](src/http/decorators/) reúne os decorators próprios
+  e compartilhados da API (`@Public()`, `@Roles()` e `@CurrentUser()`).
+- [`src/http/dto/`](src/http/dto/) agrupa os formatos de entrada e resposta
+  em `auth/` e `donations/`. O formato de erro compartilhado fica na raiz
+  dos DTOs. Filtros, interceptores e configuração do Swagger ficam em `src/http/`.
+- [`src/auth/`](src/auth/) e [`src/donations/`](src/donations/) guardam casos de
+  uso, portas e adaptadores para serviços externos. Os módulos NestJS ligam
+  seus controllers a essas dependências.
+- [`donations/adapters/prisma/queries/`](src/donations/adapters/prisma/queries/)
+  reúne as consultas de pedidos e a listagem administrativa. As leituras que
+  precisam ocorrer na transação de escrita ficam no respectivo repositório.
+- O [adaptador do webhook](src/donations/adapters/stripe/stripe-webhook.adapter.ts)
+  confere a assinatura sobre o corpo bruto e traduz o evento. O
+  [caso de uso](src/donations/application/handle-payment-event.ts) decide se
+  deve registrar recusa, expiração ou confirmação a partir dos dados verificados.
+- [`test/unit/`](test/unit/) guarda testes unitários e de arquitetura,
+  [`test/e2e/`](test/e2e/) testa a API via HTTP e [`test/db/`](test/db/) usa
+  PostgreSQL. Os utilitários de teste ficam em [`test/support/`](test/support/).
+
+## Rotas
+
+Com a API rodando, abra o [Swagger em `/docs`](http://127.0.0.1:3000/docs)
+para consultar as rotas e os formatos de entrada e resposta.
+
+| Método e caminho | Acesso | O que faz |
+| --- | --- | --- |
+| `GET /` | Público | Confirma que o processo responde com `{ "data": { "status": "ok" } }`. |
+| `POST /auth/register` | Público | Cria conta de apoiador. |
+| `POST /auth/login` | Público | Emite token JWT. |
+| `GET /auth/me` | Autenticado | Consulta a conta do usuário atual. |
+| `POST /donation-orders` | Autenticado | Cria pedido e abre o checkout. |
+| `GET /donation-orders/current` | Dono | Consulta o pedido pela chave de intenção. |
+| `GET /donation-orders/:id` | Dono | Consulta o pedido pelo ID e pela chave de intenção. |
+| `POST /donation-orders/:id/attempts` | Dono | Retoma ou abre outra tentativa de pagamento. |
+| `GET /admin/donation-orders` | Administrador | Lista doações para usuários com papel `ADMIN`. |
+| `POST /webhooks/stripe` | Stripe, com assinatura | Recebe eventos do gateway. |
+| `GET /donations/return` | Público | Exibe em HTML o retorno do checkout. |
+
+Envie `Authorization: Bearer <token>` nas rotas autenticadas, de dono e de
+administrador. A consulta de saúde em `GET /` verifica apenas o processo HTTP.
+
+## Desenvolvimento
 
 Este pacote pertence ao monorepo pnpm existente. Execute os comandos na raiz:
 
@@ -37,10 +89,10 @@ metadados de decorators usados na injeção de dependências.
 exigem banco. Os testes de banco são explícitos para não tornar o app fiscal
 dependente da API.
 
-A evolução seguirá domínio, casos de uso, portas e adaptadores dentro deste
-serviço. Contratos de pagamento compartilhados só nascerão com a primeira
-história aprovada. A API não importa pacotes fiscais; esse limite tem teste
-automatizado. O SQLite, os XMLs e o motor fiscal continuam locais no desktop.
+Os [testes de arquitetura](test/unit/api-boundary.spec.ts) verificam a separação
+entre API e desktop fiscal e mantêm casos de uso, domínio e portas independentes
+da infraestrutura HTTP, do NestJS, do Stripe e do Prisma. O SQLite, os XMLs e
+o motor fiscal ficam no desktop.
 
 Veja a [arquitetura](../../docs/architecture.md) e o
 [registro da Atividade 08](../../docs/atividade-08.md).

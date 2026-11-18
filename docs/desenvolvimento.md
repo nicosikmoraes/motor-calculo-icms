@@ -39,7 +39,7 @@ pnpm dev:api
 `pnpm db:up` espera o healthcheck do PostgreSQL 16. A porta publicada é
 `127.0.0.1:5433`; `PAYMENTS_DB_PORT` permite escolher outra porta, desde que a
 `DATABASE_URL` em `apps/api/.env` seja ajustada também. A API responde
-`Hello World!` em `http://127.0.0.1:3000` e não sobe sem `JWT_SECRET` (32
+`{"data":{"status":"ok"}}` em `http://127.0.0.1:3000` e exige `JWT_SECRET` (32
 caracteres ou mais). A documentação com o botão **Authorize** fica em
 `http://127.0.0.1:3000/docs`: entre por `POST /auth/login` e cole o token.
 O primeiro administrador é promovido à mão, de dentro de `apps/api`, com
@@ -96,6 +96,9 @@ packages/nfe-parser porta de ingestão e normalização
 packages/database/  SQLite local, migrations e repositórios
 packages/reporting/ porta de geração de relatórios
 ```
+
+O [guia do desktop](../apps/desktop/README.md) mostra onde encontrar as rotas IPC,
+os casos de uso e os adaptadores de cada área.
 
 Os schemas oficiais usados pelo parser ficam em `packages/nfe-parser/schemas`,
 com pacote, origem e hashes registrados. Eles são lidos localmente; o parser não

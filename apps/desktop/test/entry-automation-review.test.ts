@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { normalizeNfeXml } from '@motor/nfe-parser'
-import { entryAutomationReview } from '../src/main/entry-automation-review'
+import { entryAutomationReview } from '../src/main/modules/fiscal/domain/entry-automation-review'
 
 const note = normalizeNfeXml(readFileSync(new URL('./fixtures/revisao-interestadual-1245.xml', import.meta.url), 'utf8'))
 const product = { ...note.items[0]!, cfop: '6102', ncm: '39249000', cest: '1400500', description: 'SABONETEIRA PLASTICA', declaredIcms: { group: 'ICMS00', cst: '00', rate: '12', amount: '12' } }
