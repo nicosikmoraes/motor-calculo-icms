@@ -4,6 +4,7 @@
 | --- | --- | --- | --- | --- |
 | [#12](https://github.com/nicosikmoraes/motor-calculo-icms/issues/12) | US09 — Fazer doação pelo Stripe | [spec](012-fazer-doacao-stripe/spec.md) | [plano](012-fazer-doacao-stripe/plan.md) | implementada |
 | [#52](https://github.com/nicosikmoraes/motor-calculo-icms/issues/52) | US10 — Entrar no sistema | [spec](052-entrar-no-sistema/spec.md) | [plano](052-entrar-no-sistema/plan.md) | implementada |
+| [#53](https://github.com/nicosikmoraes/motor-calculo-icms/issues/53) | US11 — Quem pode o quê | [spec](053-quem-pode-o-que/spec.md) | — | rascunho |
 
 ## Atividade 09 — recorte e origem
 
