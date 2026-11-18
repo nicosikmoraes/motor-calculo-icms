@@ -78,6 +78,7 @@ describe('Fronteira entre o desktop fiscal e a API', () => {
     const schema = readFileSync(join(apiRoot, 'prisma/schema.prisma'), 'utf8');
     const entities = [...schema.matchAll(/^\s*((?:model|view)\s+\w+)/gm)].map((match) => match[1]);
     expect(entities.sort()).toEqual([
+      'model DonationDraft',
       'model DonationOpeningReservation',
       'model DonationOperation',
       'model DonationOrder',

@@ -8,7 +8,7 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module.js';
 import { PrismaClient } from '../../src/generated/prisma/client.js';
 import { authorization, testToken } from '../support/auth.js';
-import { createDbUser } from '../support/db-users.js';
+import { createDbUser, deleteDbUsers } from '../support/db-users.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
@@ -42,7 +42,7 @@ describe('Rascunhos de doação via HTTP e PostgreSQL', () => {
       if (rows[0].drafts) {
         await pool.query('DELETE FROM donation_drafts WHERE user_id = ANY($1::uuid[])', [users]);
       }
-      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [users]);
+      await deleteDbUsers(pool, users);
     } finally {
       await pool.end();
     }
@@ -80,8 +80,13 @@ describe('Rascunhos de doação via HTTP e PostgreSQL', () => {
       await http().delete(path).set(otherAuth(role)).expect(404);
     }
 
-    const updated = await http().patch(path).set(ownerAuth()).send({ amount: '40.00' }).expect(200);
-    expect(updated.body.data).toEqual({ ...a, amount: '40.00', updatedAt: expect.any(String) });
+    const unchanged = await http().get(path).set(ownerAuth()).expect(200);
+    expect(unchanged.body.data).toEqual(a);
+    const priorUpdate = '2026-01-01T00:00:00.000Z';
+    await pool.query("UPDATE donation_drafts SET updated_at = $1 WHERE id = $2", [priorUpdate, a.id]);
+    const updated = await http().patch(path).set(ownerAuth()).send({ amount: '0.01' }).expect(200);
+    expect(updated.body.data).toEqual({ ...a, amount: '0.01', updatedAt: expect.any(String) });
+    expect(Date.parse(updated.body.data.updatedAt)).toBeGreaterThan(Date.parse(priorUpdate));
     expect((await http().get(path).set(ownerAuth()).expect(200)).body).toEqual(updated.body);
 
     const order = await pool.query(
@@ -121,18 +126,32 @@ describe('Rascunhos de doação via HTTP e PostgreSQL', () => {
   });
 
   it('CA6: rejeita dados inválidos e extras antes de escrever', async () => {
+    const created = await http().post(base).set(ownerAuth()).send({ amount: '25.00' }).expect(201);
+    const path = `${base}/${created.body.data.id}`;
     const before = await http().get(base).set(ownerAuth()).expect(200);
     for (const body of [
       {}, { amount: 25 }, { amount: '0.00' }, { amount: '25.000' }, { amount: '10000000000.00' },
       { amount: '25.00', userId: other }, { amount: '25.00', currency: 'BRL' },
     ]) {
       await http().post(base).set(ownerAuth()).send(body).expect(400);
+      await http().patch(path).set(ownerAuth()).send(body).expect(400);
     }
+    await http().post(base).set(ownerAuth()).type('json')
+      .send('{"amount":"25.00","__proto__":{}}').expect(400);
+    await http().patch(path).set(ownerAuth()).type('json')
+      .send('{"amount":"25.00","constructor":{}}').expect(400);
     const invalid = `${base}/invalido`;
     await http().get(invalid).set(ownerAuth()).expect(400);
     await http().patch(invalid).set(ownerAuth()).send({ amount: '25.00' }).expect(400);
     await http().delete(invalid).set(ownerAuth()).expect(400);
     expect((await http().get(base).set(ownerAuth()).expect(200)).body).toEqual(before.body);
+    expect((await http().get(path).set(ownerAuth()).expect(200)).body).toEqual(created.body);
+  });
+
+  it('um token de conta inexistente não cria nem lista rascunhos', async () => {
+    const missing = authorization(testToken());
+    await http().post(base).set(missing).send({ amount: '25.00' }).expect(401);
+    await http().get(base).set(missing).expect(401);
   });
 
   it('CA7: a chave estrangeira recusa um rascunho com dono inexistente', async () => {

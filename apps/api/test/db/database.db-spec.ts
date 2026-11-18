@@ -25,6 +25,7 @@ describe('PostgreSQL da API', () => {
     );
     expect(result.rows).toEqual([
       '_prisma_migrations',
+      'donation_drafts',
       'donation_opening_reservations',
       'donation_operations',
       'donation_orders',
