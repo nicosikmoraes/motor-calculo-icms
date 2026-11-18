@@ -13,6 +13,8 @@ import NewBatchView from './views/NewBatchView.vue'
 import BuiltinRulesView from './views/BuiltinRulesView.vue'
 import RegistrationAuditView from './views/RegistrationAuditView.vue'
 import SupportProjectView from './views/SupportProjectView.vue'
+import SignInView from './views/SignInView.vue'
+import { requireSession } from './services/auth'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -26,7 +28,9 @@ export const router = createRouter({
     { path: '/revisao-documental', component: DocumentReviewView },
     { path: '/conferencia-mensal', component: MonthlyConferenceView },
     { path: '/backup', component: BackupView },
-    { path: '/apoio', component: SupportProjectView },
+    // Só o que usa a API pede conta; o fluxo fiscal é local e continua aberto.
+    { path: '/apoio', component: SupportProjectView, beforeEnter: requireSession },
+    { path: '/entrar', component: SignInView },
     { path: '/', component: DashboardView },
     { path: '/empresas', component: CompaniesView },
     { path: '/transferencia', component: InterchangeView },
