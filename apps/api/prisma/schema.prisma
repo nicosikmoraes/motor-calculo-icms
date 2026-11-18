@@ -130,6 +130,19 @@ model User {
   updatedAt    DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
   // Um usuário tem muitos pedidos de doação; cada pedido é de no máximo um usuário.
   donationOrders DonationOrder[]
+  donationDrafts DonationDraft[]
 
   @@map("users")
+}
+
+model DonationDraft {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("donation_drafts")
 }

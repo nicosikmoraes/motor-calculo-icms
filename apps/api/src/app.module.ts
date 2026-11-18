@@ -9,9 +9,10 @@ import { AuthGuard } from './auth/guard/auth.guard.js';
 import { RolesGuard } from './auth/guard/roles.guard.js';
 import { PrismaModule } from './common/prisma/prisma.module.js';
 import { DonationsModule } from './donations/donations.module.js';
+import { DonationDraftsModule } from './donation-drafts/donation-drafts.module.js';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, DonationsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, DonationsModule, DonationDraftsModule],
   controllers: [HealthController],
   providers: [
     // Seguro por padrão: toda rota exige token; as abertas são marcadas uma a uma com @Public().

@@ -46,6 +46,11 @@ para consultar as rotas e os formatos de entrada e resposta.
 | `POST /auth/register` | Público | Cria conta de apoiador. |
 | `POST /auth/login` | Público | Emite token JWT. |
 | `GET /auth/me` | Autenticado | Consulta a conta do usuário atual. |
+| `POST /donation-drafts` | Autenticado | Cria um rascunho para a conta atual. |
+| `GET /donation-drafts` | Autenticado | Lista os rascunhos da conta atual. |
+| `GET /donation-drafts/:id` | Dono | Consulta um rascunho. |
+| `PATCH /donation-drafts/:id` | Dono | Atualiza o valor de um rascunho. |
+| `DELETE /donation-drafts/:id` | Dono | Exclui um rascunho e retorna 204 sem corpo. |
 | `POST /donation-orders` | Autenticado | Cria pedido e abre o checkout. |
 | `GET /donation-orders/current` | Dono | Consulta o pedido pela chave de intenção. |
 | `GET /donation-orders/:id` | Dono | Consulta o pedido pelo ID e pela chave de intenção. |
@@ -56,6 +61,10 @@ para consultar as rotas e os formatos de entrada e resposta.
 
 Envie `Authorization: Bearer <token>` nas rotas autenticadas, de dono e de
 administrador. A consulta de saúde em `GET /` verifica apenas o processo HTTP.
+
+Criação e edição de rascunhos recebem apenas `{ "amount": "25.00" }`. O
+valor é uma string decimal com duas casas, em BRL. Um rascunho de outra
+conta responde 404. O fluxo de pagamento usa as rotas de pedidos.
 
 ## Desenvolvimento
 

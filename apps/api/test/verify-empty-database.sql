@@ -6,6 +6,7 @@ BEGIN
     WHERE table_schema = 'public'
   ) IS DISTINCT FROM ARRAY[
     '_prisma_migrations',
+    'donation_drafts',
     'donation_opening_reservations',
     'donation_operations',
     'donation_orders',
