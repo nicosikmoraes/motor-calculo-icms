@@ -108,3 +108,22 @@ model PaymentEvent {
   @@index([orderId, paymentId, occurredAt])
   @@map("payment_events")
 }
+
+// Papéis da API (US10/US11). Todo cadastro nasce SUPPORTER; ADMIN só é promovido à mão, no banco.
+enum Role {
+  SUPPORTER
+  ADMIN
+}
+
+// A senha nunca é guardada: só o hash bcrypt, num campo cujo nome não deixa dúvida.
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Sempre normalizado (sem espaços nas pontas, em minúsculas) antes de gravar e de buscar.
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(SUPPORTER)
+  createdAt    DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
+  updatedAt    DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  @@map("users")
+}
