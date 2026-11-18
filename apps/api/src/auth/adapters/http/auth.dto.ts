@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsString, MaxLength, registerDecorator, type ValidationOptions } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MaxLength, registerDecorator, type ValidationOptions } from 'class-validator';
 
 const MIN_PASSWORD_BYTES = 8;
 // O bcrypt ignora o que passa de 72 bytes: aceitar mais deixaria duas senhas diferentes valerem igual.
@@ -44,4 +44,29 @@ export class PublicUserDoc {
 
 export class PublicUserEnvelopeDoc {
   @ApiProperty({ type: PublicUserDoc }) data!: PublicUserDoc;
+}
+
+export class LoginRequest {
+  @ApiProperty({ example: 'ana@example.com' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsEmail({}, { message: 'informe um e-mail válido' })
+  @MaxLength(254)
+  email!: string;
+
+  // No login não se repete a regra de tamanho do cadastro: só se exige texto (com um teto contra abuso).
+  @ApiProperty({ example: 'uma senha longa' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1024)
+  password!: string;
+}
+
+export class LoginResultDoc {
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }) accessToken!: string;
+  @ApiProperty({ example: 'Bearer', enum: ['Bearer'] }) tokenType!: 'Bearer';
+  @ApiProperty({ example: 7200, description: 'Validade do token em segundos (2 horas)' }) expiresIn!: number;
+}
+
+export class LoginResultEnvelopeDoc {
+  @ApiProperty({ type: LoginResultDoc }) data!: LoginResultDoc;
 }
