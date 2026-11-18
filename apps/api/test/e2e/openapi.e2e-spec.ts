@@ -18,7 +18,7 @@ describe('Documento OpenAPI', () => {
 
   afterAll(async () => app.close());
 
-  const security = (path: string, method: 'get' | 'post') => document.paths[path]?.[method]?.security;
+  const security = (path: string, method: 'get' | 'post' | 'patch' | 'delete') => document.paths[path]?.[method]?.security;
 
   it('declara o esquema Bearer com formato JWT', () => {
     expect(document.components?.securitySchemes?.bearer).toEqual({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
@@ -53,6 +53,25 @@ describe('Documento OpenAPI', () => {
   it('CA11: a rota de administrador documenta 401 e 403', () => {
     const responses = document.paths['/admin/donation-orders'].get?.responses ?? {};
     expect(Object.keys(responses)).toEqual(expect.arrayContaining(['200', '401', '403']));
+  });
+
+  it('US12: documenta as cinco operações autenticadas de rascunhos e seus corpos', () => {
+    for (const [path, method, status] of [
+      ['/donation-drafts', 'get', '200'],
+      ['/donation-drafts', 'post', '201'],
+      ['/donation-drafts/{id}', 'get', '200'],
+      ['/donation-drafts/{id}', 'patch', '200'],
+      ['/donation-drafts/{id}', 'delete', '204'],
+    ] as const) {
+      expect(security(path, method)).toEqual([{ bearer: [] }]);
+      expect(document.paths[path]?.[method]?.responses[status]).toBeDefined();
+      expect(document.paths[path]?.[method]?.responses['401']).toBeDefined();
+    }
+    const schemas = document.components?.schemas;
+    expect(schemas?.DonationDraftAmountRequest).toMatchObject({
+      required: ['amount'], properties: { amount: { type: 'string', example: '25.00' } },
+    });
+    expect(document.paths['/donation-drafts/{id}'].delete?.responses['204']).not.toHaveProperty('content');
   });
 });
 
