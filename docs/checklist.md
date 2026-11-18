@@ -1,15 +1,9 @@
 # ✅ Checklist — a ficha da disciplina
 
-> **Status: Entrega 1 e infraestrutura da Atividade 08.**
-> O desktop fiscal continua local. O scaffold NestJS, Prisma e PostgreSQL nasce
-> separado, reservado ao futuro serviço de doações/pagamentos. O banco dessa API
-> não contém tabelas nem migrations.
->
-> O frontend é o aplicativo existente em `apps/desktop` e o workspace usa pnpm.
-> Essas adaptações estão registradas em [Atividade 08](atividade-08.md); não
-> constituem uma dispensa dos requisitos concedida pelo professor.
-> O código fiscal anterior não comprova automaticamente as demais exigências
-> das Entregas 2 e 3. Cada item marcado deve ser explicado pelo autor.
+> **Status: revisão da Entrega 2.** A API já atende contas de apoiador, login,
+> acesso por papel e doações de teste. Consulte o [mapa de evidências e tópicos
+> de ensaio](entrega-2.md). Cada item marcado deve ser explicado pelo autor.
+> Na revisão, use o mapa para confirmar o que está pronto para a defesa.
 
 ## 📐 Regras da disciplina
 
