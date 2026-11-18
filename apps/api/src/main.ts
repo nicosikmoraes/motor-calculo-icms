@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
-import { buildOpenApiDocument } from './openapi.js';
+import { buildOpenApiDocument } from './http/openapi.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });

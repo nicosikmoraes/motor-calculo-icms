@@ -1,7 +1,7 @@
 {
   "name": "@motor/api",
   "version": "0.0.1",
-  "description": "Scaffold isolado da API de doações e pagamentos do ContabiliNico.",
+  "description": "API de contas, doações e pagamentos do ContabiliNico.",
   "author": "Nicolas Moraes",
   "private": true,
   "license": "UNLICENSED",

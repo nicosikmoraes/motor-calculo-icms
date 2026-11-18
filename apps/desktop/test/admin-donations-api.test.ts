@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FORBIDDEN_MESSAGE, readAdminDonationsResponse } from '../src/main/admin-donations-api'
+import { FORBIDDEN_MESSAGE, readAdminDonationsResponse } from '../src/main/modules/donations/adapters/http/admin-donations-api'
 
 const row = { orderId: 'pedido-1', amount: '25.00', currency: 'BRL', status: 'pago', createdAt: '2026-11-17T12:00:00.000Z', ownerEmail: 'ana@example.test' }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
 import { BUILTIN_ICMS_OWN_PACK } from '@motor/tax-engine'
-import { assessBuiltinRules } from '../src/main/rule-pack-assessment'
+import { assessBuiltinRules } from '../src/main/modules/fiscal/adapters/sqlite/rule-pack-assessment'
 
 const item: NormalizedNfeItem = {
   itemNumber: '1', cfop: '6102',

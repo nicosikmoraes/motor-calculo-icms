@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFiscalProfileSuggestions } from '../src/main/profile-suggestions'
+import { buildFiscalProfileSuggestions } from '../src/main/modules/registrations/application/profile-suggestions'
 
 const cnpj = '11222333000181'
 

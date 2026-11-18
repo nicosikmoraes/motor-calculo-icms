@@ -1,10 +1,9 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
-import { AllExceptionsFilter } from './common/http/all-exceptions.filter.js';
-import { TransformInterceptor } from './common/http/transform.interceptor.js';
+import { HealthController } from './http/controllers/health/health.controller.js';
+import { AllExceptionsFilter } from './http/filters/all-exceptions.filter.js';
+import { TransformInterceptor } from './http/interceptors/transform.interceptor.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/guard/auth.guard.js';
 import { RolesGuard } from './auth/guard/roles.guard.js';
@@ -13,9 +12,8 @@ import { DonationsModule } from './donations/donations.module.js';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, DonationsModule],
-  controllers: [AppController],
+  controllers: [HealthController],
   providers: [
-    AppService,
     // Seguro por padrão: toda rota exige token; as abertas são marcadas uma a uma com @Public().
     // Os Guards globais rodam na ordem desta lista: primeiro "quem é você" (401),
     // depois "você pode" (403), porque o RolesGuard lê o req.user que o AuthGuard anexa.

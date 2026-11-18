@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteCompanyRepository, SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations } from '@motor/database'
-import { applyAutomaticXmlCalculations, getItemFiscalContext, saveItemFiscalAnswers, validateItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
-import { getBatchConsolidation } from '../src/main/batch-consolidation'
-import { buildItemFiscalContext } from '../src/main/item-fiscal-use-cases'
+import { applyAutomaticXmlCalculations, getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { getBatchConsolidation } from '../src/main/modules/batches/queries/batch-consolidation'
 import type { NormalizedNfe } from '@motor/domain'
+import { validateItemFiscalAnswers } from '../src/main/modules/fiscal/domain/item-fiscal-answers'
+import { buildItemFiscalContext } from '../src/main/modules/fiscal/domain/item-fiscal-context'
 
 let db:SqliteDatabase, batchId:string,documentId:string,companyId:string,nfe:NormalizedNfe
 const now='2026-10-18T12:00:00.000Z'

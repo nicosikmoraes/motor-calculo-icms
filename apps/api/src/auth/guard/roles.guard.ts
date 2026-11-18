@@ -2,7 +2,7 @@ import { type CanActivate, type ExecutionContext, ForbiddenException, Injectable
 import { Reflector } from '@nestjs/core';
 import type { Role } from '../ports/user-repository.js';
 import type { AuthenticatedUser } from './authenticated-user.js';
-import { ROLES_KEY } from './roles.decorator.js';
+import { ROLES_KEY } from '../../http/decorators/roles.decorator.js';
 
 /**
  * Segundo Guard global, depois do AuthGuard: o AuthGuard responde "quem é você" (401),

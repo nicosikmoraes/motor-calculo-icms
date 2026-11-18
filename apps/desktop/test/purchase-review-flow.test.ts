@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ItemFiscalContext } from '@motor/contracts'
-import { changePurchaseDestination, invalidatePurchaseFactReview, purchaseHoldReason } from '../src/renderer/purchase-review-flow'
+import { changePurchaseDestination, invalidatePurchaseFactReview, purchaseHoldReason } from '../src/renderer/concerns/fiscal/purchase-review-flow'
 
 const context: ItemFiscalContext = { entryRateDifferenceAvailable: true, answers: {}, questions: [], xmlFacts: [],
   consumerDifalSuggestions: { operationAmount: '150.00', internalRate: '19.5', interstateRate: '12' },

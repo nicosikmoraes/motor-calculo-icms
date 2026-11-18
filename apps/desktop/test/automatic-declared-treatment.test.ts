@@ -4,10 +4,10 @@ import { normalizeNfeXml } from '@motor/nfe-parser'
 import type { NormalizedDeclaredIcms, NormalizedNfeItem } from '@motor/domain'
 import { itemCalculationStatus } from '@motor/contracts'
 import { CORE_MIGRATIONS, SqliteDatabase, SqliteOrganizationRepository, SqliteCompanyRepository, SqliteBatchRepository, SqliteCalculationRepository, runSqlMigrations } from '@motor/database'
-import { calculateAutomaticXmlItem, automaticCalculationDescription } from '../src/main/automatic-xml-calculation'
+import { calculateAutomaticXmlItem, automaticCalculationDescription } from '../src/main/modules/fiscal/domain/automatic-xml-calculation'
 import { buildBatchConsolidation } from '@motor/reporting'
-import { queryBatchDetail } from '../src/main/batch-query-handlers'
-import { applyAutomaticXmlCalculations } from '../src/main/item-fiscal-use-cases'
+import { queryBatchDetail } from '../src/main/modules/batches/queries/batch-queries'
+import { applyAutomaticXmlCalculations } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
 
 const xml = readFileSync(new URL('./fixtures/revisao-resolucao-1245.xml', import.meta.url), 'utf8')
 const note = normalizeNfeXml(xml)

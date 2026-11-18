@@ -1,29 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopApi } from '@motor/contracts'
-import { afterSignIn, authSession, canSeeReceivedDonations, currentSession, passwordProblem, requireRole, requireSession, sessionExpiredRedirect, signIn, signOut } from '../src/renderer/services/auth'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterSignIn, requireRole, requireSession, sessionExpiredRedirect } from '../src/renderer/concerns/auth/navigation'
+import { passwordProblem } from '../src/renderer/concerns/auth/password'
+import { useAuthStore } from '../src/renderer/stores/auth'
 
 const api = {
   signIn: vi.fn(), registerAccount: vi.fn(), signOut: vi.fn(), getAuthSession: vi.fn(), onSessionExpired: vi.fn(),
 } as unknown as DesktopApi
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   vi.clearAllMocks()
   vi.stubGlobal('window', { desktopApi: api })
 })
 afterEach(() => vi.unstubAllGlobals())
 
-describe('camada de serviço de autenticação da tela', () => {
+describe('store de autenticação do renderer', () => {
   it('entra pela ponte e devolve só o e-mail; erros chegam sem o nome técnico do canal', async () => {
     vi.mocked(api.signIn).mockResolvedValueOnce({ email: 'ana@example.test', role: 'SUPPORTER' })
-    await expect(signIn('ana@example.test', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
+    await expect(useAuthStore().signIn('ana@example.test', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     expect(api.signIn).toHaveBeenCalledWith({ email: 'ana@example.test', password: 'senha-certa' })
 
     vi.mocked(api.signIn).mockRejectedValueOnce(new Error("Error invoking remote method 'auth:sign-in': Error: E-mail ou senha inválidos"))
-    await expect(signIn('ana@example.test', 'errada')).rejects.toThrow(/^E-mail ou senha inválidos$/)
+    await expect(useAuthStore().signIn('ana@example.test', 'errada')).rejects.toThrow(/^E-mail ou senha inválidos$/)
   })
 
   it('sair pede ao processo main para descartar o token', async () => {
-    await signOut()
+    await useAuthStore().signOut()
     expect(api.signOut).toHaveBeenCalledTimes(1)
   })
 
@@ -74,19 +78,35 @@ describe('CA14: sessão expirada', () => {
 describe('US11: papel na tela', () => {
   it('o estado compartilhado da sessão acompanha entrar, consultar e sair', async () => {
     vi.mocked(api.signIn).mockResolvedValueOnce({ email: 'adm@example.test', role: 'ADMIN' })
-    await signIn('adm@example.test', 'senha-certa')
-    expect(authSession.value).toEqual({ email: 'adm@example.test', role: 'ADMIN' })
-    await signOut()
-    expect(authSession.value).toBeNull()
+    await useAuthStore().signIn('adm@example.test', 'senha-certa')
+    expect(useAuthStore().session).toEqual({ email: 'adm@example.test', role: 'ADMIN' })
+    await useAuthStore().signOut()
+    expect(useAuthStore().session).toBeNull()
     vi.mocked(api.getAuthSession).mockResolvedValueOnce({ email: 'ana@example.test', role: 'SUPPORTER' })
-    await currentSession()
-    expect(authSession.value).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
+    await useAuthStore().refreshSession()
+    expect(useAuthStore().session).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
   })
 
-  it('CA9: o item "Doações recebidas" só aparece para ADMIN', () => {
-    expect(canSeeReceivedDonations({ email: 'adm@example.test', role: 'ADMIN' })).toBe(true)
-    expect(canSeeReceivedDonations({ email: 'ana@example.test', role: 'SUPPORTER' })).toBe(false)
-    expect(canSeeReceivedDonations(null)).toBe(false)
+  it('CA9: o item "Doações recebidas" só aparece para ADMIN', async () => {
+    const auth = useAuthStore()
+    expect(auth.canSeeReceivedDonations).toBe(false)
+    vi.mocked(api.getAuthSession).mockResolvedValueOnce({ email: 'adm@example.test', role: 'ADMIN' })
+    await auth.refreshSession()
+    expect(auth.canSeeReceivedDonations).toBe(true)
+    vi.mocked(api.getAuthSession).mockResolvedValueOnce({ email: 'ana@example.test', role: 'SUPPORTER' })
+    await auth.refreshSession()
+    expect(auth.canSeeReceivedDonations).toBe(false)
+  })
+
+  it('descarta uma consulta de sessão que chega após a expiração', async () => {
+    const auth = useAuthStore()
+    const result = Promise.withResolvers<Awaited<ReturnType<DesktopApi['getAuthSession']>>>()
+    vi.mocked(api.getAuthSession).mockReturnValueOnce(result.promise)
+    const refresh = auth.refreshSession()
+    auth.clearSession()
+    result.resolve({ email: 'adm@example.test', role: 'ADMIN' })
+    await expect(refresh).resolves.toBeNull()
+    expect(auth.canSeeReceivedDonations).toBe(false)
   })
 
   it('a rota de administrador manda quem não entrou para entrar, e o apoiador para a visão geral', async () => {

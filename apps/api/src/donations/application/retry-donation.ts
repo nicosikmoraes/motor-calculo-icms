@@ -1,56 +1,44 @@
 import { createHash, createHmac } from 'node:crypto';
 import type { DonationCreationRepository } from '../ports/donation-creation-repository.js';
+import type { DonationOrderQueries } from '../ports/donation-order-queries.js';
 import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
-import { DonationCreationError, isTestStripeKey } from './create-donation.js';
+import type { DonationCreationConfiguration } from './create-donation.js';
+import { DonationCreationError } from './donation-creation.error.js';
+import {
+  findOwnedDonation,
+  hashDonationIntent,
+  matchesDonationCheckout,
+  requireTestCheckout,
+  toDonationOrderView,
+} from './donation-order.js';
 
 const unavailableMessage = 'Não foi possível retomar o pagamento agora';
 const blockedMessage = 'Pagamento em verificação; nenhuma nova tentativa foi aberta';
+type RetryDonationConfiguration = Pick<DonationCreationConfiguration, 'identitySecret' | 'testCheckoutConfigured'>;
 
 export class RetryDonation {
-  constructor(private readonly repository: DonationCreationRepository, private readonly gateway: StripeCheckoutGateway,
-    private readonly identitySecret: string, private readonly stripeSecretKey?: string) {}
-
-  async inspectCurrent(ownerId: string, intent: unknown) {
-    this.assertTestStripeMode()
-    if (typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
-    let orderId: string | null;
-    try { orderId = await this.repository.getOrderIdByIntentHash(createHash('sha256').update(intent).digest('hex'), ownerId); }
-    catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
-    return orderId ? this.inspect(ownerId, orderId, intent) : null;
-  }
-
-  async inspect(ownerId: string, orderId: string, intent: unknown) {
-    this.assertTestStripeMode()
-    const donation = await this.authorized(ownerId, orderId, intent);
-    if (!donation) return null;
-    const attempts = donation.attempts;
-    const latest = attempts[0];
-    if (latest?.checkoutSessionId && donation.status === 'pendente' && latest.status !== 'paga') {
-      try {
-        const session = await this.gateway.retrieveCheckout(latest.checkoutSessionId);
-        if (this.matches(donation, latest, session) && session.status === 'expired' && session.paymentStatus === 'unpaid') {
-          await this.repository.markSessionExpired({ orderId, paymentId: latest.paymentId, sessionId: latest.checkoutSessionId });
-          latest.status = 'expirada';
-          donation.events.push({ paymentId: latest.paymentId, status: 'expirada', reason: 'SESSAO_EXPIRADA', occurredAt: new Date() });
-        }
-      } catch { /* Consulta não é evidência de expiração; mantenha o estado persistido. */ }
-    }
-    return this.publicState(donation);
-  }
+  constructor(
+    private readonly repository: DonationCreationRepository,
+    private readonly queries: Pick<DonationOrderQueries, 'getAuthorizedDonation'>,
+    private readonly gateway: StripeCheckoutGateway,
+    private readonly config: RetryDonationConfiguration,
+  ) {}
 
   async retry(ownerId: string, orderId: string, intent: unknown, operation: unknown) {
-    this.assertTestStripeMode()
+    requireTestCheckout(this.config.testCheckoutConfigured);
     if (typeof operation !== 'string' || operation.length < 16 || operation.length > 256) {
       throw new DonationCreationError('invalid_input', { message: 'Informe uma identidade de operação válida' });
     }
-    const donation = await this.authorized(ownerId, orderId, intent);
+    const intentHash = hashDonationIntent(intent);
+    if (!intentHash) return null;
+    const donation = await findOwnedDonation(this.queries, ownerId, orderId, intentHash);
     if (!donation) return null;
     const latest = donation.attempts[0];
     if (donation.status === 'pago') {
       if (latest?.checkoutSessionId) {
         try {
           const session = await this.gateway.retrieveCheckout(latest.checkoutSessionId);
-          if (this.matches(donation, latest, session) && session.status === 'open') {
+          if (matchesDonationCheckout(donation.orderId, latest, session) && session.status === 'open') {
             try {
               const expired = await this.gateway.expireCheckout(session.id);
               if (expired.status !== 'expired') throw new Error('Sessão excedente não foi expirada');
@@ -61,13 +49,13 @@ export class RetryDonation {
           }
         } catch { /* Pedido pago continua monotônico; nenhum URL de Checkout será devolvido. */ }
       }
-      return this.publicState(donation);
+      return toDonationOrderView(donation);
     }
     if (!latest) throw new DonationCreationError('result_uncertain', { message: blockedMessage });
-    const operationHash = createHmac('sha256', this.identitySecret).update(operation).digest('hex');
+    const operationHash = createHmac('sha256', this.config.identitySecret).update(operation).digest('hex');
     const priorOperation = donation.attempts.find((attempt) => attempt.operationKeyHash === operationHash);
     if (priorOperation && priorOperation.paymentId !== latest.paymentId) {
-      return { ...this.publicState(donation), paymentId: priorOperation.paymentId, status: priorOperation.status,
+      return { ...toDonationOrderView(donation), paymentId: priorOperation.paymentId, status: priorOperation.status,
         checkoutUrl: priorOperation.status === 'paga' ? null : priorOperation.checkoutUrl, reused: true };
     }
 
@@ -75,8 +63,8 @@ export class RetryDonation {
       let session;
       try { session = await this.gateway.retrieveCheckout(latest.checkoutSessionId); }
       catch { throw new DonationCreationError('stripe_unavailable', { message: unavailableMessage }); }
-      if (!this.matches(donation, latest, session)) throw new DonationCreationError('stripe_unavailable', { message: unavailableMessage });
-      if (session.status === 'open' && session.url) return { ...this.publicState(donation), checkoutUrl: session.url,
+      if (!matchesDonationCheckout(donation.orderId, latest, session)) throw new DonationCreationError('stripe_unavailable', { message: unavailableMessage });
+      if (session.status === 'open' && session.url) return { ...toDonationOrderView(donation), checkoutUrl: session.url,
         paymentId: latest.paymentId, reused: true };
       if (session.status !== 'expired' || session.paymentStatus !== 'unpaid') {
         throw new DonationCreationError('result_uncertain', { message: blockedMessage });
@@ -112,10 +100,9 @@ export class RetryDonation {
         }
       }
     }
-    if (priorOperation) return { ...this.publicState(donation), paymentId: latest.paymentId, status: latest.status,
+    if (priorOperation) return { ...toDonationOrderView(donation), paymentId: latest.paymentId, status: latest.status,
       checkoutUrl: latest.status === 'expirada' ? null : latest.checkoutUrl, reused: true };
 
-    const intentHash = createHash('sha256').update(String(intent)).digest('hex');
     const stripeIdempotencyKey = `donation_${operationHash}`;
     const fingerprint = createHash('sha256').update(`${donation.amount}:BRL`).digest('hex');
     const opening = await this.repository.createRetry({ ownerId, orderId, intentKeyHash: intentHash,
@@ -129,7 +116,7 @@ export class RetryDonation {
       if (!session.url) throw new Error('Checkout sem URL');
       await this.repository.recordCheckout({ ...opening, checkoutSessionId: session.id,
         paymentIntentId: session.paymentIntentId, checkoutUrl: session.url });
-      const afterOpening = await this.repository.getAuthorizedDonation(orderId, intentHash, ownerId);
+      const afterOpening = await this.queries.getAuthorizedDonation(orderId, intentHash, ownerId);
       if (!afterOpening || afterOpening.status === 'pago') {
         try {
           const expired = await this.gateway.expireCheckout(session.id);
@@ -149,36 +136,4 @@ export class RetryDonation {
         status: 'indeterminada', message: unavailableMessage });
     }
   }
-
-  private async authorized(ownerId: string, orderId: string, intent: unknown) {
-    if (!isUuid(orderId) || typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
-    try { return await this.repository.getAuthorizedDonation(orderId, createHash('sha256').update(intent).digest('hex'), ownerId); }
-    catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
-  }
-
-  private assertTestStripeMode(): void {
-    if (!isTestStripeKey(this.stripeSecretKey)) {
-      throw new DonationCreationError('service_unavailable', {
-        message: 'Serviço de doações indisponível. Tente novamente mais tarde',
-      })
-    }
-  }
-
-  private matches(donation: NonNullable<Awaited<ReturnType<DonationCreationRepository['getAuthorizedDonation']>>>,
-    attempt: NonNullable<typeof donation>['attempts'][number], session: Awaited<ReturnType<StripeCheckoutGateway['retrieveCheckout']>>) {
-    const params = attempt.checkoutParameters;
-    return session.id === attempt.checkoutSessionId && session.orderId === donation.orderId && session.paymentId === attempt.paymentId
-      && session.amountInCents === params?.amountInCents && session.currency?.toLowerCase() === 'brl' && !session.livemode;
-  }
-
-  private publicState(donation: NonNullable<Awaited<ReturnType<DonationCreationRepository['getAuthorizedDonation']>>>) {
-    return { orderId: donation.orderId, amount: donation.amount, currency: donation.currency,
-      status: donation.status, attempts: donation.attempts.map(({ paymentId, status, reason, checkoutSessionId, checkoutUrl }) =>
-        ({ paymentId, status, reason, checkoutSessionId,
-          checkoutUrl: donation.status === 'pago' || status === 'expirada' ? null : checkoutUrl })), events: donation.events };
-  }
-}
-
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

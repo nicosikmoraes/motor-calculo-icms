@@ -1,16 +1,19 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import App from './App.vue'
 import { router } from './router'
-import { authSession, onSessionExpired, sessionExpiredRedirect } from './services/auth'
-import './styles.css'
+import App from './App.vue'
+import { sessionExpiredRedirect } from './concerns/auth/navigation'
+import { onSessionExpired } from './services/auth'
+import { useAuthStore } from './stores/auth'
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+const pinia = createPinia()
+const app = createApp(App).use(pinia).use(router)
+const auth = useAuthStore(pinia)
 
-// O processo main recebeu 401 no meio do uso e já descartou o token: volta para entrar, explicando por quê.
-// Quem já saiu para uma tela fiscal não é interrompido: a próxima visita a /apoio pede para entrar.
-onSessionExpired(() => {
-  authSession.value = null
+app.onUnmount(onSessionExpired(() => {
+  auth.clearSession()
   const target = sessionExpiredRedirect(router.currentRoute.value)
   if (target) void router.push(target)
-})
+}))
+
+app.mount('#app')

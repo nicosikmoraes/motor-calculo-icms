@@ -4,11 +4,12 @@ const state = vi.hoisted(() => ({ handlers: new Map<string, (...args: any[]) => 
   busy: false, database: vi.fn(), list: vi.fn(), save: vi.fn() }))
 vi.mock('electron', () => ({ BrowserWindow: { fromWebContents: () => state.window },
   ipcMain: { handle: (id: string, fn: (...args: any[]) => any) => state.handlers.set(id, fn) } }))
-vi.mock('../src/main/main-services', () => ({ activeDatabase: state.database, batchOperations: { get busy() { return state.busy } } }))
-vi.mock('../src/main/conflict-resolution-use-cases', () => ({ listDocumentConflicts: state.list, saveConflictResolution: state.save }))
-import { registerConflictResolutionHandlers } from '../src/main/conflict-resolution-handlers'
+vi.mock('../src/main/platform/sqlite/database-runtime', () => ({ activeDatabase: state.database }))
+vi.mock('../src/main/platform/operations/batch-operations', () => ({ batchOperations: { get busy() { return state.busy } } }))
+vi.mock('../src/main/modules/fiscal/adapters/sqlite/conflict-resolution-use-cases', () => ({ listDocumentConflicts: state.list, saveConflictResolution: state.save }))
+import { registerConflictResolutionHandlers } from '../src/main/ipc/controllers/fiscal/conflict-resolution-controller'
 const sender = { mainFrame: {} }, event = { sender, senderFrame: sender.mainFrame }
-beforeEach(() => { vi.clearAllMocks(); state.handlers.clear(); state.window = {}; state.busy = false; registerConflictResolutionHandlers() })
+beforeEach(() => { vi.clearAllMocks(); state.handlers.clear(); state.window = {}; state.busy = false; registerConflictResolutionHandlers(state.handlers.set.bind(state.handlers)) })
 describe('limites da ponte de resolução de conflitos', () => {
   it('rejeita subframes, janela ausente e importação em andamento antes de acessar o banco', () => {
     for (const channel of [IPC_CHANNELS.LIST_DOCUMENT_CONFLICTS, IPC_CHANNELS.SAVE_CONFLICT_RESOLUTION]) {

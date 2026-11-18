@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createIcmsPack, serializeIcmsPack, PACK_MAX_BYTES } from '@motor/interchange'
-import { readPackFile, writePackFile } from '../src/main/pack-file-io'
-import { PackPreviewSessions } from '../src/main/pack-preview-session'
+import { readPackFile, writePackFile } from '../src/main/modules/interchange/adapters/files/pack-file-io'
+import { PackPreviewSessions } from '../src/main/modules/interchange/application/pack-preview-session'
 const temporary: string[] = []
 afterEach(async () => { await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true }))) })
 const json = () => serializeIcmsPack(createIcmsPack({ companies: [], profiles: [], products: [], rules: [] },

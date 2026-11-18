@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '@motor/database'
-import { BackupService, dueBackupDate } from '../src/main/backup-service'
+import { BackupService, dueBackupDate } from '../src/main/modules/backup/adapters/files/backup-service'
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup() })
 async function fixture() {

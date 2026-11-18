@@ -1,8 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
 
-/** Validade do token: 2 horas (decisão e motivo na spec da US10). */
-export const JWT_EXPIRES_IN_SECONDS = 7200;
-
 const MIN_SECRET_LENGTH = 32;
 
 /**

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { reactive } from 'vue'
 import type { SelectedSource } from '@motor/contracts'
-import { serializableSources } from '../src/renderer/serializable-sources'
-import { desktopErrorMessage } from '../src/renderer/error-messages'
+import { serializableSources } from '../src/renderer/concerns/batches/serializable-sources'
+import { desktopErrorMessage } from '../src/renderer/concerns/ipc/error-messages'
 
 describe('mensagens de erro da ponte Electron', () => {
   it('identifica o conflito real de salvamento sem exibir o nome técnico do método', () => {

@@ -7,7 +7,11 @@ export default defineConfig({
     build: {
       rollupOptions: {
         external: ['xmllint-wasm'],
-        input: { index: resolve('src/main/index.ts'), 'batch-import-worker': resolve('src/main/batch-import-worker.ts'), 'report-generator': resolve('src/main/report-generator.ts') },
+        input: {
+          index: resolve('src/main/index.ts'),
+          'batch-import-worker': resolve('src/main/modules/batches/adapters/worker/batch-import-worker.ts'),
+          'report-generator': resolve('src/main/modules/reports/adapters/report-generator.ts'),
+        },
         output: { entryFileNames: '[name].js' },
       },
     },

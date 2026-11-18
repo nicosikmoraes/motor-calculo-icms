@@ -3,6 +3,10 @@ import Stripe from 'stripe';
 type HttpClientInterface = ReturnType<typeof Stripe.createFetchHttpClient>;
 type HttpClientResponseInterface = Awaited<ReturnType<HttpClientInterface['makeRequest']>>;
 
+export function readStripeTestKey(value: unknown): string | undefined {
+  return typeof value === 'string' && /^sk_test_[A-Za-z0-9_]+$/.test(value) ? value : undefined;
+}
+
 export function createStripeClient(secretKey: string, fetcher: typeof fetch = fetch): Stripe {
   const fetchClient = Stripe.createFetchHttpClient(fetcher);
   const httpClient: HttpClientInterface = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedDocumentArtifact } from '@motor/domain'
-import { associateDocumentArtifacts } from '../src/main/document-artifact-association'
+import { associateDocumentArtifacts } from '../src/main/modules/batches/adapters/sqlite/document-artifact-association'
 
 const key = '1'.repeat(44)
 const artifact: NormalizedDocumentArtifact = {

@@ -4,7 +4,7 @@ import {
   SqliteFiscalCatalogRepository, SqliteOrganizationRepository, SqliteRegistrationAuditRepository, runSqlMigrations,
 } from '@motor/database'
 import { AppErrorCode, RegistrationEntityCode, RegistrationOperationCode } from '@motor/domain'
-import { RegistrationUseCases } from '../src/main/registration-use-cases'
+import { RegistrationUseCases } from '../src/main/modules/registrations/application/registration-use-cases'
 
 const timestamp = '2026-09-29T01:00:00.000Z'
 let database: SqliteDatabase

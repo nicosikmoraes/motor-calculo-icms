@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
-import { calculateAutomaticXmlItem, isAutomaticXmlCalculation } from '../src/main/automatic-xml-calculation'
+import { calculateAutomaticXmlItem, isAutomaticXmlCalculation } from '../src/main/modules/fiscal/domain/automatic-xml-calculation'
 
 const source = { format: 'NFE_XML_4_00' as const, xmlPath: 'NFe' }
 const item: NormalizedNfeItem = { itemNumber: '1', cfop: '5102', productAmount: '100', ipiAmount: '10', source,

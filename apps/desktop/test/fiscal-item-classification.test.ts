@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FiscalProfileRecord, SupplierProductRecord } from '@motor/database'
-import { classifyFiscalItem } from '../src/main/fiscal-item-classification'
+import { classifyFiscalItem } from '../src/main/modules/fiscal/adapters/sqlite/fiscal-item-classification'
 
 const profile: FiscalProfileRecord = {
   id: 'profile-1', organizationId: 'org-1', companyId: 'company-1',

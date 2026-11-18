@@ -4,13 +4,6 @@ import { DonationIntentTakenError, DonationOperationConflictError, DonationOwner
 export class PrismaDonationCreationRepository implements DonationCreationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getOrderIdByIntentHash(intentKeyHash: string, ownerId: string): Promise<string | null> {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id::text AS id FROM donation_orders WHERE intent_key_hash = ${intentKeyHash} AND user_id = ${ownerId}::uuid LIMIT 1
-    `;
-    return rows[0]?.id ?? null;
-  }
-
   async createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.intentKeyHash}))`;
@@ -105,31 +98,6 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
       await tx.paymentEvent.create({ data: { orderId: input.orderId, paymentId: input.paymentId,
         origin: 'api', toStatus: 'falha_na_criacao', reason: input.reason } });
     });
-  }
-
-  // A chave de intenção E o dono, na mesma consulta: pedido de outra pessoa (ou sem dono) é indistinguível de inexistente.
-  async getAuthorizedDonation(orderId: string, intentKeyHash: string, ownerId: string) {
-    const orders = await this.prisma.$queryRaw<Array<{ orderId: string; amount: string; currency: 'BRL'; status: string }>>`
-      SELECT id::text AS "orderId", amount::text AS amount, currency::text AS currency, status::text AS status
-      FROM donation_orders WHERE id = ${orderId}::uuid AND intent_key_hash = ${intentKeyHash} AND user_id = ${ownerId}::uuid
-    `;
-    const order = orders[0];
-    if (!order || order.currency !== 'BRL') return null;
-    const attempts = await this.prisma.$queryRaw<Array<{ paymentId: string; status: string; reason: string | null;
-      checkoutSessionId: string | null; checkoutUrl: string | null; paymentIntentId: string | null; stripeIdempotencyKey: string;
-      operationKeyHash: string | null;
-      firstSentAt: Date | null; checkoutParameters: { amountInCents: string; currency: 'brl'; successUrl: string; cancelUrl: string } | null }>>`
-      SELECT id::text AS "paymentId", status::text AS status, reason, checkout_session_id AS "checkoutSessionId",
-        checkout_url AS "checkoutUrl", payment_intent_id AS "paymentIntentId", stripe_idempotency_key AS "stripeIdempotencyKey",
-        first_sent_at AS "firstSentAt", checkout_parameters AS "checkoutParameters", op.operation_key AS "operationKeyHash"
-      FROM payments p LEFT JOIN donation_operations op ON op.payment_id = p.id
-      WHERE p.order_id = ${orderId}::uuid ORDER BY p.created_at DESC, p.id DESC
-    `;
-    const events = await this.prisma.$queryRaw<Array<{ paymentId: string; status: string | null; reason: string | null; occurredAt: Date }>>`
-      SELECT payment_id::text AS "paymentId", to_status::text AS status, reason, occurred_at AS "occurredAt"
-      FROM payment_events WHERE order_id = ${orderId}::uuid ORDER BY occurred_at, id
-    `;
-    return { ...order, attempts, events };
   }
 
   async markSessionExpired(input: { orderId: string; paymentId: string; sessionId: string }): Promise<void> {

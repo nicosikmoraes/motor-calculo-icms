@@ -6,9 +6,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteDatabase, SqliteOrganizationRepository, SqliteCompanyRepository, SqliteBatchRepository, runSqlMigrations } from '@motor/database'
 import type { CreateBatchInput } from '@motor/contracts'
-import { BatchOperationRegistry } from '../src/main/batch-operation'
-import { importBatch } from '../src/main/import-batch'
-import { listRecoveries, readRecovery, recoveryDirectory } from '../src/main/import-recovery'
+import { BatchOperationRegistry } from '../src/main/modules/batches/application/batch-operation'
+import { importBatch } from '../src/main/modules/batches/adapters/sqlite/import-batch'
+import { listRecoveries, readRecovery, recoveryDirectory } from '../src/main/modules/batches/adapters/files/import-recovery'
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup() })
 async function fixture() {

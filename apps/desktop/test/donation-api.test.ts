@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readDonationResponse } from '../src/main/donation-api'
+import { readDonationResponse } from '../src/main/modules/donations/adapters/http/donation-api'
 
 const order = { orderId: 'pedido-1', paymentId: 'pagamento-1', amount: '10.00', currency: 'BRL', status: 'pendente',
   checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_1' }

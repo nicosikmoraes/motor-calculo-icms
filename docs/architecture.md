@@ -1,5 +1,8 @@
 # Arquitetura do ContabiliNico
 
+> Para a estrutura atual do código e regras para novas alterações, consulte o
+> [Guia de arquitetura do código](arquitetura-do-codigo.md).
+
 **Versão:** 0.6.0 — papéis e dono do pedido
 
 **Última atualização:** 18/11/2026
@@ -94,14 +97,15 @@ webhook Stripe entra pelo módulo de pagamentos, valida a assinatura e registra 
 evento de forma idempotente. A API recebe somente identificador do pedido, valor,
 moeda, estado e identificadores do gateway.
 
-A evolução da API seguirá portas e adaptadores: domínio e casos de uso
-independentes de NestJS/Prisma/Stripe; portas para persistência e gateway;
-adaptadores HTTP em controllers NestJS, persistência via Prisma e gateway Stripe.
-Essas camadas de negócio só serão criadas com as primeiras specs aprovadas. No
-scaffold atual, `AppController` e `AppService` são a demonstração `Hello World!`
-do gerador; não há módulo, DTO, tabela ou operação de pagamento.
+A API organiza casos de uso, portas e integração externa nos módulos `auth` e
+`donations`. Os controllers ficam juntos no adaptador de entrada HTTP, em
+`apps/api/src/http/controllers/`, agrupados em `auth/`, `donations/` e `health/`.
+Cada módulo NestJS registra seus controllers
+e conecta suas portas aos adaptadores concretos. A rota pública `GET /` responde
+`{"data":{"status":"ok"}}` para indicar que o processo HTTP está no ar.
+O [README da API](../apps/api/README.md#rotas) lista os endpoints.
 
-Padrões que valem para a API inteira (`apps/api/src/common/http/`, registrados no
+Padrões que valem para a API inteira (`apps/api/src/http/`, registrados no
 `AppModule` para valerem também nos testes de ponta a ponta):
 - `TransformInterceptor` (`APP_INTERCEPTOR`): toda resposta de sucesso sai como
   `{ data: ... }`. Rotas que escrevem a resposta com `@Res()` sem `passthrough`
@@ -112,9 +116,8 @@ Padrões que valem para a API inteira (`apps/api/src/common/http/`, registrados 
   erro vira 500 genérico, e o detalhe fica só no log.
 - `ValidationPipe` (`APP_PIPE`) com `transform`, `whitelist` e
   `forbidNonWhitelisted`.
-- Erros de regra de negócio têm nome e moram no adaptador HTTP do módulo
-  (por exemplo `donations/adapters/http/donation-http-errors.ts`); o caso de uso
-  continua sem depender do NestJS.
+- O controller converte erros da aplicação em respostas HTTP usando os erros
+  definidos em `http/errors/`; os casos de uso têm seus próprios erros.
 - `main.ts`: `app.useSecurityHeaders()` (cabeçalhos de segurança, sem
   `X-Powered-By`) e Swagger em `/docs`, gerado dos controllers com o plugin do
   `nest-cli.json`. O
@@ -136,9 +139,11 @@ no roteiro. O cliente terá saída em `apps/api/generated/prisma`, ignorada pelo
 
 Vue 3+ permanece como framework de interface, dentro do renderer Electron. A
 escolha se apoia na interface já implementada e na experiência acumulada no
-projeto. Vue Router organiza navegação e Pinia guarda somente estado
-compartilhado entre telas. Regras fiscais, cálculos e acesso a persistência
-continuam fora de componentes e stores.
+projeto. Vue Router organiza a navegação. Os stores Pinia compartilham a
+sessão, os cadastros e os resumos de lotes entre telas. A lógica de interface
+reutilizável fica em `concerns/`. Cada arquivo `.vue` guarda seus estilos, com
+a base visual compartilhada em `App.vue`. Regras fiscais, cálculos e
+persistência ficam nas camadas do backend.
 
 Electron mantém `contextIsolation` habilitado e Node.js indisponível no renderer.
 O preload expõe apenas operações IPC explicitamente tipadas. A tela de doação usa
@@ -147,7 +152,7 @@ fiscais não recebem cliente da API nem credenciais do Stripe. Componentes não
 falam com o servidor: as chamadas HTTP saem do processo main.
 
 **Onde o token mora (US10).** O token JWT fica numa variável em memória do
-processo main (`apps/desktop/src/main/api-session.ts`), e não no `localStorage`
+processo main (`apps/desktop/src/main/modules/accounts/adapters/http/api-session.ts`), e não no `localStorage`
 do renderer. O motivo é o risco que o `localStorage` aceita: qualquer
 JavaScript que rode na página o lê, inclusive código injetado por XSS. Como as
 chamadas à API já saem do main, guardar o token ali não custa nada e o deixa

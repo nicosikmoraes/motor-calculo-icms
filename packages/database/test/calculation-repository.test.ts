@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, describe, expect, it } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository,
   SqliteDatabase, SqliteOrganizationRepository, runSqlMigrations,
@@ -73,5 +73,27 @@ describe('execuções históricas de cálculo', () => {
       items: [{ itemNumber: '99', memory: pendingCalculation('PENDING_RULE', 'Aguardando revisão') }],
     })).toThrow()
     expect(calculations.findByRequest('pedido-erro', documentId)).toBeUndefined()
+  })
+
+  it('lê a última execução em grupo e desempata pela ordem de gravação', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(timestamp))
+      const input = {
+        batchId, documentId, engineVersion: '0.1.0',
+        items: [{ itemNumber: '1', memory: pendingCalculation('PENDING_RULE', 'Aguardando revisão') }],
+      }
+      const first = calculations.save({ ...input, requestId: 'primeira' })
+      const second = calculations.save({ ...input, requestId: 'segunda', previousRunId: first.id,
+        items: [{ itemNumber: '1', memory: pendingCalculation('PENDING_DATA', 'Confirmação pendente') }] })
+
+      expect(second.createdAt).toBe(first.createdAt)
+      const runs = calculations.latestByDocuments([documentId, 'sem-execucao', documentId])
+      expect([...runs.values()]).toEqual([second])
+      expect(runs.get(documentId)).toEqual(calculations.latestByDocument(documentId))
+      expect(calculations.latestByDocuments([]).size).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

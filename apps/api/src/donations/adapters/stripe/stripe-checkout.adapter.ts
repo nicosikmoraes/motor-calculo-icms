@@ -1,6 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Stripe from 'stripe';
-import { StripeUnavailableError, type CreateCheckoutInput, type CheckoutSession, type StripeCheckoutGateway } from '../../ports/stripe-checkout-gateway.js';
+import {
+  CheckoutAmountRejectedError,
+  StripeUnavailableError,
+  type CreateCheckoutInput,
+  type CheckoutSession,
+  type StripeCheckoutGateway,
+} from '../../ports/stripe-checkout-gateway.js';
 import { STRIPE_CLIENT } from './stripe.tokens.js';
 
 function isHttp503(error: unknown): boolean {
@@ -13,6 +19,12 @@ function isHttp503(error: unknown): boolean {
       || visit(obj.exception) || visit(obj.detail) || visit(obj.cause) || visit(obj.raw);
   };
   return visit(error);
+}
+
+function isAmountOrCurrencyRejection(error: unknown): boolean {
+  const value = error as { code?: unknown; raw?: { code?: unknown } } | null | undefined;
+  const code = typeof value?.code === 'string' ? value.code : value?.raw?.code;
+  return typeof code === 'string' && /^(?:amount_(?:too_large|too_small)|currency_(?:not_supported|invalid))$/.test(code);
 }
 
 @Injectable()
@@ -43,6 +55,7 @@ export class StripeCheckoutAdapter implements StripeCheckoutGateway {
       } as unknown as Stripe.Checkout.SessionCreateParams, { idempotencyKey: input.idempotencyKey, maxNetworkRetries: 0 });
     } catch (error) {
       if (isHttp503(error)) throw new StripeUnavailableError();
+      if (isAmountOrCurrencyRejection(error)) throw new CheckoutAmountRejectedError();
       throw error;
     }
     return this.mapSession(session);

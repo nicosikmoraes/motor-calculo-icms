@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FiscalProfileRecord, SupplierProductRecord, VersionedRuleRecord } from '@motor/database'
 import type { NormalizedNfe, NormalizedNfeItem } from '@motor/domain'
-import { assessFiscalRules } from '../src/main/rule-pack-assessment'
+import { assessFiscalRules } from '../src/main/modules/fiscal/adapters/sqlite/rule-pack-assessment'
 
 const item: NormalizedNfeItem = {
   itemNumber: '1', supplierProductCode: 'P1', ncm: '12345678', cfop: '6102',

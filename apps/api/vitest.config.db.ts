@@ -8,6 +8,6 @@ export default defineConfig({
     root: './',
     // Segredo descartável, só de teste. Os testes que precisam de outro valor usam vi.stubEnv.
     env: { JWT_SECRET: 'segredo-de-teste-descartavel-com-mais-de-32-caracteres' },
-    include: ['test/**/*.db-spec.ts'],
+    include: ['test/db/**/*.db-spec.ts'],
   },
 });

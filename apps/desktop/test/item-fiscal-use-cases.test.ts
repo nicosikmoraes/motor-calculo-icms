@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CORE_MIGRATIONS, SqliteBatchRepository, SqliteCalculationRepository, SqliteDatabase, SqliteOrganizationRepository,
   SqliteCompanyRepository, SqliteFiscalAnswerDefinitionRepository, runSqlMigrations } from '@motor/database'
-import { getBatchConsolidation } from '../src/main/batch-consolidation'
+import { getBatchConsolidation } from '../src/main/modules/batches/queries/batch-consolidation'
 import { randomUUID } from 'node:crypto'
 import type { NormalizedNfe } from '@motor/domain'
 import type { ItemFiscalAnswers } from '@motor/contracts'
-import { applyAutomaticXmlCalculations, applyReusableFiscalAnswers, buildItemFiscalContext, documentFiscalBlock, getItemFiscalContext, saveItemFiscalAnswers, validateItemFiscalAnswers } from '../src/main/item-fiscal-use-cases'
-import { calculateAutomaticXmlItem } from '../src/main/automatic-xml-calculation'
+import { applyAutomaticXmlCalculations, applyReusableFiscalAnswers, getItemFiscalContext, saveItemFiscalAnswers } from '../src/main/modules/fiscal/adapters/sqlite/item-fiscal-use-cases'
+import { calculateAutomaticXmlItem } from '../src/main/modules/fiscal/domain/automatic-xml-calculation'
+import { buildItemFiscalContext } from '../src/main/modules/fiscal/domain/item-fiscal-context'
+import { documentFiscalBlock } from '../src/main/modules/fiscal/adapters/sqlite/documentary-evidence'
+import { validateItemFiscalAnswers } from '../src/main/modules/fiscal/domain/item-fiscal-answers'
 
 const timestamp = '2026-10-04T12:00:00.000Z'
 const org = '00000000-0000-4000-8000-000000000001'

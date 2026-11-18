@@ -2,8 +2,8 @@ import {describe,it,expect} from 'vitest'
 import {readFileSync} from 'node:fs'
 import {normalizeNfeXml} from '@motor/nfe-parser'
 import {paranaInterstateEntryExclusionReason} from '@motor/domain'
-import {calculateAutomaticInterstateEntry} from '../src/main/automatic-interstate-entry'
-import {calculateAutomaticItem} from '../src/main/automatic-xml-calculation'
+import {calculateAutomaticInterstateEntry} from '../src/main/modules/fiscal/domain/automatic-interstate-entry'
+import {calculateAutomaticItem} from '../src/main/modules/fiscal/domain/automatic-xml-calculation'
 const original=normalizeNfeXml(readFileSync(new URL('./fixtures/revisao-resolucao-1245.xml',import.meta.url),'utf8'))
 const note={...original,issuer:{...original.issuer,state:'SP'},destinationIndicator:'2'}
 const product={...note.items[0]!,cfop:'6102',productAmount:'100.00',declaredIcms:{group:'ICMS00',cst:'00',originCode:'0',baseMode:'3',baseAmount:'100.00',rate:'12.0000',amount:'12.00'}}

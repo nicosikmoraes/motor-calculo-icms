@@ -1,3 +1,6 @@
+/** Validade do token: 2 horas (decisão da US10). */
+export const JWT_EXPIRES_IN_SECONDS = 7200;
+
 /** O que vai dentro do token: quem é (sub) e o papel. Nada sigiloso — o conteúdo do JWT é legível. */
 export interface AccessTokenPayload {
   sub: string;

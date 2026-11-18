@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemFiscalContext } from '@motor/contracts'
-import { fiscalSaveFeedback } from '../src/renderer/fiscal-save-feedback'
+import { fiscalSaveFeedback } from '../src/renderer/concerns/fiscal/fiscal-save-feedback'
 
 const pending: ItemFiscalContext = { answers: {}, questions: [], xmlFacts: [], appliedBatchItems: 4,
   calculation: { status: 'PENDING_DATA', reason: 'Responsabilidade não confirmada.', inputs: [], steps: [] } }
