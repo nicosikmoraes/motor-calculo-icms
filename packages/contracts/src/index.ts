@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   AUTH_SIGN_OUT: 'auth:sign-out',
   AUTH_GET_SESSION: 'auth:get-session',
   AUTH_SESSION_EXPIRED: 'auth:session-expired',
+  ADMIN_LIST_DONATIONS: 'admin:list-donations',
   EXPORT_PACK: 'interchange:export',
   PREVIEW_PACK: 'interchange:preview',
   IMPORT_PACK: 'interchange:import',
@@ -980,6 +981,18 @@ export interface BackupStatus {
 /** O que o renderer sabe da sessão com a API: só quem entrou. O token fica no processo main. */
 export interface AuthSession {
   email: string
+  /** Papel na API de doações (US11). Só decide o que a tela mostra; quem protege é a API. */
+  role: 'SUPPORTER' | 'ADMIN'
+}
+
+/** Um pedido na lista "Doações recebidas" (só ADMIN). */
+export interface ReceivedDonationSummary {
+  orderId: string
+  amount: string
+  currency: 'BRL'
+  status: string
+  createdAt: string
+  ownerEmail: string | null
 }
 
 export interface AuthCredentials {
@@ -993,6 +1006,7 @@ export interface DesktopApi {
   signOut(): Promise<void>
   getAuthSession(): Promise<AuthSession | null>
   onSessionExpired(listener: () => void): () => void
+  listReceivedDonations(): Promise<readonly ReceivedDonationSummary[]>
   getCurrentDonation(intent: string): Promise<DonationOrderSummary | null>
   createDonation(input: CreateDonationInput): Promise<DonationOrderSummary | DonationInputError>
   retryDonation(input: { orderId: string; intent: string; operation: string }): Promise<DonationOrderSummary>

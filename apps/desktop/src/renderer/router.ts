@@ -14,7 +14,8 @@ import BuiltinRulesView from './views/BuiltinRulesView.vue'
 import RegistrationAuditView from './views/RegistrationAuditView.vue'
 import SupportProjectView from './views/SupportProjectView.vue'
 import SignInView from './views/SignInView.vue'
-import { requireSession } from './services/auth'
+import ReceivedDonationsView from './views/ReceivedDonationsView.vue'
+import { requireRole, requireSession } from './services/auth'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -31,6 +32,7 @@ export const router = createRouter({
     // Só o que usa a API pede conta; o fluxo fiscal é local e continua aberto.
     { path: '/apoio', component: SupportProjectView, beforeEnter: requireSession, meta: { requiresSession: true } },
     { path: '/entrar', component: SignInView },
+    { path: '/admin/doacoes', component: ReceivedDonationsView, beforeEnter: requireRole('ADMIN'), meta: { requiresSession: true } },
     { path: '/', component: DashboardView },
     { path: '/empresas', component: CompaniesView },
     { path: '/transferencia', component: InterchangeView },

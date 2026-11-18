@@ -24,12 +24,12 @@ describe('sessão da API no processo main', () => {
     const { fetchImpl, sent } = fakeApi(loginOk, meOk)
     const session = createApiSession({ baseUrl: base, fetchImpl, onExpired: vi.fn() })
 
-    await expect(session.signIn(' Ana@Example.test ', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test' })
+    await expect(session.signIn(' Ana@Example.test ', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     expect(sent[0]).toMatchObject({ url: 'http://127.0.0.1:3000/auth/login', method: 'POST' })
     expect(JSON.parse(sent[0].body!)).toEqual({ email: ' Ana@Example.test ', password: 'senha-certa' })
     expect(sent[0].headers.has('Authorization')).toBe(false)
     expect(sent[1].headers.get('Authorization')).toBe('Bearer header.payload.assinatura')
-    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    expect(session.current()).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
   })
 
   it('CA13: anexa o Bearer em toda chamada depois do login, num ponto só', async () => {
@@ -97,7 +97,7 @@ describe('sessão da API no processo main', () => {
     releaseOld(new Response(null, { status: 401 }))
 
     await expect(slow).rejects.toThrow(SESSION_EXPIRED_MESSAGE)
-    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    expect(session.current()).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     expect(onExpired).not.toHaveBeenCalled()
   })
 
@@ -115,7 +115,7 @@ describe('sessão da API no processo main', () => {
     const { fetchImpl, sent } = fakeApi(created, loginOk, meOk, { status: 409, body: { error: { statusCode: 409, message: 'E-mail já cadastrado' } } })
     const session = createApiSession({ baseUrl: base, fetchImpl, onExpired: vi.fn() })
 
-    await expect(session.register('ana@example.test', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test' })
+    await expect(session.register('ana@example.test', 'senha-certa')).resolves.toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     expect(sent.map((call) => new URL(call.url).pathname)).toEqual(['/auth/register', '/auth/login', '/auth/me'])
     await expect(session.register('ana@example.test', 'senha-certa')).rejects.toThrow('Já existe uma conta com este e-mail. Entre com ela.')
   })
@@ -135,9 +135,9 @@ describe('sessão da API no processo main', () => {
     await session.signIn('ana@example.test', 'senha-certa')
 
     await expect(session.signIn('bia@example.test', 'senha-da-bia')).rejects.toThrow('fetch failed')
-    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    expect(session.current()).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     await expect(session.signIn('bia@example.test', 'senha-da-bia')).rejects.toThrow('Não foi possível entrar agora')
-    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    expect(session.current()).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
     expect(onExpired).not.toHaveBeenCalled()
 
     // As chamadas seguintes continuam saindo com o token de quem aparece na tela.
@@ -153,4 +153,15 @@ describe('sessão da API no processo main', () => {
     expect(session.current()).toBeNull()
     await expect(session.request('/auth/me', {})).rejects.toThrow(SIGNED_OUT_MESSAGE)
   })
+
+  it('US11: a sessão traz o papel confirmado pelo /auth/me; sem papel válido, não entra', async () => {
+    const adminMe = { status: 200, body: { data: { id: 'u2', email: 'adm@example.test', role: 'ADMIN', createdAt: 'x' } } }
+    const noRole = { status: 200, body: { data: { id: 'u3', email: 'x@example.test', createdAt: 'x' } } }
+    const { fetchImpl } = fakeApi(loginOk, adminMe, loginOk, noRole)
+    const session = createApiSession({ baseUrl: base, fetchImpl, onExpired: vi.fn() })
+    await expect(session.signIn('adm@example.test', 'senha-certa')).resolves.toEqual({ email: 'adm@example.test', role: 'ADMIN' })
+    await expect(session.signIn('x@example.test', 'senha-certa')).rejects.toThrow('Não foi possível entrar agora')
+    expect(session.current()).toEqual({ email: 'adm@example.test', role: 'ADMIN' })
+  })
 })
+

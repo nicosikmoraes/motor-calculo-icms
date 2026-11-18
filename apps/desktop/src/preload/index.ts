@@ -25,6 +25,7 @@ const api: DesktopApi = {
   signIn: (input) => ipcRenderer.invoke(IPC_CHANNELS.AUTH_SIGN_IN, { email: input.email, password: input.password }),
   signOut: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_SIGN_OUT) as Promise<void>,
   getAuthSession: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_SESSION),
+  listReceivedDonations: () => ipcRenderer.invoke(IPC_CHANNELS.ADMIN_LIST_DONATIONS),
   onSessionExpired: (listener) => {
     const handler = (): void => listener()
     ipcRenderer.on(IPC_CHANNELS.AUTH_SESSION_EXPIRED, handler)

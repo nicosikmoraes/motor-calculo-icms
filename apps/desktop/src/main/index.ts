@@ -21,6 +21,7 @@ import { batchOperations, closeDatabase, openDatabase, requiredInputText } from 
 import { allowedDonationCheckoutUrl } from './donation-checkout'
 import { readDonationResponse, type DonationApiResult } from './donation-api'
 import { createApiSession } from './api-session'
+import { readAdminDonationsResponse } from './admin-donations-api'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | undefined
@@ -109,6 +110,10 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle(IPC_CHANNELS.AUTH_SIGN_OUT, () => { apiSession.signOut() })
   ipcMain.handle(IPC_CHANNELS.AUTH_GET_SESSION, () => apiSession.current())
+  ipcMain.handle(IPC_CHANNELS.ADMIN_LIST_DONATIONS, () => unavailable(async () => {
+    const response = await apiSession.request('/admin/donation-orders', {})
+    return readAdminDonationsResponse(response.status, response.body)
+  }))
   const validIdentity = (value: unknown): value is string => typeof value === 'string' && value.length >= 16 && value.length <= 256
   ipcMain.handle(IPC_CHANNELS.GET_CURRENT_DONATION, async (_event, rawIntent: unknown) => {
     if (!validIdentity(rawIntent)) return null
