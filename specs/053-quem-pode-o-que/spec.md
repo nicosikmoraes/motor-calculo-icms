@@ -1,6 +1,6 @@
 ---
 issue: 53
-status: rascunho
+status: aprovada
 ---
 
 # US11 — Quem pode o quê
