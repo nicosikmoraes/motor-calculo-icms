@@ -1,5 +1,5 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
-import { DonationIntentTakenError, DonationOperationConflictError, type DonationCreationRepository, type NewDonationIntent, type PersistedDonationOpening } from '../../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError, type DonationCreationRepository, type NewDonationIntent, type PersistedDonationOpening } from '../../ports/donation-creation-repository.js';
 
 export class PrismaDonationCreationRepository implements DonationCreationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -19,6 +19,9 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
         SELECT user_id::text AS "ownerId" FROM donation_orders WHERE intent_key_hash = ${input.intentKeyHash}
       `;
       if (holder[0] && holder[0].ownerId !== input.ownerId) throw new DonationIntentTakenError();
+      // O token não consulta o banco: confira aqui que o dono ainda existe, em vez de deixar a FK virar um 503 genérico.
+      const ownerExists = await tx.$queryRaw<Array<{ found: number }>>`SELECT 1 AS found FROM users WHERE id = ${input.ownerId}::uuid`;
+      if (!ownerExists.length) throw new DonationOwnerNotFoundError();
       const existing = await tx.$queryRaw<Array<{
         orderId: string; amount: string; currency: 'BRL'; paymentId: string; fingerprint: string;
         stripeIdempotencyKey: string; firstSentAt: Date | null; checkoutParameters: any; checkoutSessionId: string | null;

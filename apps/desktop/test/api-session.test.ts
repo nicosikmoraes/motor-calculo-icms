@@ -163,5 +163,16 @@ describe('sessão da API no processo main', () => {
     await expect(session.signIn('x@example.test', 'senha-certa')).rejects.toThrow('Não foi possível entrar agora')
     expect(session.current()).toEqual({ email: 'adm@example.test', role: 'ADMIN' })
   })
+
+  it('CA10: um 403 não é sessão expirada: a sessão continua e a janela não é avisada', async () => {
+    const onExpired = vi.fn()
+    const { fetchImpl } = fakeApi(loginOk, meOk, { status: 403, body: { error: { statusCode: 403, message: 'Sem permissão para esta ação' } } })
+    const session = createApiSession({ baseUrl: base, fetchImpl, onExpired })
+    await session.signIn('ana@example.test', 'senha-certa')
+
+    await expect(session.request('/admin/donation-orders', {})).resolves.toMatchObject({ status: 403 })
+    expect(onExpired).not.toHaveBeenCalled()
+    expect(session.current()).toEqual({ email: 'ana@example.test', role: 'SUPPORTER' })
+  })
 })
 

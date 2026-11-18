@@ -74,6 +74,11 @@ recentes por `created_at`.
 - Menu: o `App.vue` lê a sessão (ao montar e depois de entrar ou sair, por um
   pequeno estado compartilhado) e só mostra "Doações recebidas" para `ADMIN`.
 
+> **Registrado depois da implementação.** A rota `/admin/doacoes` usa
+> `beforeEnter: requireRole('ADMIN')` e `meta: { requiresSession: true }`; não há
+> `requiresRole` no meta, porque a guarda já decide pelo papel e o meta só serve
+> para o aviso de sessão expirada saber se tira a pessoa da tela.
+
 ## Tarefas
 
 | # | Tarefa | Critérios |

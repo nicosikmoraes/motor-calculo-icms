@@ -12,7 +12,7 @@ import { PrismaDonationRepository } from '../src/donations/adapters/prisma/prism
 import { StripeCheckoutAdapter } from '../src/donations/adapters/stripe/stripe-checkout.adapter.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
-import { DONATION_CREATION_REPOSITORY, DonationIntentTakenError } from '../src/donations/ports/donation-creation-repository.js';
+import { DONATION_CREATION_REPOSITORY, DonationIntentTakenError, DonationOwnerNotFoundError } from '../src/donations/ports/donation-creation-repository.js';
 import { DonationOperationConflictError } from '../src/donations/ports/donation-creation-repository.js';
 import { authorization, testToken } from './support/auth.js';
 import { createDbUser } from './support/db-users.js';
@@ -317,6 +317,13 @@ describe('dono do pedido no PostgreSQL (US11)', () => {
     orderIds.push(rows[0].id);
     await expect(new PrismaDonationCreationRepository(client).createIntent(opening(owner.id, intentKeyHash)))
       .rejects.toBeInstanceOf(DonationIntentTakenError);
+  });
+
+  it('dono do token que não existe mais no banco é recusado com erro próprio, sem criar nada', async () => {
+    const input = opening(randomUUID());
+    await expect(new PrismaDonationCreationRepository(client).createIntent(input)).rejects.toBeInstanceOf(DonationOwnerNotFoundError);
+    const { rows } = await pool.query('SELECT count(*)::int AS count FROM donation_orders WHERE intent_key_hash = $1', [input.intentKeyHash]);
+    expect(rows[0].count).toBe(0);
   });
 });
 

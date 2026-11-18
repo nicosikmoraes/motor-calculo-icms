@@ -6,7 +6,7 @@ import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-cr
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
 import { authorization, testToken } from './support/auth.js';
-import { DonationIntentTakenError } from '../src/donations/ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOwnerNotFoundError } from '../src/donations/ports/donation-creation-repository.js';
 
 const validSession = {
   id: 'cs_test_controlled',
@@ -315,6 +315,13 @@ describe('POST /donation-orders', () => {
       expect((await fromBia).status).toBe(409);
       expect((await fromAna).status).not.toBe(409);
       expect(donations.createIntent.mock.calls.map(([input]: [Record<string, unknown>]) => input.ownerId)).toEqual([ana, bia]);
+    });
+
+    it('dono que não existe mais recebe 401 (não 503), sem chamar o Stripe', async () => {
+      donations.createIntent.mockRejectedValueOnce(new DonationOwnerNotFoundError());
+      const response = await create(testToken()).expect(401);
+      expect(response.body).toEqual({ error: { statusCode: 401, message: 'Não autenticado' } });
+      expect(controlled.callCount()).toBe(0);
     });
   });
 });

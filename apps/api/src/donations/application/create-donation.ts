@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { DonationIntentTakenError, DonationOperationConflictError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
 import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
 import { StripeUnavailableError } from '../ports/stripe-checkout-gateway.js';
 
@@ -121,7 +121,8 @@ export class CreateDonation {
         cancelUrl,
       });
     } catch (error) {
-      if (error instanceof DonationOperationConflictError || error instanceof DonationIntentTakenError) throw error;
+      if (error instanceof DonationOperationConflictError || error instanceof DonationIntentTakenError
+        || error instanceof DonationOwnerNotFoundError) throw error;
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
 

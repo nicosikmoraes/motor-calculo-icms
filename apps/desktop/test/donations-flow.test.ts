@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopApi, DonationOrderSummary } from '@motor/contracts'
 import { createDonation, loadCurrentDonation, retryDonation, startNewDonationIntent } from '../src/renderer/services/donations'
+import { authSession } from '../src/renderer/services/auth'
 import { donationCanRetry, donationCreatedNotice, donationRequiresNewIntent, donationStatusMessage } from '../src/renderer/donation-status'
 
 const store = new Map<string, string>()
@@ -97,3 +98,25 @@ describe('mensagens e ações de pagamento', () => {
     expect(donationCreatedNotice('indeterminada')).toBe('')
   })
 })
+
+describe('chave de intenção por conta (revisão da US11)', () => {
+  afterEach(() => { authSession.value = null })
+
+  it('cada conta tem a própria chave na mesma máquina, e a chave antiga, sem conta, não é reaproveitada', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn()
+      .mockReturnValueOnce('intencao-da-ana-1234567890').mockReturnValueOnce('operacao-da-ana-1234567890')
+      .mockReturnValueOnce('intencao-da-bia-1234567890').mockReturnValue('operacao-qualquer-12345678') })
+    store.set('contabilinico.donations.intent.v1', JSON.stringify({ intent: 'intencao-antiga-sem-conta-123' }))
+
+    authSession.value = { email: 'ana@example.test', role: 'SUPPORTER' }
+    await createDonation('10.00')
+    authSession.value = { email: 'bia@example.test', role: 'SUPPORTER' }
+    await createDonation('10.00')
+
+    const intents = vi.mocked(api.createDonation).mock.calls.map(([input]) => input.intent)
+    expect(intents).toEqual(['intencao-da-ana-1234567890', 'intencao-da-bia-1234567890'])
+    expect(intents).not.toContain('intencao-antiga-sem-conta-123')
+    expect(JSON.parse(store.get('contabilinico.donations.intent.v1:ana@example.test')!).intent).toBe('intencao-da-ana-1234567890')
+  })
+})
+

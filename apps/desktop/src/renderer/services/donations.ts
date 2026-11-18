@@ -1,10 +1,19 @@
 import type { DonationInputError, DonationOrderSummary } from '@motor/contracts'
+import { authSession } from './auth'
 
-const storageKey = 'contabilinico.donations.intent.v1'
+/**
+ * A chave de intenção é guardada por conta (US11): o pedido tem dono, então a chave de uma pessoa
+ * não serve a outra na mesma máquina. A chave antiga, de antes do login, não é reaproveitada,
+ * porque o pedido dela ficou sem dono e a API a recusaria para sempre.
+ */
+function storageKey(): string {
+  const email = authSession.value?.email
+  return email ? `contabilinico.donations.intent.v1:${email}` : 'contabilinico.donations.intent.v1'
+}
 type DonationIdentity = { intent: string; operation?: string; operationKind?: 'create' | 'retry' }
 
 function identity(): DonationIdentity {
-  const raw = localStorage.getItem(storageKey)
+  const raw = localStorage.getItem(storageKey())
   if (raw) {
     try {
       const value = JSON.parse(raw) as DonationIdentity
@@ -12,12 +21,12 @@ function identity(): DonationIdentity {
     } catch { /* Substitua apenas a identidade inválida deste recurso. */ }
   }
   const value = { intent: crypto.randomUUID() }
-  localStorage.setItem(storageKey, JSON.stringify(value))
+  localStorage.setItem(storageKey(), JSON.stringify(value))
   return value
 }
 
 function save(value: DonationIdentity): void {
-  localStorage.setItem(storageKey, JSON.stringify(value))
+  localStorage.setItem(storageKey(), JSON.stringify(value))
 }
 
 function operation(kind: 'create' | 'retry'): { intent: string; operation: string } {

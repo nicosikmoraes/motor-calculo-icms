@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CreateDonation, DonationCreationError } from '../../application/create-donation.js';
-import { DonationIntentTakenError, DonationOperationConflictError } from '../../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError } from '../../ports/donation-creation-repository.js';
 import type { AuthenticatedUser } from '../../../auth/guard/authenticated-user.js';
 import { CurrentUser } from '../../../auth/guard/current-user.decorator.js';
 import { RetryDonation } from '../../application/retry-donation.js';
@@ -122,6 +122,7 @@ export class DonationOrdersController {
     if (error instanceof DonationOperationConflictError) throw new DonationOperationReusedError(error.message);
     // Sem dados do pedido existente: dizer de quem é ou quanto vale vazaria o pedido de outra pessoa.
     if (error instanceof DonationIntentTakenError) throw new DonationOperationReusedError(error.message);
+    if (error instanceof DonationOwnerNotFoundError) throw new UnauthorizedException('Não autenticado');
     if (error instanceof DonationCreationError) {
       if (error.code === 'invalid_input') {
         throw new InvalidDonationRequestError(error.message, typeof error.details.field === 'string' ? error.details.field : undefined);

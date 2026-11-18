@@ -275,8 +275,8 @@ o administrador consulte todas.
 - [x] **Dado** o aplicativo, **quando** um apoiador olha o menu, **então** não
   vê "Doações recebidas"; o administrador vê.
 
-**Escopo:** API de doações e tela "Apoiar o projeto"; sem rota de promoção de
-papéis.
+**Escopo:** API de doações e tela "Doações recebidas" (só ADMIN); sem rota de
+promoção de papéis.
 
 ## 5. Regras de Negócio Consolidadas
 

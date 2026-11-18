@@ -37,6 +37,11 @@ export class DonationIntentTakenError extends Error {
   constructor() { super('Esta chave de intenção já pertence a outro pedido'); }
 }
 
+/** O dono do token não existe mais no banco (ex.: banco recriado): é um problema de autenticação, não de serviço. */
+export class DonationOwnerNotFoundError extends Error {
+  constructor() { super('Dono do pedido não encontrado'); }
+}
+
 export interface DonationCreationRepository {
   createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening>;
   /** Regra de dono (US11): só encontra pedidos de `ownerId`; pedido de outra pessoa ou sem dono é `null`. */

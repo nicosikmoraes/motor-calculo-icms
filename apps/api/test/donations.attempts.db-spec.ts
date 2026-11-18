@@ -104,22 +104,35 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
   it('CA5/CA7: com a chave certa, outra pessoa ou um pedido sem dono não alcançam nada', async () => {
     const other = await createDbUser(pool);
     const repository = new PrismaDonationCreationRepository(prisma);
+    // Cada pedido ganha uma tentativa que, para o dono, PERMITIRIA nova tentativa: o único motivo do null é o dono.
+    const failedAttempt = async (orderId: string) => {
+      const paymentId = randomUUID();
+      await pool.query(`INSERT INTO payments (id, order_id, stripe_idempotency_key, status, first_sent_at, checkout_parameters, reason)
+        VALUES ($1, $2, $3, 'falha_na_criacao', $4, $5, 'REJEICAO_CONCLUSIVA')`, [paymentId, orderId, randomUUID(), new Date(),
+        JSON.stringify({ amountInCents: '1234', currency: 'brl', successUrl: 'https://example.test/s', cancelUrl: 'https://example.test/c' })]);
+      return paymentId;
+    };
+    const paymentOf = new Map<string, string>();
     const retryInput = (orderId: string, intentKeyHash: string, ownerId: string) => ({ ownerId, orderId, intentKeyHash,
-      currentPaymentId: randomUUID(), currentStatus: 'falha_na_criacao', operationKeyHash: randomUUID(), fingerprint: randomUUID(),
+      currentPaymentId: paymentOf.get(orderId)!, currentStatus: 'falha_na_criacao', operationKeyHash: randomUUID(), fingerprint: randomUUID(),
       stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() });
 
     const owned = randomUUID(); const ownedHash = randomUUID().replaceAll('-', ''); orderIds.push(owned);
     await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [owned, ownedHash, '12.34', owner.id]);
+    paymentOf.set(owned, await failedAttempt(owned));
     expect(await repository.getOrderIdByIntentHash(ownedHash, other.id)).toBeNull();
     expect(await repository.getAuthorizedDonation(owned, ownedHash, other.id)).toBeNull();
     expect(await repository.createRetry(retryInput(owned, ownedHash, other.id))).toBeNull();
 
     const legacy = randomUUID(); const legacyHash = randomUUID().replaceAll('-', ''); orderIds.push(legacy);
     await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [legacy, legacyHash, '7.00']);
+    paymentOf.set(legacy, await failedAttempt(legacy));
     expect(await repository.getOrderIdByIntentHash(legacyHash, owner.id)).toBeNull();
     expect(await repository.getAuthorizedDonation(legacy, legacyHash, owner.id)).toBeNull();
     expect(await repository.createRetry(retryInput(legacy, legacyHash, owner.id))).toBeNull();
-    expect((await pool.query('SELECT count(*)::int AS count FROM payments WHERE order_id = ANY($1::uuid[])', [[owned, legacy]])).rows[0].count).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS count FROM payments WHERE order_id = ANY($1::uuid[])', [[owned, legacy]])).rows[0].count).toBe(2);
+    // Contraprova: para o dono, a mesma entrada abre a nova tentativa.
+    expect(await repository.createRetry(retryInput(owned, ownedHash, owner.id))).toMatchObject({ isNew: true, orderId: owned });
   });
 
   it('serializa retry e confirmação concorrentes por pedido e nunca rebaixa o pedido pago', async () => {
