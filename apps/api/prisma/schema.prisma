@@ -43,8 +43,12 @@ model DonationOrder {
   createdAt     DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
   updatedAt     DateTime            @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
   confirmedAt   DateTime?           @map("confirmed_at") @db.Timestamp(3)
+  // Dono do pedido (US11). Opcional porque a tabela já tinha pedidos antes do login.
+  userId        String?             @map("user_id") @db.Uuid
+  user          User?               @relation(fields: [userId], references: [id], onDelete: Restrict)
   payments      Payment[]
 
+  @@index([userId])
   @@map("donation_orders")
 }
 
@@ -124,6 +128,8 @@ model User {
   role         Role     @default(SUPPORTER)
   createdAt    DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @map("created_at") @db.Timestamp(3)
   updatedAt    DateTime @default(dbgenerated("timezone('UTC'::text, CURRENT_TIMESTAMP)")) @updatedAt @map("updated_at") @db.Timestamp(3)
+  // Um usuário tem muitos pedidos de doação; cada pedido é de no máximo um usuário.
+  donationOrders DonationOrder[]
 
   @@map("users")
 }

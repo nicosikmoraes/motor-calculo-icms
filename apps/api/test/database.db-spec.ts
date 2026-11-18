@@ -62,3 +62,36 @@ describe('PostgreSQL da API', () => {
     }
   });
 });
+
+describe('dono do pedido (US11)', () => {
+  it('donation_orders.user_id é opcional, aponta para users sem cascata e tem índice', async () => {
+    const column = await pool.query(
+      `SELECT data_type, is_nullable FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'donation_orders' AND column_name = 'user_id'`,
+    );
+    expect(column.rows).toEqual([{ data_type: 'uuid', is_nullable: 'YES' }]);
+
+    const fk = await pool.query(
+      `SELECT ccu.table_name AS target, rc.delete_rule FROM information_schema.referential_constraints rc
+       JOIN information_schema.key_column_usage kcu ON kcu.constraint_name = rc.constraint_name
+       JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = rc.constraint_name
+       WHERE kcu.table_name = 'donation_orders' AND kcu.column_name = 'user_id'`,
+    );
+    expect(fk.rows).toEqual([{ target: 'users', delete_rule: 'RESTRICT' }]);
+
+    const index = await pool.query(`SELECT indexdef FROM pg_indexes WHERE tablename = 'donation_orders' AND indexdef LIKE '%(user_id)%'`);
+    expect(index.rows).toHaveLength(1);
+  });
+
+  it('um pedido sem dono continua válido no banco', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const inserted = await client.query(`INSERT INTO donation_orders (intent_key_hash, amount) VALUES ($1, 1) RETURNING user_id`, [`sem-dono-${Date.now()}`]);
+      expect(inserted.rows).toEqual([{ user_id: null }]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+});
