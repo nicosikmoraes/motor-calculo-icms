@@ -1,7 +1,7 @@
 # Plano da US12 · Rascunhos de doação
 
 A [spec](spec.md) da [Issue #57](https://github.com/nicosikmoraes/motor-calculo-icms/issues/57)
-foi aprovada no commit `13af180`.
+foi aprovada antes deste plano. [Commit de aprovação](https://github.com/nicosikmoraes/motor-calculo-icms/commit/3070482c652aee924b8f57de7dc5963b51edcb00).
 
 ## 1. Contrato e testes primeiro
 

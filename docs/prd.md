@@ -278,6 +278,19 @@ o administrador consulte todas.
 **Escopo:** API de doações e tela "Doações recebidas" (só ADMIN); sem rota de
 promoção de papéis.
 
+<a id="us12"></a>
+### US12 — Gerenciar rascunhos de doação · `Must Have` · `S` · Status: `🟢 Live`
+
+**Como** apoiador autenticado, **eu quero** guardar, consultar, editar e
+descartar propostas de doação **para** decidir quanto doar antes de abrir
+o checkout.
+
+Uma conta pode ter vários rascunhos. Só o dono pode consultar, editar ou
+excluir um rascunho. Excluir um rascunho preserva os pedidos e pagamentos.
+A história cobre o CRUD na API. Veja os
+[critérios de aceite](../specs/057-rascunhos-de-doacao/spec.md) e a
+[Issue #57](https://github.com/nicosikmoraes/motor-calculo-icms/issues/57).
+
 ## 5. Regras de Negócio Consolidadas
 
 | ID | Regra |
@@ -303,6 +316,7 @@ promoção de papéis.
 | RN-040 | A senha nunca é armazenada: a API guarda só o hash bcrypt, e o papel de quem se cadastra é sempre definido pelo servidor. |
 | RN-041 | Toda rota da API exige token, exceto as declaradas públicas; o login não revela se um e-mail está cadastrado. |
 | RN-042 | Cada pedido de doação tem no máximo um dono, definido pelo servidor a partir do token; só o dono o consulta ou retoma, e só o administrador lista todos. |
+| RN-043 | Cada rascunho de doação pertence a uma conta. Só o dono pode listar, consultar, editar ou excluir seus rascunhos. |
 
 O catálogo fiscal RN-001 a RN-035 está em
 [Regras de negócio detalhadas](regras-de-negocio.md). RN-036 a RN-039 resumem

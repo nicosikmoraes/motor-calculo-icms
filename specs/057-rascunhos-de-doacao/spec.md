@@ -1,6 +1,6 @@
 ---
 issue: 57
-status: aprovada
+status: implementada
 ---
 
 # US12 — Gerenciar rascunhos de doação
