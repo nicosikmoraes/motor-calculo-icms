@@ -5,10 +5,12 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter.js';
 import { TransformInterceptor } from './common/http/transform.interceptor.js';
+import { AuthModule } from './auth/auth.module.js';
+import { PrismaModule } from './common/prisma/prisma.module.js';
 import { DonationsModule } from './donations/donations.module.js';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DonationsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, DonationsModule],
   controllers: [AppController],
   providers: [
     AppService,

@@ -35,6 +35,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://app:app@127.0.0.1:5432/appdb?schema=public
+      # Token descartável para banco descartável. O segredo de produção nunca entra aqui.
+      JWT_SECRET: segredo-do-ci-descartavel-com-mais-de-32-caracteres
 
     steps:
       - uses: actions/checkout@v4
