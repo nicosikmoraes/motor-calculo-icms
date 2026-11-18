@@ -15,6 +15,11 @@ export const IPC_CHANNELS = {
   GET_CURRENT_DONATION: 'donations:get-current',
   CREATE_DONATION: 'donations:create',
   RETRY_DONATION: 'donations:retry',
+  AUTH_REGISTER: 'auth:register',
+  AUTH_SIGN_IN: 'auth:sign-in',
+  AUTH_SIGN_OUT: 'auth:sign-out',
+  AUTH_GET_SESSION: 'auth:get-session',
+  AUTH_SESSION_EXPIRED: 'auth:session-expired',
   EXPORT_PACK: 'interchange:export',
   PREVIEW_PACK: 'interchange:preview',
   IMPORT_PACK: 'interchange:import',
@@ -972,7 +977,22 @@ export interface BackupStatus {
   busy: boolean
 }
 
+/** O que o renderer sabe da sessão com a API: só quem entrou. O token fica no processo main. */
+export interface AuthSession {
+  email: string
+}
+
+export interface AuthCredentials {
+  email: string
+  password: string
+}
+
 export interface DesktopApi {
+  registerAccount(input: AuthCredentials): Promise<AuthSession>
+  signIn(input: AuthCredentials): Promise<AuthSession>
+  signOut(): Promise<void>
+  getAuthSession(): Promise<AuthSession | null>
+  onSessionExpired(listener: () => void): () => void
   getCurrentDonation(intent: string): Promise<DonationOrderSummary | null>
   createDonation(input: CreateDonationInput): Promise<DonationOrderSummary | DonationInputError>
   retryDonation(input: { orderId: string; intent: string; operation: string }): Promise<DonationOrderSummary>
