@@ -1,16 +1,24 @@
-import { Body, ConflictException, Controller, HttpCode, HttpStatus, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, ConflictException, Controller, Get, HttpCode, HttpStatus, Inject, Post, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InvalidCredentialsError, Login, type LoginResult } from '../../application/login.js';
 import { RegisterUser } from '../../application/register-user.js';
-import { EmailAlreadyRegisteredError, type PublicUser } from '../../ports/user-repository.js';
+import { EmailAlreadyRegisteredError, type PublicUser, USER_REPOSITORY, type UserRepository } from '../../ports/user-repository.js';
+import type { AuthenticatedUser } from '../../guard/authenticated-user.js';
+import { CurrentUser } from '../../guard/current-user.decorator.js';
+import { Public } from '../../guard/public.decorator.js';
 import { ApiErrorEnvelopeDoc } from '../../../donations/adapters/http/donation-api-docs.js';
 import { LoginRequest, LoginResultEnvelopeDoc, PublicUserEnvelopeDoc, RegisterRequest } from './auth.dto.js';
 
 @ApiTags('autenticação')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly registerUser: RegisterUser, private readonly login: Login) {}
+  constructor(
+    private readonly registerUser: RegisterUser,
+    private readonly login: Login,
+    @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+  ) {}
 
+  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria uma conta de apoiador. O papel é sempre SUPPORTER, definido pelo servidor.' })
@@ -26,6 +34,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Troca e-mail e senha por um token JWT válido por 2 horas' })
@@ -39,5 +48,15 @@ export class AuthController {
       if (error instanceof InvalidCredentialsError) throw new UnauthorizedException(error.message);
       throw error;
     }
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Devolve quem está chamando, a partir do token' })
+  @ApiResponse({ status: 200, description: 'O usuário dono do token, sem o hash', type: PublicUserEnvelopeDoc })
+  @ApiResponse({ status: 401, description: 'Token ausente, adulterado, expirado ou de usuário que não existe mais', type: ApiErrorEnvelopeDoc })
+  async me(@CurrentUser() caller: AuthenticatedUser): Promise<PublicUser> {
+    const user = await this.users.findById(caller.sub);
+    if (!user) throw new UnauthorizedException('Não autenticado');
+    return { id: user.id, email: user.email, role: user.role, createdAt: user.createdAt };
   }
 }

@@ -8,6 +8,7 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { AppModule } from '../src/app.module.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
+import { authorization } from './support/auth.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
@@ -89,7 +90,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
 
   it('persiste a mesma intenção, recebe retorno pendente, confirma por webhook assinado e consulta como pago', async () => {
     const intent = randomUUID();
-    const created = await request(app.getHttpServer()).post('/donation-orders')
+    const created = await request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
     const orderId = created.body.data.orderId as string;
@@ -110,7 +111,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     await request(app.getHttpServer()).post('/webhooks/stripe').set('Content-Type', 'application/json')
       .set('Stripe-Signature', event.signature).send(event.payload).expect(200);
 
-    const current = await request(app.getHttpServer()).get('/donation-orders/current')
+    const current = await request(app.getHttpServer()).get('/donation-orders/current').set(authorization())
       .set('X-Donation-Intent', intent).expect(200);
     expect(current.body.data).toMatchObject({ orderId, status: 'pago', attempts: [
       expect.objectContaining({ paymentId: pendingRows.rows[0].payment_id, status: 'paga' }),
@@ -120,7 +121,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
 
   it('recebe recusa assinada, reabre tentativa somente após Stripe provar expiração e consulta o histórico', async () => {
     const intent = randomUUID();
-    const created = await request(app.getHttpServer()).post('/donation-orders')
+    const created = await request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
     const orderId = created.body.data.orderId as string;
@@ -135,11 +136,11 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
       .set('Stripe-Signature', failed.signature).send(failed.payload).expect(200);
     checkout = { ...checkout, status: 'expired', payment_status: 'unpaid' };
 
-    const retried = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`)
+    const retried = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`).set(authorization())
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .expect(200);
     expect(retried.body.data).toMatchObject({ orderId, status: 'pendente', reused: false });
-    const state = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`)
+    const state = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(authorization())
       .set('X-Donation-Intent', intent).expect(200);
     expect(state.body.data.attempts).toHaveLength(2);
     expect(state.body.data.attempts[0]).toMatchObject({ status: 'pendente' });

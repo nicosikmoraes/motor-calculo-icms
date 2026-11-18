@@ -14,6 +14,7 @@ import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
 import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
 import { DonationOperationConflictError } from '../src/donations/ports/donation-creation-repository.js';
+import { authorization } from './support/auth.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
@@ -181,7 +182,7 @@ describe('POST de criação com PostgreSQL real durante HTTP 503 do Stripe', () 
     try {
       const amount = '98765432109876543210.43';
       const response = await request(app.getHttpServer())
-        .post('/donation-orders')
+        .post('/donation-orders').set(authorization())
         .set('X-Donation-Intent', randomUUID())
         .set('Idempotency-Key', randomUUID())
         .send({ amount, currency: 'BRL' })

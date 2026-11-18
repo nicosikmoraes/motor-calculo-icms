@@ -5,6 +5,7 @@ import { AppModule } from '../src/app.module.js';
 import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
+import { authorization } from './support/auth.js';
 
 const validSession = {
   id: 'cs_test_controlled',
@@ -91,7 +92,7 @@ describe('POST /donation-orders', () => {
   ])('responde 503 e conserva IDs com 503 Stripe em %s, sem repetir envio', async (_label, body, contentType) => {
     controlled.respond(503, body, contentType);
     const response = await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' })
@@ -106,7 +107,7 @@ describe('POST /donation-orders', () => {
   it('trata ausência de resposta como 202 incerto, com uma chamada ao Stripe', async () => {
     controlled.fail(new Error('socket closed'));
     const response = await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' })
@@ -121,7 +122,7 @@ describe('POST /donation-orders', () => {
     controlled.respond(503, '<html>down</html>', 'text/html');
     controlled.respond(400, '{"error":{"type":"invalid_request_error","code":"amount_too_large"}}');
     const send = (amount: string) => request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send({ amount, currency: 'BRL' });
@@ -135,7 +136,7 @@ describe('POST /donation-orders', () => {
     const intent = randomUUID();
     const idempotency = randomUUID();
     const response = await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', intent)
       .set('Idempotency-Key', idempotency)
       .send({ amount: '123456789012345678901234567890.37', currency: 'BRL' })
@@ -156,7 +157,7 @@ describe('POST /donation-orders', () => {
   it('não recebe nem envia dados do pagador, cartão, fiscais ou chaves portadoras', async () => {
     controlled.respond(200, JSON.stringify(validSession));
     const intent = randomUUID(); const operation = randomUUID();
-    const response = await request(app.getHttpServer()).post('/donation-orders')
+    const response = await request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', intent).set('Idempotency-Key', operation)
       .send({ amount: '10.00', currency: 'BRL' }).expect(201);
     const responseText = JSON.stringify(response.body);
@@ -174,7 +175,7 @@ describe('POST /donation-orders', () => {
   });
 
   it('rejeita campos pessoais adicionais antes de persistir ou chamar Stripe', async () => {
-    await request(app.getHttpServer()).post('/donation-orders')
+    await request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID()).set('Idempotency-Key', randomUUID())
       .send({ amount: '10.00', currency: 'BRL', email: 'pessoa@example.test', cpf: '12345678900' }).expect(422);
     expect(donations.createIntent).not.toHaveBeenCalled();
@@ -193,7 +194,7 @@ describe('POST /donation-orders', () => {
     [{ amount: '1.00', currency: 'BRL', toString: 'x' }],
   ])('rejeita entrada inválida sem criar pedido nem chamar gateway: %j', async (body) => {
     await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send(body)
@@ -204,7 +205,7 @@ describe('POST /donation-orders', () => {
 
   it('rejeita chave de intenção ausente antes da persistência', async () => {
     await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('Idempotency-Key', randomUUID())
       .send({ amount: '10.00', currency: 'BRL' })
       .expect(422);
@@ -213,7 +214,7 @@ describe('POST /donation-orders', () => {
 
   it('rejeita JSON com chave própria __proto__ antes de qualquer transformação', async () => {
     await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('Content-Type', 'application/json')
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
@@ -228,7 +229,7 @@ describe('POST /donation-orders', () => {
       if (key === undefined) vi.stubEnv('STRIPE_SECRET_KEY', '');
       else vi.stubEnv('STRIPE_SECRET_KEY', key);
       await request(app.getHttpServer())
-        .post('/donation-orders')
+        .post('/donation-orders').set(authorization())
         .set('X-Donation-Intent', randomUUID())
         .set('Idempotency-Key', randomUUID())
         .send({ amount: '10.00', currency: 'BRL' })
@@ -241,7 +242,7 @@ describe('POST /donation-orders', () => {
   it('responde indisponibilidade do banco sem chamar Stripe', async () => {
     donations.createIntent.mockRejectedValueOnce(new Error('database unavailable'));
     await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send({ amount: '10.00', currency: 'BRL' })
@@ -254,7 +255,7 @@ describe('POST /donation-orders', () => {
     controlled.respond(400, '{"error":{"type":"invalid_request_error","code":"amount_too_large","message":"raw detail"}}');
     const amount = '999999999999999999999999999999999999999.99';
     const response = await request(app.getHttpServer())
-      .post('/donation-orders')
+      .post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID())
       .set('Idempotency-Key', randomUUID())
       .send({ amount, currency: 'BRL' })

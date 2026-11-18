@@ -7,6 +7,7 @@ import { DONATION_REPOSITORY } from '../src/donations/ports/donation-repository.
 import { STRIPE_CHECKOUT_GATEWAY } from '../src/donations/ports/stripe-checkout-gateway.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { RetryDonation } from '../src/donations/application/retry-donation.js';
+import { authorization } from './support/auth.js';
 
 const webhookSecret = 'whsec_attempts_test';
 
@@ -122,15 +123,15 @@ describe('tentativas de doação', () => {
   });
 
   it('consulta e retoma pelo endpoint com a chave de intenção e identidade no cabeçalho', async () => {
-    const current = await request(app.getHttpServer()).get('/donation-orders/current')
+    const current = await request(app.getHttpServer()).get('/donation-orders/current').set(authorization())
       .set('X-Donation-Intent', 'intent-portador-123456789');
     expect(current.status).toBe(200);
     expect(retryService.inspectCurrent).toHaveBeenCalledWith('intent-portador-123456789');
-    const read = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`)
+    const read = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(authorization())
       .set('X-Donation-Intent', 'intent-portador-123456789');
     expect(read.status).toBe(200);
     expect(retryService.inspect).toHaveBeenCalledWith(orderId, 'intent-portador-123456789');
-    const attempted = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`)
+    const attempted = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`).set(authorization())
       .set('X-Donation-Intent', 'intent-portador-123456789').set('Idempotency-Key', 'attempt-operation-123456');
     expect(attempted.status).toBe(200);
     expect(retryService.retry).toHaveBeenCalledWith(orderId, 'intent-portador-123456789', 'attempt-operation-123456');

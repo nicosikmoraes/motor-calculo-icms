@@ -6,6 +6,7 @@ import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-cr
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
 import { DonationOperationConflictError } from '../src/donations/ports/donation-creation-repository.js';
+import { authorization } from './support/auth.js';
 
 const session = { id: 'cs_test_recovery', object: 'checkout.session', url: 'https://checkout.stripe.com/c/pay/cs_test_recovery', payment_intent: 'pi_test_recovery', livemode: false };
 
@@ -87,7 +88,7 @@ describe('recuperação de operação de doação', () => {
   afterEach(async () => { await app.close(); vi.useRealTimers(); vi.unstubAllEnvs(); });
 
   const send = (intent: string, operation: string, amount = '12.34') => request(app.getHttpServer())
-    .post('/donation-orders').set('X-Donation-Intent', intent).set('Idempotency-Key', operation)
+    .post('/donation-orders').set(authorization()).set('X-Donation-Intent', intent).set('Idempotency-Key', operation)
     .send({ amount, currency: 'BRL' });
 
   it('repetir após perder a resposta recupera a mesma sessão pela chave Stripe idempotente', async () => {

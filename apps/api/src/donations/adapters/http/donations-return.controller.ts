@@ -1,7 +1,10 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { Public } from '../../../auth/guard/public.decorator.js';
 
+// Público: é a página que o navegador abre ao voltar do Checkout. Não confirma nada.
+@Public()
 @ApiTags('doações')
 @Controller('donations')
 export class DonationsReturnController {
