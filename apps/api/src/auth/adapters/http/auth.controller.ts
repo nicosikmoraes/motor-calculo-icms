@@ -1,5 +1,5 @@
 import { Body, ConflictException, Controller, Get, HttpCode, HttpStatus, Inject, Post, UnauthorizedException } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InvalidCredentialsError, Login, type LoginResult } from '../../application/login.js';
 import { RegisterUser } from '../../application/register-user.js';
 import { EmailAlreadyRegisteredError, type PublicUser, USER_REPOSITORY, type UserRepository } from '../../ports/user-repository.js';
@@ -51,6 +51,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Devolve quem está chamando, a partir do token' })
   @ApiResponse({ status: 200, description: 'O usuário dono do token, sem o hash', type: PublicUserEnvelopeDoc })
   @ApiResponse({ status: 401, description: 'Token ausente, adulterado, expirado ou de usuário que não existe mais', type: ApiErrorEnvelopeDoc })

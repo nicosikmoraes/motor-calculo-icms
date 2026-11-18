@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CreateDonation, DonationCreationError } from '../../application/create-donation.js';
 import { DonationOperationConflictError } from '../../ports/donation-creation-repository.js';
@@ -28,6 +28,9 @@ const uncertain = ApiResponse({ status: 202, description: 'Situação do pagamen
 const unavailable = ApiResponse({ status: 503, description: 'Serviço de doações indisponível', type: ApiErrorEnvelopeDoc });
 
 @ApiTags('doações')
+// Cadeado na página /docs. A proteção em si é o AuthGuard global; isto só documenta.
+@ApiBearerAuth('bearer')
+@ApiResponse({ status: 401, description: 'Token ausente, adulterado ou expirado', type: ApiErrorEnvelopeDoc })
 @Controller('donation-orders')
 export class DonationOrdersController {
   constructor(private readonly createDonation: CreateDonation, private readonly retryDonation: RetryDonation) {}
