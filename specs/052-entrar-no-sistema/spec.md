@@ -1,6 +1,6 @@
 ---
 issue: 52
-status: rascunho
+status: aprovada
 ---
 
 # US10 — Entrar no sistema

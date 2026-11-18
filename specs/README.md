@@ -3,7 +3,7 @@
 | Issue | História | Spec | Plano | Estado |
 | --- | --- | --- | --- | --- |
 | [#12](https://github.com/nicosikmoraes/motor-calculo-icms/issues/12) | US09 — Fazer doação pelo Stripe | [spec](012-fazer-doacao-stripe/spec.md) | [plano](012-fazer-doacao-stripe/plan.md) | implementada |
-| [#52](https://github.com/nicosikmoraes/motor-calculo-icms/issues/52) | US10 — Entrar no sistema | [spec](052-entrar-no-sistema/spec.md) | — | rascunho |
+| [#52](https://github.com/nicosikmoraes/motor-calculo-icms/issues/52) | US10 — Entrar no sistema | [spec](052-entrar-no-sistema/spec.md) | — | aprovada |
 
 ## Atividade 09 — recorte e origem
 
