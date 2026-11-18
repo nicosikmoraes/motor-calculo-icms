@@ -1,12 +1,13 @@
 ---
 issue: 57
-status: rascunho
+status: aprovada
 ---
 
 # US12 — Gerenciar rascunhos de doação
 
 Issue [#57](https://github.com/nicosikmoraes/motor-calculo-icms/issues/57).
 Depende da autenticação da US10 e segue a regra de propriedade da US11.
+Aprovada pelo autor em 18/11/2026.
 
 ## História
 
