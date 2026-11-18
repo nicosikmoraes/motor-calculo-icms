@@ -168,7 +168,7 @@ cria uma segunda confirmação.
 Ambientes da API:
 
 - **Local:** PostgreSQL 16 no Compose exclusivo `contabilinico-payments-dev`, em `127.0.0.1:5433`; `DATABASE_URL` em `apps/api/.env` fora do Git. Volume próprio, sem acesso ao SQLite fiscal do aplicativo.
-- **CI:** PostgreSQL 16 descartável no GitHub Actions; `DATABASE_URL` de teste é definida pelo workflow. Testes fazem conexão TCP e verificam a ausência de tabelas; a CLI Prisma também executa uma verificação sem alterar o banco.
+- **CI:** PostgreSQL 16 descartável no GitHub Actions; `DATABASE_URL` de teste é definida pelo workflow. Testes fazem conexão TCP e conferem que o schema contém só as tabelas esperadas (doações e `users`); a CLI Prisma também executa uma verificação sem alterar o banco.
 - **Produção planejada:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma. Sem deploy ou credencial de produção nesta atividade.
 
 O `.env.example` documenta a conexão descartável do Compose local e só o nome

@@ -107,6 +107,13 @@ apenas o nome em `.env.example`, e um valor descartável de teste no `env:` do
 job em `ci.yml`. Os testes de e2e assinam tokens com um segredo de teste, via
 `vi.stubEnv`.
 
+> **Nomes finais (registrados depois da implementação).** A função do desktop
+> se chama `request` (não `authorizedFetch`); os canais são `auth:register`,
+> `auth:sign-in`, `auth:sign-out`, `auth:get-session` e `auth:session-expired`;
+> os documentos do Swagger ficaram em `auth.dto.ts` (não há `auth-api-docs.ts`).
+> A rota protegida é marcada com `meta.requiresSession`, que também decide se o
+> aviso de sessão expirada tira a pessoa da tela atual.
+
 ## Tarefas
 
 | # | Tarefa | Critérios |

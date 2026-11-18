@@ -69,7 +69,7 @@ papel pode fazer na API é definido pela US11.
 | Usuário operacional | Pessoa que recebe e organiza documentos | Criar lote, acompanhar processamento, consultar resultados e exportar relatório | Inventar valores para completar uma nota ou alterar o XML original |
 | Contador responsável | Profissional que configura e revisa o tratamento fiscal | Cadastrar empresas, perfis e regras; resolver pendências; aprovar versões e reprocessar | Alterar retroativamente uma regra publicada ou apagar silenciosamente resultados históricos |
 | Responsável pela instalação | Pessoa que mantém os dados locais | Configurar retenção, exportar/importar configurações e realizar backup quando disponível | Mesclar bancos de instalações ou expor documentos fiscais sem autorização |
-| Apoiador | Pessoa com conta na API de doações | Criar conta, entrar, doar e consultar as próprias doações | Escolher o próprio papel ou ver doações de outras pessoas |
+| Apoiador | Pessoa com conta na API de doações | Criar conta, entrar e doar; consultar só as próprias doações (US11; até lá, o pedido é alcançado pela chave de intenção) | Escolher o próprio papel; ver doações de outras pessoas (US11) |
 | Administrador | Mantenedor do projeto, promovido no banco | Consultar todas as doações (US11) | Ser criado por uma rota da API |
 
 ## 4. Escopo Funcional — User Stories
