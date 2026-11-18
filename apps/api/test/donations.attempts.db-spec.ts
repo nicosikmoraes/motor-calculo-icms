@@ -5,11 +5,14 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaDonationRepository } from '../src/donations/adapters/prisma/prisma-donation-repository.js';
 import { PrismaDonationCreationRepository } from '../src/donations/adapters/prisma/donation-creation-repository.js';
+import { createDbUser } from './support/db-users.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
 const pool = new Pool({ connectionString });
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+// Dono dos pedidos inseridos aqui: depois da US11, consulta e nova tentativa exigem o dono certo.
+const owner = await createDbUser(pool);
 const orderIds: string[] = [];
 
 describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
@@ -31,7 +34,7 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
     const orderId = randomUUID(); const firstPaymentId = randomUUID(); const secondPaymentId = randomUUID();
     const firstPi = 'pi_test_first'; const secondPi = 'pi_test_second';
     orderIds.push(orderId);
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, randomUUID(), '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, randomUUID(), '12.34', owner.id]);
     await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key, payment_intent_id, checkout_session_id) VALUES ($1, $2, $3, $4, $5)',
       [firstPaymentId, orderId, randomUUID(), firstPi, 'cs_test_first']);
     await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key, payment_intent_id, checkout_session_id) VALUES ($1, $2, $3, $4, $5)',
@@ -62,7 +65,7 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
 
   it('marca expiração somente quando chamado com evidência confirmada e deixa o pedido pendente', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); orderIds.push(orderId);
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, randomUUID(), '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, randomUUID(), '12.34', owner.id]);
     await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key, checkout_session_id) VALUES ($1, $2, $3, $4)',
       [paymentId, orderId, randomUUID(), 'cs_test_expired']);
     await repository.recordSessionExpiration({ orderId, paymentId, checkoutSessionId: 'cs_test_expired',
@@ -89,18 +92,52 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
 
   it('consulta pedido e histórico apenas pelo hash correto da chave de intenção', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); const intentHash = randomUUID().replaceAll('-', ''); orderIds.push(orderId);
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, intentHash, '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, intentHash, '12.34', owner.id]);
     await pool.query('INSERT INTO payments (id, order_id, stripe_idempotency_key) VALUES ($1, $2, $3)', [paymentId, orderId, randomUUID()]);
     const repository = new PrismaDonationCreationRepository(prisma);
-    expect(await repository.getOrderIdByIntentHash(intentHash)).toBe(orderId);
-    expect(await repository.getAuthorizedDonation(orderId, 'wrong-intent-hash')).toBeNull();
-    expect(await repository.getAuthorizedDonation(orderId, intentHash)).toMatchObject({ orderId, status: 'pendente',
+    expect(await repository.getOrderIdByIntentHash(intentHash, owner.id)).toBe(orderId);
+    expect(await repository.getAuthorizedDonation(orderId, 'wrong-intent-hash', owner.id)).toBeNull();
+    expect(await repository.getAuthorizedDonation(orderId, intentHash, owner.id)).toMatchObject({ orderId, status: 'pendente',
       attempts: [{ paymentId, status: 'pendente' }] });
+  });
+
+  it('CA5/CA7: com a chave certa, outra pessoa ou um pedido sem dono não alcançam nada', async () => {
+    const other = await createDbUser(pool);
+    const repository = new PrismaDonationCreationRepository(prisma);
+    // Cada pedido ganha uma tentativa que, para o dono, PERMITIRIA nova tentativa: o único motivo do null é o dono.
+    const failedAttempt = async (orderId: string) => {
+      const paymentId = randomUUID();
+      await pool.query(`INSERT INTO payments (id, order_id, stripe_idempotency_key, status, first_sent_at, checkout_parameters, reason)
+        VALUES ($1, $2, $3, 'falha_na_criacao', $4, $5, 'REJEICAO_CONCLUSIVA')`, [paymentId, orderId, randomUUID(), new Date(),
+        JSON.stringify({ amountInCents: '1234', currency: 'brl', successUrl: 'https://example.test/s', cancelUrl: 'https://example.test/c' })]);
+      return paymentId;
+    };
+    const paymentOf = new Map<string, string>();
+    const retryInput = (orderId: string, intentKeyHash: string, ownerId: string) => ({ ownerId, orderId, intentKeyHash,
+      currentPaymentId: paymentOf.get(orderId)!, currentStatus: 'falha_na_criacao', operationKeyHash: randomUUID(), fingerprint: randomUUID(),
+      stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() });
+
+    const owned = randomUUID(); const ownedHash = randomUUID().replaceAll('-', ''); orderIds.push(owned);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [owned, ownedHash, '12.34', owner.id]);
+    paymentOf.set(owned, await failedAttempt(owned));
+    expect(await repository.getOrderIdByIntentHash(ownedHash, other.id)).toBeNull();
+    expect(await repository.getAuthorizedDonation(owned, ownedHash, other.id)).toBeNull();
+    expect(await repository.createRetry(retryInput(owned, ownedHash, other.id))).toBeNull();
+
+    const legacy = randomUUID(); const legacyHash = randomUUID().replaceAll('-', ''); orderIds.push(legacy);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [legacy, legacyHash, '7.00']);
+    paymentOf.set(legacy, await failedAttempt(legacy));
+    expect(await repository.getOrderIdByIntentHash(legacyHash, owner.id)).toBeNull();
+    expect(await repository.getAuthorizedDonation(legacy, legacyHash, owner.id)).toBeNull();
+    expect(await repository.createRetry(retryInput(legacy, legacyHash, owner.id))).toBeNull();
+    expect((await pool.query('SELECT count(*)::int AS count FROM payments WHERE order_id = ANY($1::uuid[])', [[owned, legacy]])).rows[0].count).toBe(2);
+    // Contraprova: para o dono, a mesma entrada abre a nova tentativa.
+    expect(await repository.createRetry(retryInput(owned, ownedHash, owner.id))).toMatchObject({ isNew: true, orderId: owned });
   });
 
   it('serializa retry e confirmação concorrentes por pedido e nunca rebaixa o pedido pago', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); orderIds.push(orderId);
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, 'intent-race-' + randomUUID(), '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, 'intent-race-' + randomUUID(), '12.34', owner.id]);
     await pool.query(`INSERT INTO payments (id, order_id, stripe_idempotency_key, status, checkout_session_id,
       first_sent_at, checkout_parameters, reason) VALUES ($1, $2, $3, 'expirada', $4, $5, $6, 'SESSAO_EXPIRADA')`,
       [paymentId, orderId, randomUUID(), 'cs_test_race_old', new Date(), JSON.stringify({ amountInCents: '1234', currency: 'brl',
@@ -108,7 +145,7 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
     const [intentRow] = (await pool.query('SELECT intent_key_hash FROM donation_orders WHERE id = $1', [orderId])).rows;
     const retry = new PrismaDonationCreationRepository(prisma);
     const [opening] = await Promise.all([
-      retry.createRetry({ orderId, intentKeyHash: intentRow.intent_key_hash, currentPaymentId: paymentId, currentStatus: 'expirada',
+      retry.createRetry({ ownerId: owner.id, orderId, intentKeyHash: intentRow.intent_key_hash, currentPaymentId: paymentId, currentStatus: 'expirada',
         operationKeyHash: randomUUID(), fingerprint: randomUUID(), stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() }),
       repository.confirmPayment({ orderId, paymentId, checkoutSessionId: 'cs_test_race_old', stripeEventId: 'evt_race_confirm',
         confirmedAt: new Date() }),
@@ -124,13 +161,13 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
   it('não reserva novo Checkout a partir de recusa PaymentIntent sem sessão expirada comprovada', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); orderIds.push(orderId);
     const intentHash = randomUUID().replaceAll('-', '');
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, intentHash, '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, intentHash, '12.34', owner.id]);
     await pool.query(`INSERT INTO payments (id, order_id, stripe_idempotency_key, status, first_sent_at,
       checkout_parameters, reason) VALUES ($1, $2, $3, 'recusada', $4, $5, 'RECUSA_CARTAO')`,
     [paymentId, orderId, randomUUID(), new Date(), JSON.stringify({ amountInCents: '1234', currency: 'brl',
       successUrl: 'https://example.test/success', cancelUrl: 'https://example.test/cancel' })]);
     const repository = new PrismaDonationCreationRepository(prisma);
-    const opening = await repository.createRetry({ orderId, intentKeyHash: intentHash, currentPaymentId: paymentId,
+    const opening = await repository.createRetry({ ownerId: owner.id, orderId, intentKeyHash: intentHash, currentPaymentId: paymentId,
       currentStatus: 'recusada', operationKeyHash: randomUUID(), fingerprint: randomUUID(),
       stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() });
     expect(opening).toBeNull();
@@ -140,13 +177,13 @@ describe('histórico e monotonicidade das tentativas no PostgreSQL', () => {
   it('reserva tentativa nova após falha conclusiva antes de criar sessão', async () => {
     const orderId = randomUUID(); const paymentId = randomUUID(); orderIds.push(orderId);
     const intentHash = randomUUID().replaceAll('-', '');
-    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount) VALUES ($1, $2, $3)', [orderId, intentHash, '12.34']);
+    await pool.query('INSERT INTO donation_orders (id, intent_key_hash, amount, user_id) VALUES ($1, $2, $3, $4)', [orderId, intentHash, '12.34', owner.id]);
     await pool.query(`INSERT INTO payments (id, order_id, stripe_idempotency_key, status, first_sent_at,
       checkout_parameters, reason) VALUES ($1, $2, $3, 'falha_na_criacao', $4, $5, 'REJEICAO_CONCLUSIVA')`,
     [paymentId, orderId, randomUUID(), new Date(), JSON.stringify({ amountInCents: '1234', currency: 'brl',
       successUrl: 'https://example.test/success', cancelUrl: 'https://example.test/cancel' })]);
     const repository = new PrismaDonationCreationRepository(prisma);
-    const opening = await repository.createRetry({ orderId, intentKeyHash: intentHash, currentPaymentId: paymentId,
+    const opening = await repository.createRetry({ ownerId: owner.id, orderId, intentKeyHash: intentHash, currentPaymentId: paymentId,
       currentStatus: 'falha_na_criacao', operationKeyHash: randomUUID(), fingerprint: randomUUID(),
       stripeIdempotencyKey: randomUUID(), firstSentAt: new Date() });
     expect(opening).toMatchObject({ isNew: true, orderId, status: 'pendente', checkoutSessionId: null });

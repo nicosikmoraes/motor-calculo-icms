@@ -7,7 +7,7 @@ import { DONATION_REPOSITORY } from '../src/donations/ports/donation-repository.
 import { STRIPE_CHECKOUT_GATEWAY } from '../src/donations/ports/stripe-checkout-gateway.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { RetryDonation } from '../src/donations/application/retry-donation.js';
-import { authorization } from './support/auth.js';
+import { authorization, testToken } from './support/auth.js';
 
 const webhookSecret = 'whsec_attempts_test';
 
@@ -123,18 +123,19 @@ describe('tentativas de doação', () => {
   });
 
   it('consulta e retoma pelo endpoint com a chave de intenção e identidade no cabeçalho', async () => {
-    const current = await request(app.getHttpServer()).get('/donation-orders/current').set(authorization())
+    const caller = randomUUID();
+    const current = await request(app.getHttpServer()).get('/donation-orders/current').set(authorization(testToken({ sub: caller })))
       .set('X-Donation-Intent', 'intent-portador-123456789');
     expect(current.status).toBe(200);
-    expect(retryService.inspectCurrent).toHaveBeenCalledWith('intent-portador-123456789');
-    const read = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(authorization())
+    expect(retryService.inspectCurrent).toHaveBeenCalledWith(caller, 'intent-portador-123456789');
+    const read = await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(authorization(testToken({ sub: caller })))
       .set('X-Donation-Intent', 'intent-portador-123456789');
     expect(read.status).toBe(200);
-    expect(retryService.inspect).toHaveBeenCalledWith(orderId, 'intent-portador-123456789');
-    const attempted = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`).set(authorization())
+    expect(retryService.inspect).toHaveBeenCalledWith(caller, orderId, 'intent-portador-123456789');
+    const attempted = await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`).set(authorization(testToken({ sub: caller })))
       .set('X-Donation-Intent', 'intent-portador-123456789').set('Idempotency-Key', 'attempt-operation-123456');
     expect(attempted.status).toBe(200);
-    expect(retryService.retry).toHaveBeenCalledWith(orderId, 'intent-portador-123456789', 'attempt-operation-123456');
+    expect(retryService.retry).toHaveBeenCalledWith(caller, orderId, 'intent-portador-123456789', 'attempt-operation-123456');
   });
 
   it('retorno do Checkout informa que a confirmação depende da consulta ao pedido', async () => {
@@ -146,6 +147,7 @@ describe('tentativas de doação', () => {
 });
 
 describe('retomada autenticada da tentativa', () => {
+  const ownerId = randomUUID();
   const orderId = randomUUID(); const paymentId = randomUUID(); const nextPaymentId = randomUUID();
   const intent = randomUUID(); const operation = randomUUID();
   const baseAttempt = { paymentId, status: 'recusada', reason: 'RECUSA_CARTAO', checkoutSessionId: 'cs_retry',
@@ -177,8 +179,8 @@ describe('retomada autenticada da tentativa', () => {
     const { repository, gateway } = fixture({ status: 'falha_na_criacao', reason: 'GATEWAY_REJEITOU_CRIACAO',
       checkoutSessionId: null, checkoutUrl: null });
     const liveService = new RetryDonation(repository, gateway, 'identity-test-secret', 'sk_live_never_use');
-    await expect(liveService.retry(orderId, intent, randomUUID())).rejects.toMatchObject({ code: 'service_unavailable' });
-    await expect(liveService.inspectCurrent(intent)).rejects.toMatchObject({ code: 'service_unavailable' });
+    await expect(liveService.retry(ownerId, orderId, intent, randomUUID())).rejects.toMatchObject({ code: 'service_unavailable' });
+    await expect(liveService.inspectCurrent(ownerId, intent)).rejects.toMatchObject({ code: 'service_unavailable' });
     expect(repository.getAuthorizedDonation).not.toHaveBeenCalled();
     expect(gateway.createCheckout).not.toHaveBeenCalled();
     expect(gateway.retrieveCheckout).not.toHaveBeenCalled();
@@ -186,7 +188,7 @@ describe('retomada autenticada da tentativa', () => {
 
   it('reutiliza a mesma sessão quando a consulta autenticada a encontra aberta', async () => {
     const { service, repository, gateway } = fixture();
-    const result = await service.retry(orderId, intent, operation);
+    const result = await service.retry(ownerId, orderId, intent, operation);
     expect(result).toMatchObject({ paymentId, checkoutUrl: baseAttempt.checkoutUrl, reused: true });
     expect(repository.createRetry).not.toHaveBeenCalled();
     expect(gateway.createCheckout).not.toHaveBeenCalled();
@@ -194,7 +196,7 @@ describe('retomada autenticada da tentativa', () => {
 
   it('cria nova tentativa no mesmo pedido e valor somente após consulta confirmar expiração', async () => {
     const { service, repository, gateway } = fixture({}, 'expired');
-    const result = await service.retry(orderId, intent, operation);
+    const result = await service.retry(ownerId, orderId, intent, operation);
     expect(result).toMatchObject({ orderId, paymentId: nextPaymentId, amount: '12.34', status: 'pendente', reused: false });
     expect(repository.markSessionExpired).toHaveBeenCalledWith({ orderId, paymentId, sessionId: 'cs_retry' });
     expect(repository.createRetry).toHaveBeenCalledWith(expect.objectContaining({ currentStatus: 'expirada' }));
@@ -211,11 +213,11 @@ describe('retomada autenticada da tentativa', () => {
       successUrl: 'https://example.test/success', cancelUrl: 'https://example.test/cancel' };
     donation.attempts[0].stripeIdempotencyKey = 'stripe-same-attempt';
     gateway.createCheckout.mockRejectedValueOnce(new Error('response lost'));
-    await expect(service.retry(orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
+    await expect(service.retry(ownerId, orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
     gateway.createCheckout.mockResolvedValueOnce({ id: 'cs_recovered_same_attempt', url: 'https://checkout.stripe.com/c/pay/cs_recovered_same_attempt',
       paymentIntentId: 'pi_retry', orderId, paymentId, amountInCents: '1234', currency: 'brl', livemode: false,
       status: 'open', paymentStatus: 'unpaid' } as any);
-    const recovered = await service.retry(orderId, intent, operation);
+    const recovered = await service.retry(ownerId, orderId, intent, operation);
     expect(recovered).toMatchObject({ paymentId, status: 'pendente', reused: true,
       checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_recovered_same_attempt' });
     expect(gateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ paymentId, idempotencyKey: 'stripe-same-attempt',
@@ -232,9 +234,9 @@ describe('retomada autenticada da tentativa', () => {
       operationKeyHash: priorOperationHash, firstSentAt: new Date(Date.now() - 25 * 60 * 60_000),
       checkoutParameters: { amountInCents: '1234', currency: 'brl', successUrl: 'https://example.test/success', cancelUrl: 'https://example.test/cancel' } };
     const same = fixture(oldAttempt);
-    await expect(same.service.retry(orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
+    await expect(same.service.retry(ownerId, orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
     const different = fixture({ ...oldAttempt, operationKeyHash: null });
-    await expect(different.service.retry(orderId, intent, randomUUID())).rejects.toMatchObject({ code: 'result_uncertain' });
+    await expect(different.service.retry(ownerId, orderId, intent, randomUUID())).rejects.toMatchObject({ code: 'result_uncertain' });
     expect(same.repository.createRetry).not.toHaveBeenCalled();
     expect(different.repository.createRetry).not.toHaveBeenCalled();
     expect(same.gateway.createCheckout).not.toHaveBeenCalled();
@@ -251,12 +253,12 @@ describe('retomada autenticada da tentativa', () => {
     within.gateway.createCheckout.mockResolvedValueOnce({ id: 'cs_24h', url: 'https://checkout.stripe.com/c/pay/cs_24h',
       paymentIntentId: null, orderId, paymentId, amountInCents: '1234', currency: 'brl', livemode: false,
       status: 'open', paymentStatus: 'unpaid' } as any);
-    await expect(within.service.retry(orderId, intent, operation)).resolves.toMatchObject({ paymentId, reused: true });
+    await expect(within.service.retry(ownerId, orderId, intent, operation)).resolves.toMatchObject({ paymentId, reused: true });
     expect(within.gateway.createCheckout).toHaveBeenCalledTimes(1);
 
     const boundary = fixture({ status: 'recusada', reason: 'RECUSA_CARTAO', checkoutSessionId: null, checkoutUrl: null,
       operationKeyHash: priorOperationHash, firstSentAt: new Date(Date.now() - 24 * 60 * 60_000), checkoutParameters: params });
-    await expect(boundary.service.retry(orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
+    await expect(boundary.service.retry(ownerId, orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
     expect(boundary.gateway.createCheckout).not.toHaveBeenCalled();
   });
 
@@ -265,13 +267,13 @@ describe('retomada autenticada da tentativa', () => {
     const conclusiveFailure = { status: 'falha_na_criacao', reason: 'GATEWAY_REJEITOU_CRIACAO', checkoutSessionId: null,
       checkoutUrl: null, operationKeyHash: priorOperationHash };
     const same = fixture(conclusiveFailure);
-    const repeated = await same.service.retry(orderId, intent, operation);
+    const repeated = await same.service.retry(ownerId, orderId, intent, operation);
     expect(repeated).toMatchObject({ paymentId, status: 'falha_na_criacao', reused: true });
     expect(same.repository.createRetry).not.toHaveBeenCalled();
     expect(same.gateway.createCheckout).not.toHaveBeenCalled();
 
     const fresh = fixture(conclusiveFailure);
-    const retried = await fresh.service.retry(orderId, intent, randomUUID());
+    const retried = await fresh.service.retry(ownerId, orderId, intent, randomUUID());
     expect(retried).toMatchObject({ orderId, paymentId: nextPaymentId, status: 'pendente', reused: false });
     expect(fresh.repository.createRetry).toHaveBeenCalledWith(expect.objectContaining({ currentStatus: 'falha_na_criacao' }));
     expect(fresh.gateway.createCheckout).toHaveBeenCalledTimes(1);
@@ -279,7 +281,7 @@ describe('retomada autenticada da tentativa', () => {
 
   it('consulta o Stripe sem usar relógio local e só registra expiração remota não paga', async () => {
     const { service, repository, gateway } = fixture({}, 'expired');
-    const result = await service.inspect(orderId, intent);
+    const result = await service.inspect(ownerId, orderId, intent);
     expect(gateway.retrieveCheckout).toHaveBeenCalledWith('cs_retry');
     expect(repository.markSessionExpired).toHaveBeenCalledWith({ orderId, paymentId, sessionId: 'cs_retry' });
     expect(result?.attempts[0]).toMatchObject({ paymentId, status: 'expirada' });
@@ -288,7 +290,7 @@ describe('retomada autenticada da tentativa', () => {
 
   it('expira sessão aberta excedente quando a confirmação do pedido vence a corrida', async () => {
     const { service, gateway, repository } = fixture({}, 'expired', { payDuringCreation: true });
-    const result = await service.retry(orderId, intent, operation);
+    const result = await service.retry(ownerId, orderId, intent, operation);
     expect(gateway.expireCheckout).toHaveBeenCalledWith('cs_retry_next');
     expect(result).toMatchObject({ status: 'pago', checkoutUrl: null });
     expect(repository.recordRetryExpirationFailure).not.toHaveBeenCalled();
@@ -296,7 +298,7 @@ describe('retomada autenticada da tentativa', () => {
 
   it('bloqueia Checkout excedente e registra incerteza quando expire falha na corrida com confirmação', async () => {
     const { service, gateway, repository } = fixture({}, 'expired', { payDuringCreation: true, expireFails: true });
-    const result = await service.retry(orderId, intent, operation);
+    const result = await service.retry(ownerId, orderId, intent, operation);
     expect(gateway.expireCheckout).toHaveBeenCalledWith('cs_retry_next');
     expect(result).toMatchObject({ status: 'pago', checkoutUrl: null });
     expect(repository.recordRetryExpirationFailure).toHaveBeenCalledWith({ orderId, paymentId: nextPaymentId, sessionId: 'cs_retry_next' });
@@ -306,7 +308,7 @@ describe('retomada autenticada da tentativa', () => {
     const { gateway, repository, donation } = fixture({}, 'open', { expireFails: true });
     donation.status = 'pago';
     const serviceForPaid = new RetryDonation(repository, gateway, 'identity-test-secret', 'sk_test_attempts');
-    const result = await serviceForPaid.retry(orderId, intent, operation);
+    const result = await serviceForPaid.retry(ownerId, orderId, intent, operation);
     expect(result).toMatchObject({ status: 'pago' });
     expect(gateway.expireCheckout).toHaveBeenCalledWith('cs_retry');
     expect(repository.recordRetryExpirationFailure).toHaveBeenCalledWith({ orderId, paymentId, sessionId: 'cs_retry' });
@@ -320,8 +322,8 @@ describe('retomada autenticada da tentativa', () => {
   ])('bloqueia nova abertura para %s', async (_name, attempt, sessionStatus, orderStatus) => {
     const { service, repository, gateway, donation } = fixture(attempt as Record<string, unknown>, sessionStatus);
     donation.status = orderStatus;
-    if (orderStatus === 'pago') await service.retry(orderId, intent, operation);
-    else await expect(service.retry(orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
+    if (orderStatus === 'pago') await service.retry(ownerId, orderId, intent, operation);
+    else await expect(service.retry(ownerId, orderId, intent, operation)).rejects.toMatchObject({ code: 'result_uncertain' });
     expect(repository.createRetry).not.toHaveBeenCalled();
     expect(gateway.createCheckout).not.toHaveBeenCalled();
   });

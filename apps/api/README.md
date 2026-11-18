@@ -3,7 +3,9 @@
 API NestJS isolada, reservada às contas de apoiador e ao serviço de doações e
 pagamentos pelo Stripe. Toda rota exige `Authorization: Bearer <token>`, exceto
 cadastro, login, `GET /`, o webhook do Stripe e a página de retorno do Checkout.
-Não há acesso a documentos fiscais.
+Os pedidos de doação têm dono, e só o dono os consulta. A rota
+`GET /admin/donation-orders` exige o papel `ADMIN` (403 para apoiadores). Não
+há acesso a documentos fiscais.
 
 Este pacote pertence ao monorepo pnpm existente. Execute os comandos na raiz:
 

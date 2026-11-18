@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
-import { DonationOperationConflictError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError, type DonationCreationRepository, type PersistedDonationOpening } from '../ports/donation-creation-repository.js';
 import type { StripeCheckoutGateway } from '../ports/stripe-checkout-gateway.js';
 import { StripeUnavailableError } from '../ports/stripe-checkout-gateway.js';
 
@@ -75,7 +75,7 @@ export class CreateDonation {
     private readonly config: DonationCreationConfiguration,
   ) {}
 
-  async execute(headers: { intent: unknown; operation: unknown }, body: unknown) {
+  async execute(headers: { intent: unknown; operation: unknown; ownerId: string }, body: unknown) {
     const parsed = validateCreateDonationBody(body);
     if (typeof headers.intent !== 'string' || headers.intent.length < 16 || headers.intent.length > 256
       || typeof headers.operation !== 'string' || headers.operation.length < 16 || headers.operation.length > 256) {
@@ -89,25 +89,27 @@ export class CreateDonation {
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
     const hashSecret = this.config.identitySecret ?? secret;
-    const flightKey = `${createHash('sha256').update(headers.intent).digest('hex')}:${safeIdentity(hashSecret, headers.operation)}`;
+    // O dono entra na chave: duas pessoas com a mesma intenção nunca compartilham uma criação em andamento.
+    const flightKey = `${headers.ownerId}:${createHash('sha256').update(headers.intent).digest('hex')}:${safeIdentity(hashSecret, headers.operation)}`;
     const existingFlight = inFlightCreations.get(flightKey);
     const fingerprint = createHash('sha256').update(`${parsed.amount}:BRL`).digest('hex');
     if (existingFlight) {
       if (existingFlight.fingerprint !== fingerprint) throw new DonationOperationConflictError();
       return existingFlight.promise.then((result) => ({ ...result, replayed: true }));
     }
-    const execution = this.open(headers.intent, headers.operation, parsed, successUrl, cancelUrl, hashSecret);
+    const execution = this.open(headers.ownerId, headers.intent, headers.operation, parsed, successUrl, cancelUrl, hashSecret);
     const flight = { fingerprint, promise: execution };
     inFlightCreations.set(flightKey, flight);
     try { return await execution; }
     finally { if (inFlightCreations.get(flightKey) === flight) inFlightCreations.delete(flightKey); }
   }
 
-  private async open(intent: string, operation: string, parsed: { amount: string; cents: string }, successUrl: string, cancelUrl: string, hashSecret: string) {
+  private async open(ownerId: string, intent: string, operation: string, parsed: { amount: string; cents: string }, successUrl: string, cancelUrl: string, hashSecret: string) {
     const stripeIdempotencyKey = `donation_${safeIdentity(hashSecret, operation)}`;
     let opening: PersistedDonationOpening;
     try {
       opening = await this.repository.createIntent({
+        ownerId,
         intentKeyHash: createHash('sha256').update(intent).digest('hex'),
         amount: parsed.amount,
         operationKeyHash: safeIdentity(hashSecret, operation),
@@ -119,7 +121,8 @@ export class CreateDonation {
         cancelUrl,
       });
     } catch (error) {
-      if (error instanceof DonationOperationConflictError) throw error;
+      if (error instanceof DonationOperationConflictError || error instanceof DonationIntentTakenError
+        || error instanceof DonationOwnerNotFoundError) throw error;
       throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' });
     }
 

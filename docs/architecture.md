@@ -1,8 +1,8 @@
 # Arquitetura do ContabiliNico
 
-**Versão:** 0.5.0 — contas e autenticação na API de doações
+**Versão:** 0.6.0 — papéis e dono do pedido
 
-**Última atualização:** 17/11/2026
+**Última atualização:** 18/11/2026
 
 Este documento liga o vocabulário do [PRD](prd.md), as [jornadas](user-flows.md)
 e o modelo de dados existente. A aplicação desktop continua processando XMLs,
@@ -200,7 +200,7 @@ eventos e auditoria existentes continuam no modelo físico.
 - **Execução de cálculo — `calculation_runs` (SQLite):** `id`, `documentId`, `previousRunId`, `engineVersion`, `status`.
 - **Resultado do item — `item_results` (SQLite):** `id`, `calculationRunId`, `itemId`, `taxRuleId`, `calculatedValues`, `calculationMemory`.
 - **Pendência — `issues` (SQLite):** `id`, `batchId`, `documentId`, `itemId`, `type`, `status`, `resolution`.
-- **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `amount`, `currency`, `status`, `createdAt`.
+- **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `userId` (dono, opcional), `amount`, `currency`, `status`, `createdAt`.
 - **Pagamento — `payments` (PostgreSQL):** `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt`.
 - **Usuário — `users` (PostgreSQL):** `id`, `email`, `passwordHash`, `role` (`SUPPORTER` ou `ADMIN`), `createdAt`.
 
@@ -403,13 +403,20 @@ config:
     fontSize: 16
 ---
 erDiagram
+    USERS |o--o{ DONATION_ORDERS : faz
     DONATION_ORDERS ||--o{ PAYMENTS : recebe
     PAYMENTS ||--o{ DONATION_OPERATIONS : origina
     DONATION_OPERATIONS ||--o| DONATION_OPENING_RESERVATIONS : reserva
     PAYMENTS ||--o{ PAYMENT_EVENTS : registra
 
+    USERS {
+        uuid id PK
+        string email UK
+        enum role
+    }
     DONATION_ORDERS {
         uuid id PK
+        uuid userId FK "opcional"
         string intentKeyHash UK
         numeric amount
         enum currency
@@ -453,10 +460,11 @@ erDiagram
 - **`DONATION_OPENING_RESERVATIONS`:** reserva única por pedido enquanto um Checkout está sendo aberto, evitando duas aberturas concorrentes.
 - **`PAYMENT_EVENTS`:** histórico de mudanças da tentativa; `stripeEventId` único deduplica webhooks repetidos.
 
-### Contas e autenticação (US10)
+### Contas, papéis e dono do pedido (US10 e US11)
 
 ```mermaid
 erDiagram
+    USERS |o--o{ DONATION_ORDERS : faz
     USERS {
         uuid id PK
         string email UK
@@ -464,10 +472,17 @@ erDiagram
         enum role
         timestamp createdAt
     }
+    DONATION_ORDERS {
+        uuid id PK
+        uuid userId FK "opcional"
+    }
 ```
 
-`USERS` ainda não se liga a `DONATION_ORDERS`; a relação 1:N (um usuário, muitos
-pedidos) e a regra de dono chegam na US11.
+Um usuário tem muitos pedidos; cada pedido é de no máximo um usuário. O dono é
+opcional porque a tabela já tinha pedidos quando o login chegou: a migration da
+US11 acrescentou `user_id` sem `NOT NULL`, sem valor padrão e sem apagar nada,
+e a chave estrangeira não apaga em cascata. Pedidos antigos ficam sem dono e só
+aparecem na lista do administrador.
 
 | Decisão | Escolha e motivo |
 | --- | --- |
@@ -476,7 +491,12 @@ pedidos) e a regra de dono chegam na US11.
 | Segredo | `JWT_SECRET` via `ConfigModule` e `JwtModule.registerAsync`, sem valor de reserva; com menos de 32 caracteres a API não sobe. |
 | Tranca | `AuthGuard` global (`APP_GUARD`), seguro por padrão. Públicas, uma a uma com `@Public()`: `POST /auth/register`, `POST /auth/login`, `GET /`, `POST /webhooks/stripe` (provado pela assinatura do Stripe) e `GET /donations/return`. Um teste percorre as rotas registradas e falha se aparecer outra rota aberta. |
 | Login | Mesma resposta 401 para e-mail inexistente e senha errada; o e-mail inexistente compara a senha com um hash fictício de mesmo custo, para o tempo não denunciar a diferença. |
-| Papéis | `SUPPORTER` em todo cadastro (o DTO não aceita `role`); `ADMIN` só por alteração manual no banco. Se `ADMIN` passa em `@Roles(SUPPORTER)` é decisão da US11. |
+| Papéis | `SUPPORTER` em todo cadastro (o DTO não aceita `role`); `ADMIN` só por alteração manual no banco, sem rota de promoção. |
+| Dois Guards | `AuthGuard` e depois `RolesGuard`, nessa ordem na lista de `APP_GUARD`: primeiro "quem é você" (401), depois "você pode" (403). Numa rota com `@Roles` sem usuário anexado, o `RolesGuard` responde 403, nunca 500. |
+| `@Roles` e o ADMIN | A comparação é exata: `@Roles('ADMIN')` só deixa passar ADMIN, e `ADMIN` **não** passa em `@Roles('SUPPORTER')`. Nenhuma rota usa `@Roles('SUPPORTER')`: as de doação não exigem papel (qualquer pessoa autenticada) e são protegidas pela regra de dono; por isso o administrador também doa. |
+| Dono | O dono vem do `sub` do token, nunca do corpo. Consultar, ver o pedido atual e retomar filtram por `user_id` na mesma consulta da chave de intenção. Pedido de outra pessoa responde 404, igual a inexistente, para não revelar que ele existe; o 403 é reservado ao papel. Chave de intenção de outra pessoa na criação responde 409, sem dados do pedido. |
+| Papel no token | O papel viaja no token: rebaixar um ADMIN só vale quando o token dele expira (até 2 h). Consultar o banco a cada requisição daria efeito imediato, mas devolveria à API a dependência do banco em toda chamada; para este projeto, a validade curta resolve. |
+| Menu | O desktop recebe `{ email, role }` e só mostra "Doações recebidas" para ADMIN. Esconder é conveniência; quem protege é o `RolesGuard`. Um 403 na tela mostra a mensagem de permissão e não derruba a sessão. |
 
 ### Como as regras aparecem nos dados
 
@@ -486,6 +506,7 @@ pedidos) e a regra de dono chegam na US11.
 - US06: `file_occurrences.contentHash` identifica repetições e conteúdos conflitantes sem apagar ocorrências.
 - RN-036 a RN-039: `donation_orders.status`, `payments.status` e a relação 1:N permitem recusa e nova tentativa sem confundir intenção com confirmação.
 - RN-040: `users.password_hash` guarda só o hash; `users.role` tem padrão `SUPPORTER` no banco.
+- RN-042: `donation_orders.user_id` (opcional, com FK sem cascata) liga o pedido ao dono; as consultas do apoiador filtram por ele.
 
 As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
@@ -500,3 +521,4 @@ modelo fiscal detalhado e suas restrições permanecem em
 | Data | Versão | O que mudou |
 | :--- | :--- | :--- |
 | 17/11/2026 | 0.5.0 | Contas e autenticação na API (US10): `users`, JWT de 2 h, Guard global, rotas públicas explícitas e token guardado no processo main do desktop |
+| 18/11/2026 | 0.6.0 | Papéis e dono do pedido (US11): `RolesGuard` depois do `AuthGuard`, comparação exata de papel, `donation_orders.user_id` (1:N), 404 para pedido de outra pessoa e menu por papel |

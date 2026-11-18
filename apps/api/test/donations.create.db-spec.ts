@@ -12,14 +12,17 @@ import { PrismaDonationRepository } from '../src/donations/adapters/prisma/prism
 import { StripeCheckoutAdapter } from '../src/donations/adapters/stripe/stripe-checkout.adapter.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
-import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
+import { DONATION_CREATION_REPOSITORY, DonationIntentTakenError, DonationOwnerNotFoundError } from '../src/donations/ports/donation-creation-repository.js';
 import { DonationOperationConflictError } from '../src/donations/ports/donation-creation-repository.js';
-import { authorization } from './support/auth.js';
+import { authorization, testToken } from './support/auth.js';
+import { createDbUser } from './support/db-users.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
 
 const pool = new Pool({ connectionString, connectionTimeoutMillis: 3000 });
+// Dono real dos pedidos criados nestes testes (a FK de donation_orders.user_id exige que ele exista).
+const owner = await createDbUser(pool);
 const client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 const orderIds: string[] = [];
 
@@ -44,7 +47,7 @@ describe('reserva durável de operação idempotente', () => {
   it('retorna a mesma tentativa e snapshot após configuração mudar e rejeita fingerprint divergente', async () => {
     const repository = new PrismaDonationCreationRepository(client);
     const input = {
-      intentKeyHash: randomUUID().replaceAll('-', ''), operationKeyHash: randomUUID().replaceAll('-', ''),
+      ownerId: owner.id, intentKeyHash: randomUUID().replaceAll('-', ''), operationKeyHash: randomUUID().replaceAll('-', ''),
       amount: '12.34', fingerprint: 'fp-1234', stripeIdempotencyKey: `donation_${randomUUID().replaceAll('-', '')}`,
       firstSentAt: new Date('2026-11-08T12:00:00.000Z'), amountInCents: '1234',
       successUrl: 'https://example.test/original-success', cancelUrl: 'https://example.test/original-cancel',
@@ -92,7 +95,7 @@ describe('Criação de doação com valor acima do limite DECIMAL(65,2)', () => 
 
     let failure: DonationCreationError | undefined;
     try {
-      await service.execute({ intent, operation }, { amount, currency: 'BRL' });
+      await service.execute({ intent, operation, ownerId: owner.id }, { amount, currency: 'BRL' });
     } catch (error) {
       if (error instanceof DonationCreationError) failure = error;
       else throw error;
@@ -182,7 +185,7 @@ describe('POST de criação com PostgreSQL real durante HTTP 503 do Stripe', () 
     try {
       const amount = '98765432109876543210.43';
       const response = await request(app.getHttpServer())
-        .post('/donation-orders').set(authorization())
+        .post('/donation-orders').set(authorization(testToken({ sub: owner.id })))
         .set('X-Donation-Intent', randomUUID())
         .set('Idempotency-Key', randomUUID())
         .send({ amount, currency: 'BRL' })
@@ -264,7 +267,7 @@ describe('confirmação concorrente durante a criação Stripe', () => {
       },
     );
 
-    await expect(service.execute({ intent: randomUUID(), operation: randomUUID() }, { amount: '12.34', currency: 'BRL' }))
+    await expect(service.execute({ intent: randomUUID(), operation: randomUUID(), ownerId: owner.id }, { amount: '12.34', currency: 'BRL' }))
       .rejects.toMatchObject({ code: 'result_uncertain' });
     expect(stripeCalls).toBe(1);
     expect(confirmationResult).toBe(true);
@@ -279,3 +282,48 @@ describe('confirmação concorrente durante a criação Stripe', () => {
     expect(events.rows.map((row) => row.to_status)).toEqual(['paga']);
   });
 });
+
+describe('dono do pedido no PostgreSQL (US11)', () => {
+  const opening = (ownerId: string, intentKeyHash = randomUUID().replaceAll('-', '')) => ({
+    ownerId, intentKeyHash, operationKeyHash: randomUUID().replaceAll('-', ''), amount: '5.00', fingerprint: 'fp-500',
+    stripeIdempotencyKey: `donation_${randomUUID().replaceAll('-', '')}`, firstSentAt: new Date(), amountInCents: '500',
+    successUrl: 'https://example.test/s', cancelUrl: 'https://example.test/c',
+  });
+
+  it('CA4: grava o dono no pedido', async () => {
+    const created = await new PrismaDonationCreationRepository(client).createIntent(opening(owner.id));
+    orderIds.push(created.orderId);
+    const { rows } = await pool.query('SELECT user_id::text FROM donation_orders WHERE id = $1::uuid', [created.orderId]);
+    expect(rows).toEqual([{ user_id: owner.id }]);
+  });
+
+  it('CA6: a chave de intenção de outra pessoa é recusada, mesmo com outra operação, e nada é criado', async () => {
+    const repository = new PrismaDonationCreationRepository(client);
+    const other = await createDbUser(pool);
+    const input = opening(owner.id);
+    const created = await repository.createIntent(input);
+    orderIds.push(created.orderId);
+
+    await expect(repository.createIntent({ ...opening(other.id, input.intentKeyHash) })).rejects.toBeInstanceOf(DonationIntentTakenError);
+    // Mesmo repetindo a operação de quem é dono, outra pessoa não recebe o pedido.
+    await expect(repository.createIntent({ ...input, ownerId: other.id })).rejects.toBeInstanceOf(DonationIntentTakenError);
+    const { rows } = await pool.query('SELECT count(*)::int AS count FROM donation_orders WHERE intent_key_hash = $1', [input.intentKeyHash]);
+    expect(rows[0].count).toBe(1);
+  });
+
+  it('CA7: a chave de um pedido antigo, sem dono, não é tomada por ninguém', async () => {
+    const intentKeyHash = `antigo-${randomUUID()}`;
+    const { rows } = await pool.query(`INSERT INTO donation_orders (intent_key_hash, amount) VALUES ($1, 3) RETURNING id::text`, [intentKeyHash]);
+    orderIds.push(rows[0].id);
+    await expect(new PrismaDonationCreationRepository(client).createIntent(opening(owner.id, intentKeyHash)))
+      .rejects.toBeInstanceOf(DonationIntentTakenError);
+  });
+
+  it('dono do token que não existe mais no banco é recusado com erro próprio, sem criar nada', async () => {
+    const input = opening(randomUUID());
+    await expect(new PrismaDonationCreationRepository(client).createIntent(input)).rejects.toBeInstanceOf(DonationOwnerNotFoundError);
+    const { rows } = await pool.query('SELECT count(*)::int AS count FROM donation_orders WHERE intent_key_hash = $1', [input.intentKeyHash]);
+    expect(rows[0].count).toBe(0);
+  });
+});
+

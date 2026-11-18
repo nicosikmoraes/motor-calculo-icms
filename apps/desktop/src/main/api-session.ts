@@ -74,10 +74,14 @@ export function createApiSession({ baseUrl, onExpired, fetchImpl = fetch }: ApiS
     // Confirma o token novo antes de adotá-lo: até aqui, a sessão anterior (se houver) continua intacta,
     // e uma falha no meio do login não deixa token de uma pessoa com o nome de outra, nem vira "sessão expirada".
     const me = await send('/auth/me', {}, accessToken)
-    const confirmed = (me.body as Envelope)?.data?.email
-    if (me.status !== 200 || typeof confirmed !== 'string') throw new Error('Não foi possível entrar agora. Tente novamente mais tarde.')
+    const confirmed = (me.body as Envelope)?.data
+    const confirmedEmail = confirmed?.email
+    const role = confirmed?.role
+    if (me.status !== 200 || typeof confirmedEmail !== 'string' || (role !== 'SUPPORTER' && role !== 'ADMIN')) {
+      throw new Error('Não foi possível entrar agora. Tente novamente mais tarde.')
+    }
     token = accessToken
-    session = { email: confirmed }
+    session = { email: confirmedEmail, role }
     return { ...session }
   }
 

@@ -1,4 +1,6 @@
 export interface NewDonationIntent {
+  /** Dono do pedido: o `sub` do token de quem chama, nunca um campo do corpo (US11). */
+  ownerId: string;
   intentKeyHash: string;
   amount: string;
   operationKeyHash: string;
@@ -30,9 +32,20 @@ export class DonationOperationConflictError extends Error {
   constructor() { super('A identidade da operação já foi usada com parâmetros diferentes'); }
 }
 
+/** A chave de intenção já pertence a um pedido de outra pessoa (ou a um pedido antigo, sem dono). */
+export class DonationIntentTakenError extends Error {
+  constructor() { super('Esta chave de intenção já pertence a outro pedido'); }
+}
+
+/** O dono do token não existe mais no banco (ex.: banco recriado): é um problema de autenticação, não de serviço. */
+export class DonationOwnerNotFoundError extends Error {
+  constructor() { super('Dono do pedido não encontrado'); }
+}
+
 export interface DonationCreationRepository {
   createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening>;
-  getOrderIdByIntentHash(intentKeyHash: string): Promise<string | null>;
+  /** Regra de dono (US11): só encontra pedidos de `ownerId`; pedido de outra pessoa ou sem dono é `null`. */
+  getOrderIdByIntentHash(intentKeyHash: string, ownerId: string): Promise<string | null>;
   recordCheckout(input: PersistedDonationOpening & {
     checkoutSessionId: string;
     paymentIntentId: string | null;
@@ -40,7 +53,7 @@ export interface DonationCreationRepository {
   }): Promise<void>;
   recordIndeterminate(input: PersistedDonationOpening & { reason: string }): Promise<void>;
   recordCreationFailure(input: PersistedDonationOpening & { reason: string }): Promise<void>;
-  getAuthorizedDonation(orderId: string, intentKeyHash: string): Promise<{
+  getAuthorizedDonation(orderId: string, intentKeyHash: string, ownerId: string): Promise<{
     orderId: string; amount: string; currency: 'BRL'; status: string;
     attempts: Array<{ paymentId: string; status: string; reason: string | null; checkoutSessionId: string | null;
       checkoutUrl: string | null; paymentIntentId: string | null; stripeIdempotencyKey: string;
@@ -50,7 +63,7 @@ export interface DonationCreationRepository {
   } | null>;
   markSessionExpired(input: { orderId: string; paymentId: string; sessionId: string }): Promise<void>;
   recordRetryExpirationFailure(input: { orderId: string; paymentId: string; sessionId: string }): Promise<void>;
-  createRetry(input: { orderId: string; intentKeyHash: string; currentPaymentId: string; currentStatus: string;
+  createRetry(input: { ownerId: string; orderId: string; intentKeyHash: string; currentPaymentId: string; currentStatus: string;
     operationKeyHash: string; fingerprint: string; stripeIdempotencyKey: string; firstSentAt: Date }): Promise<PersistedDonationOpening | null>;
 }
 

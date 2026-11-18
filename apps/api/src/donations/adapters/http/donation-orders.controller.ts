@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CreateDonation, DonationCreationError } from '../../application/create-donation.js';
-import { DonationOperationConflictError } from '../../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, DonationOwnerNotFoundError } from '../../ports/donation-creation-repository.js';
+import type { AuthenticatedUser } from '../../../auth/guard/authenticated-user.js';
+import { CurrentUser } from '../../../auth/guard/current-user.decorator.js';
 import { RetryDonation } from '../../application/retry-donation.js';
 import { ApiErrorEnvelopeDoc, CreateDonationRequestDoc, DonationOrderEnvelopeDoc } from './donation-api-docs.js';
 import {
@@ -23,7 +25,7 @@ const operationHeader = ApiHeader({
   required: true,
   description: 'Identidade da operação; repetir a mesma chave devolve o mesmo resultado',
 });
-const notFound = ApiResponse({ status: 404, description: 'Nenhum pedido para esta intenção', type: ApiErrorEnvelopeDoc });
+const notFound = ApiResponse({ status: 404, description: 'Nenhum pedido seu para esta intenção (pedido de outra pessoa responde igual)', type: ApiErrorEnvelopeDoc });
 const uncertain = ApiResponse({ status: 202, description: 'Situação do pagamento incerta; consulte o pedido antes de tentar de novo', type: DonationOrderEnvelopeDoc });
 const unavailable = ApiResponse({ status: 503, description: 'Serviço de doações indisponível', type: ApiErrorEnvelopeDoc });
 
@@ -42,8 +44,8 @@ export class DonationOrdersController {
   @notFound
   @uncertain
   @unavailable
-  current(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    return this.respond(response, () => this.retryDonation.inspectCurrent(request.header('X-Donation-Intent')));
+  current(@CurrentUser() caller: AuthenticatedUser, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    return this.respond(response, () => this.retryDonation.inspectCurrent(caller.sub, request.header('X-Donation-Intent')));
   }
 
   @Get(':id')
@@ -54,8 +56,8 @@ export class DonationOrdersController {
   @notFound
   @uncertain
   @unavailable
-  get(@Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    return this.respond(response, () => this.retryDonation.inspect(id, request.header('X-Donation-Intent')));
+  get(@CurrentUser() caller: AuthenticatedUser, @Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    return this.respond(response, () => this.retryDonation.inspect(caller.sub, id, request.header('X-Donation-Intent')));
   }
 
   @Post(':id/attempts')
@@ -69,9 +71,9 @@ export class DonationOrdersController {
   @ApiResponse({ status: 409, description: 'Idempotency-Key já usada em outra operação', type: ApiErrorEnvelopeDoc })
   @uncertain
   @unavailable
-  retry(@Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+  retry(@CurrentUser() caller: AuthenticatedUser, @Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
     return this.respond(response, () =>
-      this.retryDonation.retry(id, request.header('X-Donation-Intent'), request.header('Idempotency-Key')));
+      this.retryDonation.retry(caller.sub, id, request.header('X-Donation-Intent'), request.header('Idempotency-Key')));
   }
 
   @Post()
@@ -83,15 +85,16 @@ export class DonationOrdersController {
   } })
   @ApiResponse({ status: 201, description: 'Pedido criado, com a URL do Checkout', type: DonationOrderEnvelopeDoc })
   @ApiResponse({ status: 200, description: 'Mesma operação repetida: devolve o pedido já criado', type: DonationOrderEnvelopeDoc })
-  @ApiResponse({ status: 409, description: 'Idempotency-Key já usada com outro valor', type: ApiErrorEnvelopeDoc })
+  @ApiResponse({ status: 409, description: 'Idempotency-Key já usada com outro valor, ou chave de intenção que pertence a outro pedido', type: ApiErrorEnvelopeDoc })
   @ApiResponse({ status: 422, description: 'Valor ou moeda inválidos, ou valor recusado pelo Stripe (VALOR_NAO_ACEITO)', type: ApiErrorEnvelopeDoc })
   @uncertain
   @unavailable
-  create(@Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+  create(@CurrentUser() caller: AuthenticatedUser, @Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
     return this.respond(response, async () => {
       const result = await this.createDonation.execute({
         intent: request.header('X-Donation-Intent'),
         operation: request.header('Idempotency-Key'),
+        ownerId: caller.sub,
       }, body);
       response.status(result.replayed ? HttpStatus.OK : HttpStatus.CREATED);
       return result.donation;
@@ -117,6 +120,9 @@ export class DonationOrdersController {
   private failure(error: unknown): never {
     if (error instanceof DonationOrderNotFoundError) throw error;
     if (error instanceof DonationOperationConflictError) throw new DonationOperationReusedError(error.message);
+    // Sem dados do pedido existente: dizer de quem é ou quanto vale vazaria o pedido de outra pessoa.
+    if (error instanceof DonationIntentTakenError) throw new DonationOperationReusedError(error.message);
+    if (error instanceof DonationOwnerNotFoundError) throw new UnauthorizedException('Não autenticado');
     if (error instanceof DonationCreationError) {
       if (error.code === 'invalid_input') {
         throw new InvalidDonationRequestError(error.message, typeof error.details.field === 'string' ? error.details.field : undefined);

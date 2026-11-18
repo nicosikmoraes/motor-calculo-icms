@@ -30,6 +30,7 @@ describe('Documento OpenAPI', () => {
     ['/donation-orders/current', 'get'],
     ['/donation-orders/{id}', 'get'],
     ['/donation-orders/{id}/attempts', 'post'],
+    ['/admin/donation-orders', 'get'],
   ] as const)('%s (%s) aparece com cadeado', (path, method) => {
     expect(security(path, method)).toEqual([{ bearer: [] }]);
   });
@@ -48,4 +49,10 @@ describe('Documento OpenAPI', () => {
   it('documenta o 401 das rotas protegidas', () => {
     expect(document.paths['/donation-orders/current'].get?.responses['401']).toBeDefined();
   });
+
+  it('CA11: a rota de administrador documenta 401 e 403', () => {
+    const responses = document.paths['/admin/donation-orders'].get?.responses ?? {};
+    expect(Object.keys(responses)).toEqual(expect.arrayContaining(['200', '401', '403']));
+  });
 });
+

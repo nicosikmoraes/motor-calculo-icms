@@ -5,9 +5,12 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import type { WorkspaceState } from '@motor/contracts'
 import OnboardingView from './views/OnboardingView.vue'
 import AppIcon from './components/AppIcon.vue'
+import { authSession, canSeeReceivedDonations, currentSession } from './services/auth'
 
 const route = useRoute()
 const toolsSelected = computed(() => ['/transferencia', '/backup', '/auditoria', '/perfis', '/regras', '/conflitos-notas', '/revisao-documental'].includes(route.path))
+
+const showReceivedDonations = computed(() => canSeeReceivedDonations(authSession.value))
 
 const version = ref('')
 const workspace = ref<WorkspaceState | null>(null)
@@ -26,6 +29,7 @@ onMounted(async () => {
   await Promise.all([
     window.desktopApi.getVersion().then((value) => { version.value = value }),
     loadWorkspace(),
+    currentSession().catch(() => null),
   ])
 })
 </script>
@@ -55,6 +59,7 @@ onMounted(async () => {
         <RouterLink to="/lotes"><AppIcon name="history" />Histórico de lotes</RouterLink>
         <RouterLink to="/conferencia-mensal"><AppIcon name="calendar" />Conferência mensal</RouterLink>
         <RouterLink to="/apoio"><AppIcon name="briefcase" />Apoiar o projeto</RouterLink>
+        <RouterLink v-if="showReceivedDonations" to="/admin/doacoes"><AppIcon name="archive" />Doações recebidas</RouterLink>
         <RouterLink class="sidebar-import" to="/lotes/novo"><AppIcon name="plus" />Importar notas</RouterLink>
       </nav></div>
 
