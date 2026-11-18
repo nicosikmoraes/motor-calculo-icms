@@ -67,7 +67,7 @@ describe('Fronteira entre o desktop fiscal e a API', () => {
     expect(violations).toEqual([]);
   });
 
-  it('limita o schema Prisma à persistência de doações com migration versionada', () => {
+  it('limita o schema Prisma à persistência de doações e de usuários, com migration versionada', () => {
     const schema = readFileSync(join(apiRoot, 'prisma/schema.prisma'), 'utf8');
     const entities = [...schema.matchAll(/^\s*((?:model|view)\s+\w+)/gm)].map((match) => match[1]);
     expect(entities.sort()).toEqual([
@@ -76,6 +76,7 @@ describe('Fronteira entre o desktop fiscal e a API', () => {
       'model DonationOrder',
       'model Payment',
       'model PaymentEvent',
+      'model User',
     ]);
     const migrations = join(apiRoot, 'prisma/migrations');
     expect(readdirSync(migrations).some((name) => existsSync(join(migrations, name, 'migration.sql'))))
