@@ -11,8 +11,9 @@ divergências com rastreabilidade.
 ## Estado do projeto
 
 O desktop processa documentos fiscais localmente. A API atende contas de
-apoiador, login, permissões e doações com Stripe em ambiente de teste. As
-histórias US09, US10 e US11 e seus critérios de aceite estão no
+apoiador, login, permissões e doações com Stripe em ambiente de teste. A API
+também permite guardar e descartar rascunhos antes de abrir o checkout. As
+histórias US09 a US12 e seus critérios de aceite estão no
 [PRD](docs/prd.md).
 
 - [Protótipo público — cinco telas com dados fictícios](https://contabilinico-prototipo.balmygrove128.chatgpt.site)

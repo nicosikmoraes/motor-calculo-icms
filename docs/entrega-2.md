@@ -5,22 +5,20 @@ do pedido) e US12 (CRUD de rascunhos de doação). As quatro estão na `main`.
 A [PR da US12](https://github.com/nicosikmoraes/motor-calculo-icms/pull/58) registra a integração. Os links de código
 apontam para a tag `entrega-2`.
 
+As quatro histórias estão em `Done` no
+[Kanban público](https://github.com/users/nicosikmoraes/projects/2).
+
 ## Conferência do ambiente
 
-- Clone novo da `main` em `7d7220b`. Dependências instaladas com Node 24.21.0
-  e pnpm 10.32.1 via `pnpm install --frozen-lockfile`.
-- Nesta máquina, o banco descartável foi PostgreSQL 18 nativo. Aplicaram-se as
-  cinco migrations, e passaram a validação do schema, a geração do cliente,
-  a verificação do banco, o build e o lint. A esteira da PR #56 também passou
-  no ambiente PostgreSQL 16 em contêiner.
-- Suítes locais da API no clone inicial: **23 testes unitários, 133 HTTP e 41 de
-  persistência** aprovados. Na US12, passaram **23 testes unitários, 134 HTTP
-  e 46 de persistência**. Confirme o roteiro com Docker Compose antes de fixar
-  a entrega.
-- API compilada: Swagger com 11 caminhos e Bearer JWT. Cadastro válido
-  retornou 201, cadastro inválido retornou 400 e o login retornou token.
-  `GET /auth/me` retornou 401 sem token e 200 com token. A listagem
-  administrativa retornou 403 para apoiador e 200 para ADMIN.
+- [Quick Start em clone limpo com Docker Compose](https://github.com/nicosikmoraes/motor-calculo-icms/actions/runs/44390968842).
+  A conferência usou Node 24, pnpm 10.32.1 e PostgreSQL 16, com instalação
+  pelo lockfile, as seis migrations aplicadas, schema verificado e Nest em
+  modo de desenvolvimento.
+- O Swagger apresentou Bearer JWT e as rotas de rascunho. A conferência HTTP
+  verificou cadastro, login, recusas 400/401/403 e as operações CRUD, incluindo
+  exclusão 204, consulta posterior 404 e dois rascunhos da mesma conta.
+- Passaram **23 testes unitários, 134 HTTP e 46 de persistência**, além
+  do lint. Também houve validação local com PostgreSQL 18 nativo.
 
 ## Mapa dos 12 indicadores
 
@@ -43,7 +41,7 @@ apontam para a tag `entrega-2`.
 
 1. **API rodando.** Tag e quadro, PostgreSQL e API iniciados, Swagger,
    login e Authorize, relação 1:N, exemplos 400, 401 e 403 e suíte verde.
-2. **Histórico.** Spec e plano da US10 ou US11, teste de persistência e
+2. **Histórico.** Spec e plano da US12, teste de persistência e
    registro RED/GREEN da US12 e triagem do teste de PATCH inválido.
 3. **Defesa.** Anuncie cada ID. Explique com suas palavras o conceito, a
    escolha no projeto, o trecho de código e o que muda ao retirar esse trecho.
