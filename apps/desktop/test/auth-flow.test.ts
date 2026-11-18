@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopApi } from '@motor/contracts'
-import { afterSignIn, passwordProblem, requireSession, signIn, signOut } from '../src/renderer/services/auth'
+import { afterSignIn, passwordProblem, requireSession, sessionExpiredRedirect, signIn, signOut } from '../src/renderer/services/auth'
 
 const api = {
   signIn: vi.fn(), registerAccount: vi.fn(), signOut: vi.fn(), getAuthSession: vi.fn(), onSessionExpired: vi.fn(),
@@ -56,5 +56,17 @@ describe('CA12: "Apoiar o projeto" exige conta; o resto do aplicativo, não', ()
     expect(afterSignIn('https://exemplo.test')).toBe('/apoio')
     expect(afterSignIn('//exemplo.test')).toBe('/apoio')
     expect(afterSignIn('/entrar')).toBe('/apoio')
+    expect(afterSignIn('/Entrar?voltar=/apoio')).toBe('/apoio')
+  })
+})
+
+describe('CA14: sessão expirada', () => {
+  it('em /apoio, volta para entrar com o aviso e o caminho de volta', () => {
+    expect(sessionExpiredRedirect({ fullPath: '/apoio', matched: [{ meta: { requiresSession: true } }] }))
+      .toEqual({ path: '/entrar', query: { voltar: '/apoio', motivo: 'expirada' } })
+  })
+
+  it('numa tela fiscal, não interrompe quem está trabalhando', () => {
+    expect(sessionExpiredRedirect({ fullPath: '/empresas', matched: [{ meta: {} }] })).toBeNull()
   })
 })

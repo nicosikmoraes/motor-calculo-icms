@@ -120,6 +120,31 @@ describe('sessão da API no processo main', () => {
     await expect(session.register('ana@example.test', 'senha-certa')).rejects.toThrow('Já existe uma conta com este e-mail. Entre com ela.')
   })
 
+  it('troca de conta é atômica: se a confirmação falha, a sessão anterior fica inteira e nada vira "sessão expirada"', async () => {
+    const onExpired = vi.fn()
+    const loginB = { status: 200, body: { data: { accessToken: 'token-de-b', tokenType: 'Bearer', expiresIn: 7200 } } }
+    const replies: Array<Reply | Error> = [loginOk, meOk, loginB, new Error('fetch failed'), loginB, { status: 401 }, { status: 200, body: { data: {} } }]
+    const sent: Headers[] = []
+    const fetchImpl = vi.fn(async (_input: URL | string, init: RequestInit = {}) => {
+      sent.push(new Headers(init.headers))
+      const reply = replies.shift()!
+      if (reply instanceof Error) throw reply
+      return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), { status: reply.status })
+    }) as unknown as typeof fetch
+    const session = createApiSession({ baseUrl: base, fetchImpl, onExpired })
+    await session.signIn('ana@example.test', 'senha-certa')
+
+    await expect(session.signIn('bia@example.test', 'senha-da-bia')).rejects.toThrow('fetch failed')
+    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    await expect(session.signIn('bia@example.test', 'senha-da-bia')).rejects.toThrow('Não foi possível entrar agora')
+    expect(session.current()).toEqual({ email: 'ana@example.test' })
+    expect(onExpired).not.toHaveBeenCalled()
+
+    // As chamadas seguintes continuam saindo com o token de quem aparece na tela.
+    await session.request('/donation-orders/current', {})
+    expect(sent.at(-1)!.get('Authorization')).toBe('Bearer header.payload.assinatura')
+  })
+
   it('sair descarta o token', async () => {
     const { fetchImpl } = fakeApi(loginOk, meOk)
     const session = createApiSession({ baseUrl: base, fetchImpl, onExpired: vi.fn() })

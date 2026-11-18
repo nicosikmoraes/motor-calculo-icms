@@ -29,7 +29,7 @@ export const router = createRouter({
     { path: '/conferencia-mensal', component: MonthlyConferenceView },
     { path: '/backup', component: BackupView },
     // Só o que usa a API pede conta; o fluxo fiscal é local e continua aberto.
-    { path: '/apoio', component: SupportProjectView, beforeEnter: requireSession },
+    { path: '/apoio', component: SupportProjectView, beforeEnter: requireSession, meta: { requiresSession: true } },
     { path: '/entrar', component: SignInView },
     { path: '/', component: DashboardView },
     { path: '/empresas', component: CompaniesView },

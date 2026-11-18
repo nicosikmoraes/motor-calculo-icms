@@ -71,13 +71,12 @@ export function createApiSession({ baseUrl, onExpired, fetchImpl = fetch }: ApiS
     const accessToken = (login.body as Envelope)?.data?.accessToken
     if (typeof accessToken !== 'string' || !accessToken) throw new Error('Não foi possível entrar agora. Tente novamente mais tarde.')
 
-    token = accessToken
-    const me = await request('/auth/me', {})
+    // Confirma o token novo antes de adotá-lo: até aqui, a sessão anterior (se houver) continua intacta,
+    // e uma falha no meio do login não deixa token de uma pessoa com o nome de outra, nem vira "sessão expirada".
+    const me = await send('/auth/me', {}, accessToken)
     const confirmed = (me.body as Envelope)?.data?.email
-    if (me.status !== 200 || typeof confirmed !== 'string') {
-      clear()
-      throw new Error('Não foi possível entrar agora. Tente novamente mais tarde.')
-    }
+    if (me.status !== 200 || typeof confirmed !== 'string') throw new Error('Não foi possível entrar agora. Tente novamente mais tarde.')
+    token = accessToken
     session = { email: confirmed }
     return { ...session }
   }
@@ -85,7 +84,7 @@ export function createApiSession({ baseUrl, onExpired, fetchImpl = fetch }: ApiS
   async function register(email: string, password: string): Promise<AuthSession> {
     const created = await send('/auth/register', jsonPost({ email, password }), null)
     if (created.status === 409) throw new Error('Já existe uma conta com este e-mail. Entre com ela.')
-    if (created.status === 400) throw new Error('Use um e-mail válido e uma senha de 8 a 72 caracteres.')
+    if (created.status === 400) throw new Error('Use um e-mail válido e uma senha de 8 a 72 caracteres (letras acentuadas contam como 2).')
     if (created.status !== 201) throw new Error('Não foi possível criar a conta agora. Tente novamente mais tarde.')
     return signIn(email, password)
   }

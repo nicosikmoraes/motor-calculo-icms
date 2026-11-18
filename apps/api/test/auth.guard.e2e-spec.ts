@@ -96,9 +96,22 @@ describe('Tranca global da API', () => {
       await http().get('/auth/me').set('Authorization', `Bearer ${tampered}`).expect(401);
     });
 
-    it('assinado com outro segredo', async () => {
-      const token = testToken({ sub: users.rows[0]?.id }, 'outro-segredo-qualquer-com-mais-de-32-caracteres');
+    it('assinado com outro segredo (recusado pelo Guard, antes de consultar o usuário)', async () => {
+      await signedIn();
+      const findById = vi.spyOn(users, 'findById');
+      const token = testToken({ sub: users.rows[0].id }, 'outro-segredo-qualquer-com-mais-de-32-caracteres');
       await http().get('/auth/me').set('Authorization', `Bearer ${token}`).expect(401);
+      // Rota protegida que não consulta usuário: o 401 só pode ter vindo da assinatura.
+      await http().get('/donation-orders/current').set('Authorization', `Bearer ${token}`).expect(401);
+      expect(findById).not.toHaveBeenCalled();
+    });
+
+    it('sem exp (um token eterno não é aceito, mesmo com a assinatura certa)', async () => {
+      await signedIn();
+      const findById = vi.spyOn(users, 'findById');
+      const eternal = new JwtService({ secret: process.env.JWT_SECRET }).sign({ sub: users.rows[0].id, role: 'SUPPORTER' });
+      await http().get('/auth/me').set('Authorization', `Bearer ${eternal}`).expect(401);
+      expect(findById).not.toHaveBeenCalled();
     });
 
     it('já expirado', async () => {

@@ -53,7 +53,7 @@ async function submit(): Promise<void> {
         <label for="sign-in-email">E-mail</label>
         <input id="sign-in-email" v-model="email" type="email" autocomplete="email" required maxlength="254" />
         <label for="sign-in-password">Senha</label>
-        <input id="sign-in-password" v-model="password" type="password" required maxlength="72"
+        <input id="sign-in-password" v-model="password" type="password" required maxlength="1024"
           :autocomplete="mode === 'entrar' ? 'current-password' : 'new-password'"
           :aria-describedby="mode === 'criar' ? 'password-help' : undefined" />
         <small v-if="mode === 'criar'" id="password-help">De 8 a 72 caracteres.</small>

@@ -31,7 +31,8 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Não autenticado');
     }
-    if (typeof payload.sub !== 'string' || typeof payload.role !== 'string' || !ROLES.has(payload.role)) {
+    // Sem exp o jsonwebtoken não confere validade nenhuma: um token assim seria eterno.
+    if (typeof payload.exp !== 'number' || typeof payload.sub !== 'string' || typeof payload.role !== 'string' || !ROLES.has(payload.role)) {
       throw new UnauthorizedException('Não autenticado');
     }
     request.user = { sub: payload.sub, role: payload.role as AuthenticatedUser['role'] };

@@ -49,6 +49,14 @@ export async function requireSession(to: { fullPath: string }): Promise<true | {
 /** Para onde ir depois de entrar: só caminhos internos, nunca a própria tela de entrar. */
 export function afterSignIn(voltar: unknown): string {
   const path = Array.isArray(voltar) ? voltar[0] : voltar
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/entrar')) return DEFAULT_AFTER_SIGN_IN
+  // O vue-router não diferencia maiúsculas: "/Entrar" também é a tela de entrar.
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.toLowerCase().startsWith('/entrar')) return DEFAULT_AFTER_SIGN_IN
   return path
+}
+
+/** Para onde levar a pessoa quando a sessão expira: só sai da tela atual se ela exige sessão. */
+export function sessionExpiredRedirect(current: { fullPath: string; matched: ReadonlyArray<{ meta: Record<string, unknown> }> }):
+  { path: string; query: { voltar: string; motivo: 'expirada' } } | null {
+  if (!current.matched.some((record) => record.meta.requiresSession)) return null
+  return { path: '/entrar', query: { voltar: current.fullPath, motivo: 'expirada' } }
 }

@@ -52,6 +52,14 @@ describe('POST /auth/login', () => {
     for (const [, hash] of compare.mock.calls) expect(hash).toMatch(/^\$2b\$/);
   });
 
+  it('senha com mais de 72 bytes não entra, mesmo começando pela senha cadastrada (o bcrypt ignoraria o resto)', async () => {
+    const longPassword = 'a'.repeat(72);
+    await request(app.getHttpServer()).post('/auth/register').send({ email: 'longa@example.test', password: longPassword }).expect(201);
+    await login({ email: 'longa@example.test', password: longPassword }).expect(200);
+    const response = await login({ email: 'longa@example.test', password: `${longPassword}QUALQUER` }).expect(401);
+    expect(response.body.error.message).toBe('E-mail ou senha inválidos');
+  });
+
   it.each([
     ['sem senha', { email: 'ana@example.test' }],
     ['e-mail que não é e-mail', { email: 'ana', password: 'senha-certa' }],
