@@ -1,4 +1,6 @@
 export interface NewDonationIntent {
+  /** Dono do pedido: o `sub` do token de quem chama, nunca um campo do corpo (US11). */
+  ownerId: string;
   intentKeyHash: string;
   amount: string;
   operationKeyHash: string;
@@ -28,6 +30,11 @@ export interface PersistedDonationOpening {
 
 export class DonationOperationConflictError extends Error {
   constructor() { super('A identidade da operação já foi usada com parâmetros diferentes'); }
+}
+
+/** A chave de intenção já pertence a um pedido de outra pessoa (ou a um pedido antigo, sem dono). */
+export class DonationIntentTakenError extends Error {
+  constructor() { super('Esta chave de intenção já pertence a outro pedido'); }
 }
 
 export interface DonationCreationRepository {

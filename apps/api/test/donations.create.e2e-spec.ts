@@ -5,7 +5,8 @@ import { AppModule } from '../src/app.module.js';
 import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-creation-repository.js';
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
-import { authorization } from './support/auth.js';
+import { authorization, testToken } from './support/auth.js';
+import { DonationIntentTakenError } from '../src/donations/ports/donation-creation-repository.js';
 
 const validSession = {
   id: 'cs_test_controlled',
@@ -268,5 +269,52 @@ describe('POST /donation-orders', () => {
     expect(sent.get('line_items[0][price_data][unit_amount]')).toBe('99999999999999999999999999999999999999999');
     expect(JSON.stringify(response.body)).not.toContain('raw detail');
     expect(controlled.callCount()).toBe(1);
+  });
+
+  describe('dono do pedido (US11)', () => {
+    const create = (token: string, intent = randomUUID(), operation = randomUUID(), body: object = { amount: '12.34', currency: 'BRL' }) =>
+      request(app.getHttpServer()).post('/donation-orders').set(authorization(token))
+        .set('X-Donation-Intent', intent).set('Idempotency-Key', operation).send(body);
+
+    it('CA4: grava como dono o sub do token', async () => {
+      const ownerId = randomUUID();
+      controlled.fail(new Error('socket closed'));
+      await create(testToken({ sub: ownerId }));
+      expect(donations.createIntent).toHaveBeenCalledWith(expect.objectContaining({ ownerId }));
+    });
+
+    it.each([['ownerId'], ['userId'], ['user_id']])('CA4: o corpo não define o dono (campo %s recebe 422 e nada é criado)', async (field) => {
+      await create(testToken(), randomUUID(), randomUUID(), { amount: '12.34', currency: 'BRL', [field]: randomUUID() }).expect(422);
+      expect(donations.createIntent).not.toHaveBeenCalled();
+    });
+
+    it('CA6: chave de intenção de outra pessoa recebe 409, sem dados do pedido dela e sem chamar o Stripe', async () => {
+      donations.createIntent.mockRejectedValueOnce(new DonationIntentTakenError());
+      const response = await create(testToken()).expect(409);
+      expect(response.body).toEqual({ error: { statusCode: 409, message: 'Esta chave de intenção já pertence a outro pedido' } });
+      expect(controlled.callCount()).toBe(0);
+    });
+
+    it('CA6: duas pessoas com a mesma chave ao mesmo tempo não compartilham a criação em andamento', async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      const first = donations.createIntent.getMockImplementation();
+      donations.createIntent
+        .mockImplementationOnce(async (input: Record<string, unknown>) => { await gate; return first(input); })
+        .mockImplementationOnce(async () => { throw new DonationIntentTakenError(); });
+      controlled.fail(new Error('socket closed'));
+      const [intent, operation] = [randomUUID(), randomUUID()];
+      const [ana, bia] = [randomUUID(), randomUUID()];
+
+      const fromAna = create(testToken({ sub: ana }), intent, operation).then((response) => response);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const fromBia = create(testToken({ sub: bia }), intent, operation).then((response) => response);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      release();
+
+      expect((await fromBia).status).toBe(409);
+      expect((await fromAna).status).not.toBe(409);
+      expect(donations.createIntent.mock.calls.map(([input]: [Record<string, unknown>]) => input.ownerId)).toEqual([ana, bia]);
+    });
   });
 });

@@ -2,7 +2,9 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req, Res } fr
 import { ApiBearerAuth, ApiBody, ApiHeader, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { CreateDonation, DonationCreationError } from '../../application/create-donation.js';
-import { DonationOperationConflictError } from '../../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError } from '../../ports/donation-creation-repository.js';
+import type { AuthenticatedUser } from '../../../auth/guard/authenticated-user.js';
+import { CurrentUser } from '../../../auth/guard/current-user.decorator.js';
 import { RetryDonation } from '../../application/retry-donation.js';
 import { ApiErrorEnvelopeDoc, CreateDonationRequestDoc, DonationOrderEnvelopeDoc } from './donation-api-docs.js';
 import {
@@ -83,15 +85,16 @@ export class DonationOrdersController {
   } })
   @ApiResponse({ status: 201, description: 'Pedido criado, com a URL do Checkout', type: DonationOrderEnvelopeDoc })
   @ApiResponse({ status: 200, description: 'Mesma operação repetida: devolve o pedido já criado', type: DonationOrderEnvelopeDoc })
-  @ApiResponse({ status: 409, description: 'Idempotency-Key já usada com outro valor', type: ApiErrorEnvelopeDoc })
+  @ApiResponse({ status: 409, description: 'Idempotency-Key já usada com outro valor, ou chave de intenção que pertence a outro pedido', type: ApiErrorEnvelopeDoc })
   @ApiResponse({ status: 422, description: 'Valor ou moeda inválidos, ou valor recusado pelo Stripe (VALOR_NAO_ACEITO)', type: ApiErrorEnvelopeDoc })
   @uncertain
   @unavailable
-  create(@Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
+  create(@CurrentUser() caller: AuthenticatedUser, @Req() request: Request, @Body() body: unknown, @Res({ passthrough: true }) response: Response) {
     return this.respond(response, async () => {
       const result = await this.createDonation.execute({
         intent: request.header('X-Donation-Intent'),
         operation: request.header('Idempotency-Key'),
+        ownerId: caller.sub,
       }, body);
       response.status(result.replayed ? HttpStatus.OK : HttpStatus.CREATED);
       return result.donation;
@@ -117,6 +120,8 @@ export class DonationOrdersController {
   private failure(error: unknown): never {
     if (error instanceof DonationOrderNotFoundError) throw error;
     if (error instanceof DonationOperationConflictError) throw new DonationOperationReusedError(error.message);
+    // Sem dados do pedido existente: dizer de quem é ou quanto vale vazaria o pedido de outra pessoa.
+    if (error instanceof DonationIntentTakenError) throw new DonationOperationReusedError(error.message);
     if (error instanceof DonationCreationError) {
       if (error.code === 'invalid_input') {
         throw new InvalidDonationRequestError(error.message, typeof error.details.field === 'string' ? error.details.field : undefined);

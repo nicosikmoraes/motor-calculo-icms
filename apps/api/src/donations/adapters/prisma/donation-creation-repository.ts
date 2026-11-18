@@ -1,5 +1,5 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
-import { DonationOperationConflictError, type DonationCreationRepository, type NewDonationIntent, type PersistedDonationOpening } from '../../ports/donation-creation-repository.js';
+import { DonationIntentTakenError, DonationOperationConflictError, type DonationCreationRepository, type NewDonationIntent, type PersistedDonationOpening } from '../../ports/donation-creation-repository.js';
 
 export class PrismaDonationCreationRepository implements DonationCreationRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -14,6 +14,11 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
   async createIntent(input: NewDonationIntent): Promise<PersistedDonationOpening> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.intentKeyHash}))`;
+      // Regra de dono (US11): a chave de intenção só serve a quem criou o pedido. Pedido antigo, sem dono, não é de ninguém.
+      const holder = await tx.$queryRaw<Array<{ ownerId: string | null }>>`
+        SELECT user_id::text AS "ownerId" FROM donation_orders WHERE intent_key_hash = ${input.intentKeyHash}
+      `;
+      if (holder[0] && holder[0].ownerId !== input.ownerId) throw new DonationIntentTakenError();
       const existing = await tx.$queryRaw<Array<{
         orderId: string; amount: string; currency: 'BRL'; paymentId: string; fingerprint: string;
         stripeIdempotencyKey: string; firstSentAt: Date | null; checkoutParameters: any; checkoutSessionId: string | null;
@@ -39,8 +44,8 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
           checkoutUrl: row.checkoutUrl, status: row.status };
       }
       const [order] = await tx.$queryRaw<Array<{ id: string; amount: string; currency: 'BRL' }>>`
-        INSERT INTO donation_orders (intent_key_hash, amount, currency)
-        VALUES (${input.intentKeyHash}, ${input.amount}::numeric, 'BRL')
+        INSERT INTO donation_orders (intent_key_hash, amount, currency, user_id)
+        VALUES (${input.intentKeyHash}, ${input.amount}::numeric, 'BRL', ${input.ownerId}::uuid)
         RETURNING id::text, amount::text, currency::text
       `;
       const payment = await tx.payment.create({

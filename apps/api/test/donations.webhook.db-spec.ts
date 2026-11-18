@@ -11,10 +11,13 @@ import { CreateDonation } from '../src/donations/application/create-donation.js'
 import { HandleStripeEvent } from '../src/donations/application/handle-stripe-event.js';
 import { RetryDonation } from '../src/donations/application/retry-donation.js';
 import { createHash } from 'node:crypto';
+import { createDbUser } from './support/db-users.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('Defina DATABASE_URL para o PostgreSQL descartável antes de executar test:db.');
 const pool = new Pool({ connectionString, connectionTimeoutMillis: 3000 });
+// Dono real dos pedidos criados nestes testes (a FK de donation_orders.user_id exige que ele exista).
+const owner = await createDbUser(pool);
 const orderIds: string[] = [];
 
 afterEach(async () => {
@@ -69,7 +72,7 @@ describe('Webhook de doação com PostgreSQL', () => {
     const handler = new HandleStripeEvent(repository, stripe);
     let pendingCreation: ReturnType<typeof create.execute> | undefined;
     try {
-      pendingCreation = create.execute({ intent: orderIdempotency, operation: operationKey }, { amount: '12.34', currency: 'BRL' });
+      pendingCreation = create.execute({ intent: orderIdempotency, operation: operationKey, ownerId: owner.id }, { amount: '12.34', currency: 'BRL' });
       await started;
       const persistedBeforeWebhook = await pool.query(
         `SELECT o.id::text AS order_id, p.id::text AS payment_id, o.status AS order_status, p.status AS payment_status
