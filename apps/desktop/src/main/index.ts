@@ -20,6 +20,7 @@ import { registerDocumentReviewHandlers } from './document-review-handlers'
 import { batchOperations, closeDatabase, openDatabase, requiredInputText } from './main-services'
 import { allowedDonationCheckoutUrl } from './donation-checkout'
 import { readDonationResponse, type DonationApiResult } from './donation-api'
+import { createApiSession } from './api-session'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | undefined
@@ -76,17 +77,38 @@ function registerIpcHandlers(): void {
     }
     return url
   }
-  const requestDonation = async (path: string, init: RequestInit): Promise<DonationApiResult> => {
-    try {
-      const response = await fetch(new URL(path, donationApi()), init)
-      let body: unknown = null
-      try { body = await response.json() } catch { /* Não propague corpo bruto do serviço. */ }
-      return readDonationResponse(response.status, path, body)
-    } catch (error) {
-      if (error instanceof Error && error.message !== 'fetch failed') throw error
-      throw new Error('Serviço de doações indisponível. Tente novamente mais tarde')
+  // Único ponto que conhece o token e o anexa às chamadas; um 401 no meio do uso avisa a janela.
+  const apiSession = createApiSession({
+    baseUrl: donationApi,
+    onExpired: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC_CHANNELS.AUTH_SESSION_EXPIRED)
+    },
+  })
+  const unavailable = <T>(action: () => Promise<T>): Promise<T> => action().catch((error: unknown) => {
+    if (error instanceof Error && error.message !== 'fetch failed') throw error
+    throw new Error('Serviço de doações indisponível. Tente novamente mais tarde')
+  })
+  const requestDonation = (path: string, init: RequestInit): Promise<DonationApiResult> => unavailable(async () => {
+    const response = await apiSession.request(path, init)
+    return readDonationResponse(response.status, path, response.body)
+  })
+  const credentials = (raw: unknown): { email: string; password: string } => {
+    const input = (raw && typeof raw === 'object' ? raw : {}) as { email?: unknown; password?: unknown }
+    if (typeof input.email !== 'string' || typeof input.password !== 'string' || input.email.length > 254 || input.password.length > 1024) {
+      throw new Error('Informe um e-mail válido e a senha.')
     }
+    return { email: input.email, password: input.password }
   }
+  ipcMain.handle(IPC_CHANNELS.AUTH_REGISTER, (_event, raw: unknown) => {
+    const { email, password } = credentials(raw)
+    return unavailable(() => apiSession.register(email, password))
+  })
+  ipcMain.handle(IPC_CHANNELS.AUTH_SIGN_IN, (_event, raw: unknown) => {
+    const { email, password } = credentials(raw)
+    return unavailable(() => apiSession.signIn(email, password))
+  })
+  ipcMain.handle(IPC_CHANNELS.AUTH_SIGN_OUT, () => { apiSession.signOut() })
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_SESSION, () => apiSession.current())
   const validIdentity = (value: unknown): value is string => typeof value === 'string' && value.length >= 16 && value.length <= 256
   ipcMain.handle(IPC_CHANNELS.GET_CURRENT_DONATION, async (_event, rawIntent: unknown) => {
     if (!validIdentity(rawIntent)) return null

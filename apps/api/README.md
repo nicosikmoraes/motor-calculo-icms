@@ -1,15 +1,15 @@
 # API do ContabiliNico
 
-Scaffold NestJS isolado, reservado ao serviço de doações e pagamentos.
-O `GET /` responde `Hello World!`. A API tem uma migration inicial para a
-persistência de doações. Ainda não há operações de pagamento, integração com
-gateway ou acesso a documentos fiscais.
+API NestJS isolada, reservada às contas de apoiador e ao serviço de doações e
+pagamentos pelo Stripe. Toda rota exige `Authorization: Bearer <token>`, exceto
+cadastro, login, `GET /`, o webhook do Stripe e a página de retorno do Checkout.
+Não há acesso a documentos fiscais.
 
 Este pacote pertence ao monorepo pnpm existente. Execute os comandos na raiz:
 
 ```bash
 pnpm install --frozen-lockfile
-cp apps/api/.env.example apps/api/.env
+cp apps/api/.env.example apps/api/.env   # e preencha JWT_SECRET (openssl rand -base64 48)
 pnpm db:up
 pnpm db:validate
 pnpm --filter @motor/api prisma:generate

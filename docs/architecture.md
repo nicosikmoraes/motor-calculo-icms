@@ -1,8 +1,8 @@
 # Arquitetura do ContabiliNico
 
-**Versão:** 0.4.0 — scaffold isolado da API de pagamentos
+**Versão:** 0.5.0 — contas e autenticação na API de doações
 
-**Última atualização:** 24/10/2026
+**Última atualização:** 17/11/2026
 
 Este documento liga o vocabulário do [PRD](prd.md), as [jornadas](user-flows.md)
 e o modelo de dados existente. A aplicação desktop continua processando XMLs,
@@ -141,28 +141,42 @@ compartilhado entre telas. Regras fiscais, cálculos e acesso a persistência
 continuam fora de componentes e stores.
 
 Electron mantém `contextIsolation` habilitado e Node.js indisponível no renderer.
-O preload expõe apenas operações IPC explicitamente tipadas. Para a futura doação, a
-interface usará um serviço Vue dedicado que conversará com a API; telas fiscais
-não receberão cliente ou credenciais do Stripe.
+O preload expõe apenas operações IPC explicitamente tipadas. A tela de doação usa
+serviços Vue dedicados (`services/donations.ts` e `services/auth.ts`); telas
+fiscais não recebem cliente da API nem credenciais do Stripe. Componentes não
+falam com o servidor: as chamadas HTTP saem do processo main.
+
+**Onde o token mora (US10).** O token JWT fica numa variável em memória do
+processo main (`apps/desktop/src/main/api-session.ts`), e não no `localStorage`
+do renderer. O motivo é o risco que o `localStorage` aceita: qualquer
+JavaScript que rode na página o lê, inclusive código injetado por XSS. Como as
+chamadas à API já saem do main, guardar o token ali não custa nada e o deixa
+fora do alcance do renderer, que só recebe `{ email }`. O preço é que fechar o
+aplicativo encerra a sessão. Esse mesmo módulo é o único que anexa
+`Authorization: Bearer` e que trata o 401 no meio do uso: descarta o token e
+avisa a janela, que volta para "entrar" com o aviso de sessão expirada. A
+proteção de verdade é o Guard da API; esconder a tela é conveniência.
 
 ## 5. Dados e ambientes
 
 Os dados fiscais e o histórico pertencem ao SQLite de cada instalação. O
-PostgreSQL é reservado a pedidos de doação e pagamentos e permanece vazio nesta
-etapa. Os dois armazenamentos não são mesclados nem sincronizados. Valores monetários são decimais exatos; o
+PostgreSQL é reservado às contas de apoiador, aos pedidos de doação e aos
+pagamentos. Os dois armazenamentos não são mesclados nem sincronizados. Valores monetários são decimais exatos; o
 estado `pago` só é confirmado por webhook válido. Uma repetição do evento não
 cria uma segunda confirmação.
 
 Ambientes da API:
 
 - **Local:** PostgreSQL 16 no Compose exclusivo `contabilinico-payments-dev`, em `127.0.0.1:5433`; `DATABASE_URL` em `apps/api/.env` fora do Git. Volume próprio, sem acesso ao SQLite fiscal do aplicativo.
-- **CI:** PostgreSQL 16 descartável no GitHub Actions; `DATABASE_URL` de teste é definida pelo workflow. Testes fazem conexão TCP e verificam a ausência de tabelas; a CLI Prisma também executa uma verificação sem alterar o banco.
+- **CI:** PostgreSQL 16 descartável no GitHub Actions; `DATABASE_URL` de teste é definida pelo workflow. Testes fazem conexão TCP e conferem que o schema contém só as tabelas esperadas (doações e `users`); a CLI Prisma também executa uma verificação sem alterar o banco.
 - **Produção planejada:** Neon, região São Paulo; `DATABASE_URL` em secret da plataforma. Sem deploy ou credencial de produção nesta atividade.
 
-O `.env.example` documenta a conexão descartável do Compose local. Credenciais
+O `.env.example` documenta a conexão descartável do Compose local e só o nome
+de `JWT_SECRET`; o valor real, gerado com `openssl rand -base64 48`, fica no
+`.env` fora do Git, e o CI usa um valor descartável próprio. Credenciais
 reais e futuras chaves do Stripe vivem fora do Git. `ConfigModule.forRoot({
 isGlobal: true })` carrega o ambiente da API; `dotenv` carrega o ambiente da CLI
-Prisma. Não existe migration nem `model` no schema desta etapa. XMLs, CNPJ,
+Prisma. XMLs, CNPJ,
 regras, memória de cálculo e relatórios fiscais nunca são enviados à API.
 
 ### Glossário técnico e modelo conceitual
@@ -188,13 +202,15 @@ eventos e auditoria existentes continuam no modelo físico.
 - **Pendência — `issues` (SQLite):** `id`, `batchId`, `documentId`, `itemId`, `type`, `status`, `resolution`.
 - **Pedido de doação — `donation_orders` (PostgreSQL):** `id`, `amount`, `currency`, `status`, `createdAt`.
 - **Pagamento — `payments` (PostgreSQL):** `id`, `donationOrderId`, `gatewayId`, `status`, `confirmedAt`.
+- **Usuário — `users` (PostgreSQL):** `id`, `email`, `passwordHash`, `role` (`SUPPORTER` ou `ADMIN`), `createdAt`.
 
 “Valor declarado” é um atributo do item; “memória de cálculo” é uma evidência do
 resultado; “resultado definitivo” é um estado e uma condição de elegibilidade.
 Nenhum deles precisa de uma entidade independente neste recorte. Reprocessamento
 é uma ação que cria outra `calculation_runs` vinculada à anterior. Cancelamentos
 documentais são eventos no modelo físico; não são uma entidade genérica de
-cancelamento de doação. O produto não cadastra usuários nem papéis no MVP.
+cancelamento de doação. O aplicativo fiscal não cadastra usuários nem papéis;
+só a API de doações tem contas (`users`) desde a US10.
 Pedido e pagamento permanecem separados porque um pedido pode receber nova
 tentativa sem apagar a recusa anterior; o estado definitivo depende do gateway.
 
@@ -437,6 +453,31 @@ erDiagram
 - **`DONATION_OPENING_RESERVATIONS`:** reserva única por pedido enquanto um Checkout está sendo aberto, evitando duas aberturas concorrentes.
 - **`PAYMENT_EVENTS`:** histórico de mudanças da tentativa; `stripeEventId` único deduplica webhooks repetidos.
 
+### Contas e autenticação (US10)
+
+```mermaid
+erDiagram
+    USERS {
+        uuid id PK
+        string email UK
+        string passwordHash
+        enum role
+        timestamp createdAt
+    }
+```
+
+`USERS` ainda não se liga a `DONATION_ORDERS`; a relação 1:N (um usuário, muitos
+pedidos) e a regra de dono chegam na US11.
+
+| Decisão | Escolha e motivo |
+| --- | --- |
+| Senha | Hash bcrypt de custo 12, salt próprio por hash; senha de 8 a 72 bytes porque o bcrypt ignora o que passa de 72. O campo se chama `passwordHash` e o repositório só o lê no login. |
+| Token | JWT HS256 com `sub` e `role`, válido por **2 horas**: curto o bastante para um papel rebaixado deixar de valer logo, longo o bastante para não derrubar quem está no meio do Checkout. Sem refresh token e sem revogação no servidor. |
+| Segredo | `JWT_SECRET` via `ConfigModule` e `JwtModule.registerAsync`, sem valor de reserva; com menos de 32 caracteres a API não sobe. |
+| Tranca | `AuthGuard` global (`APP_GUARD`), seguro por padrão. Públicas, uma a uma com `@Public()`: `POST /auth/register`, `POST /auth/login`, `GET /`, `POST /webhooks/stripe` (provado pela assinatura do Stripe) e `GET /donations/return`. Um teste percorre as rotas registradas e falha se aparecer outra rota aberta. |
+| Login | Mesma resposta 401 para e-mail inexistente e senha errada; o e-mail inexistente compara a senha com um hash fictício de mesmo custo, para o tempo não denunciar a diferença. |
+| Papéis | `SUPPORTER` em todo cadastro (o DTO não aceita `role`); `ADMIN` só por alteração manual no banco. Se `ADMIN` passa em `@Roles(SUPPORTER)` é decisão da US11. |
+
 ### Como as regras aparecem nos dados
 
 - RN-003 e RN-032: `includedInTotals` e `exclusionReason` impedem que uma nota pendente entre silenciosamente no resumo definitivo.
@@ -444,6 +485,7 @@ erDiagram
 - RN-035: `calculation_runs.previousRunId` liga o reprocessamento à execução anterior; `item_results.calculationMemory` conserva a evidência.
 - US06: `file_occurrences.contentHash` identifica repetições e conteúdos conflitantes sem apagar ocorrências.
 - RN-036 a RN-039: `donation_orders.status`, `payments.status` e a relação 1:N permitem recusa e nova tentativa sem confundir intenção com confirmação.
+- RN-040: `users.password_hash` guarda só o hash; `users.role` tem padrão `SUPPORTER` no banco.
 
 As tabelas reúnem os domínios conceituais; as tabelas fiscais ficam no SQLite
 local, enquanto `DONATION_ORDERS` e `PAYMENTS` ficam no PostgreSQL da API. O
@@ -454,3 +496,7 @@ modelo fiscal detalhado e suas restrições permanecem em
 
 
 ## 7. Histórico
+
+| Data | Versão | O que mudou |
+| :--- | :--- | :--- |
+| 17/11/2026 | 0.5.0 | Contas e autenticação na API (US10): `users`, JWT de 2 h, Guard global, rotas públicas explícitas e token guardado no processo main do desktop |

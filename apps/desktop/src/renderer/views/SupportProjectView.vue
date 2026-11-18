@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import type { DonationInputError, DonationOrderSummary } from '@motor/contracts'
 import { createDonation, loadCurrentDonation, openDonationCheckout, retryDonation, startNewDonationIntent } from '../services/donations'
+import { currentSession, signOut } from '../services/auth'
+import { desktopErrorMessage } from '../error-messages'
 import { donationCanRetry, donationCreatedNotice, donationRequiresNewIntent, donationStatusMessage } from '../donation-status'
 
+const router = useRouter()
+const signedInAs = ref('')
 const amount = ref('10,00')
 const donation = ref<DonationOrderSummary | null>(null)
 const busy = ref(false)
@@ -23,7 +28,7 @@ async function refresh(): Promise<void> {
   busy.value = true
   error.value = ''
   try { donation.value = await loadCurrentDonation() }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Serviço de doações indisponível. Tente novamente mais tarde' }
+  catch (cause) { error.value = desktopErrorMessage(cause, 'Serviço de doações indisponível. Tente novamente mais tarde') }
   finally { busy.value = false }
 }
 
@@ -39,7 +44,7 @@ async function submit(): Promise<void> {
     donation.value = result
     notice.value = donationCreatedNotice(donation.value.status)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível retomar o pagamento agora'
+    error.value = desktopErrorMessage(cause, 'Não foi possível retomar o pagamento agora')
   } finally { busy.value = false }
 }
 
@@ -54,7 +59,7 @@ async function retry(): Promise<void> {
     donation.value = await retryDonation(donation.value.orderId)
     notice.value = 'Tentativa atualizada. A situação do pedido vem do servidor.'
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Não foi possível retomar o pagamento agora'
+    error.value = desktopErrorMessage(cause, 'Não foi possível retomar o pagamento agora')
   } finally { busy.value = false }
 }
 
@@ -62,7 +67,7 @@ async function openCheckout(): Promise<void> {
   if (!checkoutUrl.value) return
   error.value = ''
   try { await openDonationCheckout(checkoutUrl.value) }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : 'Não foi possível abrir o Checkout' }
+  catch (cause) { error.value = desktopErrorMessage(cause, 'Não foi possível abrir o Checkout') }
 }
 
 function newIntent(): void {
@@ -74,13 +79,22 @@ function newIntent(): void {
   notice.value = 'Informe outra quantia para criar uma nova intenção de doação.'
 }
 
-onMounted(() => { void refresh() })
+async function leave(): Promise<void> {
+  await signOut()
+  await router.push('/entrar')
+}
+
+onMounted(() => {
+  void currentSession().then((session) => { signedInAs.value = session?.email ?? '' })
+  void refresh()
+})
 </script>
 
 <template>
   <section class="support-page">
     <p class="eyebrow">Apoio ao projeto</p>
     <h1>Apoiar o ContabiliNico</h1>
+    <p v-if="signedInAs" class="account">Conectado como <strong>{{ signedInAs }}</strong> · <button class="text-button" type="button" @click="leave">Sair</button></p>
     <p class="intro">Ajude a manter o desenvolvimento do aplicativo. O pagamento acontece em uma página segura do Stripe, no ambiente de testes.</p>
 
     <div class="support-card">
@@ -120,6 +134,8 @@ onMounted(() => { void refresh() })
 
 <style scoped>
 .support-page { max-width: 780px; margin: 0 auto; }
+.account { margin: 0 0 4px; color: #65738a; font-size: 14px; }
+.account .text-button { padding: 0; }
 h1 { margin: 8px 0; color: #172033; font-size: 34px; }
 .intro { max-width: 650px; color: #65738a; line-height: 1.65; }
 .support-card { margin-top: 28px; padding: 28px; border: 1px solid #dce3ed; border-radius: 16px; background: #fff; box-shadow: 0 12px 32px #18253a0b; }

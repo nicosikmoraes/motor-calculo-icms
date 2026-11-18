@@ -10,12 +10,13 @@ BEGIN
     'donation_operations',
     'donation_orders',
     'payment_events',
-    'payments'
+    'payments',
+    'users'
   ] OR EXISTS (
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public' AND table_type <> 'BASE TABLE'
   ) THEN
-    RAISE EXCEPTION 'O schema public deve conter apenas as tabelas de doação e o histórico de migrations.';
+    RAISE EXCEPTION 'O schema public deve conter apenas as tabelas de doação, de usuários e o histórico de migrations.';
   END IF;
 END
 $verify$;

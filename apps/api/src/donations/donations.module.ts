@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { CreateDonation } from './application/create-donation.js';
 import { HandleStripeEvent } from './application/handle-stripe-event.js';
@@ -17,18 +16,9 @@ import { DONATION_CREATION_REPOSITORY } from './ports/donation-creation-reposito
 import { DONATION_REPOSITORY } from './ports/donation-repository.js';
 import { STRIPE_CHECKOUT_GATEWAY, type StripeCheckoutGateway } from './ports/stripe-checkout-gateway.js';
 
-const prismaProvider = {
-  provide: PrismaClient,
-  inject: [ConfigService],
-  useFactory: (config: ConfigService) => new PrismaClient({
-    adapter: new PrismaPg({ connectionString: config.get<string>('DATABASE_URL') ?? 'postgresql://none:none@127.0.0.1:5433/none' }),
-  }),
-};
-
 @Module({
   controllers: [DonationOrdersController, StripeWebhookController, DonationsReturnController],
   providers: [
-    prismaProvider,
     { provide: DONATION_CREATION_REPOSITORY, inject: [PrismaClient],
       useFactory: (prisma: PrismaClient) => new PrismaDonationCreationRepository(prisma) },
     { provide: DONATION_REPOSITORY, inject: [PrismaClient],

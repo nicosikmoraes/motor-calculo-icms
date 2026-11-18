@@ -21,6 +21,15 @@ import {
 import { copyCreateBatchInput, copySelectedSources } from './serializable-inputs'
 
 const api: DesktopApi = {
+  registerAccount: (input) => ipcRenderer.invoke(IPC_CHANNELS.AUTH_REGISTER, { email: input.email, password: input.password }),
+  signIn: (input) => ipcRenderer.invoke(IPC_CHANNELS.AUTH_SIGN_IN, { email: input.email, password: input.password }),
+  signOut: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_SIGN_OUT) as Promise<void>,
+  getAuthSession: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_GET_SESSION),
+  onSessionExpired: (listener) => {
+    const handler = (): void => listener()
+    ipcRenderer.on(IPC_CHANNELS.AUTH_SESSION_EXPIRED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.AUTH_SESSION_EXPIRED, handler)
+  },
   getCurrentDonation: (intent) => ipcRenderer.invoke(IPC_CHANNELS.GET_CURRENT_DONATION, intent),
   createDonation: (input) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_DONATION, { ...input }),
   retryDonation: (input) => ipcRenderer.invoke(IPC_CHANNELS.RETRY_DONATION, { ...input }),

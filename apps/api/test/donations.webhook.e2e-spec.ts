@@ -8,6 +8,7 @@ import { DONATION_CREATION_REPOSITORY } from '../src/donations/ports/donation-cr
 import { STRIPE_CLIENT } from '../src/donations/adapters/stripe/stripe.tokens.js';
 import { createStripeClient } from '../src/donations/adapters/stripe/stripe-client.js';
 import { RetryDonation } from '../src/donations/application/retry-donation.js';
+import { authorization } from './support/auth.js';
 
 const webhookSecret = 'whsec_controlled';
 
@@ -112,7 +113,7 @@ describe('POST /webhooks/stripe', () => {
   it('integra criação, retorno pendente, webhook assinado e consulta do pedido pago', async () => {
     const intent = randomUUID();
     retrieved = validSession(knownOrderId, knownPaymentId);
-    const created = await request(app.getHttpServer()).post('/donation-orders')
+    const created = await request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' }).expect(201);
     expect(created.body.data).toMatchObject({ orderId: knownOrderId, paymentId: knownPaymentId, status: 'pendente' });
@@ -123,7 +124,7 @@ describe('POST /webhooks/stripe', () => {
 
     const event = eventFor(retrieved);
     expect((await postEvent(event)).status).toBe(200);
-    const current = await request(app.getHttpServer()).get('/donation-orders/current')
+    const current = await request(app.getHttpServer()).get('/donation-orders/current').set(authorization())
       .set('X-Donation-Intent', intent).expect(200);
     expect(current.body.data).toMatchObject({ orderId: knownOrderId, status: 'pago' });
     expect(repo.confirmPayment).toHaveBeenCalledTimes(1);
@@ -189,7 +190,7 @@ describe('POST /webhooks/stripe', () => {
     let started!: () => void;
     const startedPromise = new Promise<void>((resolve) => { started = resolve; });
     checkoutCreateStarted = started;
-    const createRequest = request(app.getHttpServer()).post('/donation-orders')
+    const createRequest = request(app.getHttpServer()).post('/donation-orders').set(authorization())
       .set('X-Donation-Intent', randomUUID()).set('Idempotency-Key', randomUUID())
       .send({ amount: '12.34', currency: 'BRL' });
     const pendingCreation = createRequest.then((response) => response);

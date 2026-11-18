@@ -79,11 +79,14 @@ outra versão; o sistema não reescreve silenciosamente os resultados anteriores
 <a id="jornada-doacao"></a>
 ## Jornada 3 — Doar sem confundir intenção com pagamento
 
-**Story:** [US09 — Fazer doação pelo Stripe](prd.md#us09).
+**Story:** [US09 — Fazer doação pelo Stripe](prd.md#us09); entrada pela [US10 — Entrar no sistema](prd.md#us10).
 **Protótipo:** Apoiar o projeto → criar pedido → simular recusa → nova tentativa → confirmação.
 
 ```mermaid
 flowchart TD
+    S{"Tem sessão válida?"} -->|"não"| L["Pessoa entra ou cria conta"]
+    L --> S
+    S -->|"sim"| A
     A["Pessoa escolhe valor positivo em BRL"] --> B["Sistema cria pedido e tentativa pendentes"]
     B --> C["Pessoa abre Checkout de testes"]
     C --> D{"O gateway recusou a tentativa?"}

@@ -5,9 +5,12 @@ import { ApiErrorEnvelopeDoc, WebhookReceivedEnvelopeDoc } from './donation-api-
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import type Stripe from 'stripe';
+import { Public } from '../../../auth/guard/public.decorator.js';
 import { HandleStripeEvent, type VerifiedStripeEvent } from '../../application/handle-stripe-event.js';
 import { STRIPE_CLIENT } from '../stripe/stripe.tokens.js';
 
+// Público: quem chama é o Stripe, sem token. A prova de origem é a assinatura Stripe-Signature.
+@Public()
 @ApiTags('webhooks')
 @Controller('webhooks/stripe')
 export class StripeWebhookController {

@@ -19,13 +19,14 @@ executa lint da API, verificação de tipos, testes e builds separados de API e 
 
 ## API de pagamentos — scaffold da Atividade 08
 
-O aplicativo fiscal funciona sem a API ou o PostgreSQL. A API ainda oferece
-somente o `GET /` de demonstração, sem operações de doação ou pagamento.
+O aplicativo fiscal funciona sem a API ou o PostgreSQL. A API cuida das contas
+de apoiador (US10) e das doações pelo Stripe (US09).
 
 Depois de instalar as dependências, execute na raiz do repositório:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
+# preencha JWT_SECRET no .env: openssl rand -base64 48
 pnpm db:up
 pnpm db:validate
 pnpm --filter @motor/api prisma:generate
@@ -38,13 +39,17 @@ pnpm dev:api
 `pnpm db:up` espera o healthcheck do PostgreSQL 16. A porta publicada é
 `127.0.0.1:5433`; `PAYMENTS_DB_PORT` permite escolher outra porta, desde que a
 `DATABASE_URL` em `apps/api/.env` seja ajustada também. A API responde
-`Hello World!` em `http://127.0.0.1:3000`.
+`Hello World!` em `http://127.0.0.1:3000` e não sobe sem `JWT_SECRET` (32
+caracteres ou mais). A documentação com o botão **Authorize** fica em
+`http://127.0.0.1:3000/docs`: entre por `POST /auth/login` e cole o token.
+O primeiro administrador é promovido à mão, de dentro de `apps/api`, com
+`npx prisma studio` (tabela `users`, campo `role`).
 
 `pnpm test:api` roda os testes unitários, de fronteiras e HTTP sem depender do
 banco. `pnpm test:db` usa a `DATABASE_URL` para verificar a conexão e testar a
 persistência de doações com o cliente gerado e a migration aplicada.
 `prisma:check-db` usa a CLI Prisma para conferir que o schema `public` contém
-apenas as tabelas de doação e o histórico de migrations.
+apenas as tabelas de doação, de usuários e o histórico de migrations.
 
 `pnpm db:down` remove o container exclusivo da API e conserva o volume. O banco
 SQLite do aplicativo não é montado nem acessado por esse container.

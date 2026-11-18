@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 
 **Projeto:** ContabiliNico
-**Versão:** 0.3.0 — revisão da Entrega 1
-**Última atualização:** 11/10/2026
+**Versão:** 0.4.0 — contas de apoiador (US10)
+**Última atualização:** 17/11/2026
 
 > Este documento apresenta o que o produto faz em formato acadêmico. As regras
 > fiscais completas continuam em [Regras de negócio](regras-de-negocio.md), sem
@@ -19,7 +19,8 @@ regras fiscais. O usuário envia XMLs de NF-e/NFC-e; o sistema valida os documen
 seleciona regras vigentes, recalcula os componentes do ICMS, identifica
 divergências e produz um relatório com memória de cálculo e pendências.
 Como fluxo independente do tratamento fiscal, a aplicação permite doações
-básicas pelo Stripe em ambiente de testes.
+básicas pelo Stripe em ambiente de testes, feitas por quem entrou com uma conta
+de apoiador.
 
 **Como saberemos que deu certo:** para um lote homologado, cada item terá um
 resultado calculado ou uma pendência explícita; o usuário conseguirá rastrear a
@@ -49,18 +50,27 @@ preencher manualmente os dados tributários de cada nota.
 | Resultado do item | Valores, estado e memória produzidos para um item em uma execução | Valor declarado pelo emissor |
 | Pedido de doação | Intenção identificada de doar um valor em BRL | Pagamento confirmado |
 | Pagamento | Tentativa no gateway, com identificador e estado próprios | Um campo booleano no pedido |
+| Conta de apoiador | E-mail e senha que identificam quem doa, só na API de doações | Organização local ou acesso às funções fiscais |
+| Papel | Permissão na API de doações: apoiador (`SUPPORTER`) ou administrador (`ADMIN`) | Responsabilidade de negócio dos atores fiscais |
 
 ## 3. Atores e Permissões
 
-No MVP, as atividades não criam perfis técnicos de acesso distintos: todos os
-usuários da instalação podem executá-las. A separação abaixo descreve
-responsabilidades de negócio.
+No aplicativo fiscal local, as atividades não criam perfis técnicos de acesso
+distintos: todos os usuários da instalação podem executá-las, sem conta e sem
+rede. A separação abaixo descreve responsabilidades de negócio.
+
+A API de doações, a única parte com servidor, tem contas e papéis técnicos
+desde a US10: todo cadastro é **apoiador** (`SUPPORTER`), e o **administrador**
+(`ADMIN`) é o mantenedor do projeto, promovido manualmente no banco. O que cada
+papel pode fazer na API é definido pela US11.
 
 | Ator | Quem é | Pode | Não pode |
 | :--- | :--- | :--- | :--- |
 | Usuário operacional | Pessoa que recebe e organiza documentos | Criar lote, acompanhar processamento, consultar resultados e exportar relatório | Inventar valores para completar uma nota ou alterar o XML original |
 | Contador responsável | Profissional que configura e revisa o tratamento fiscal | Cadastrar empresas, perfis e regras; resolver pendências; aprovar versões e reprocessar | Alterar retroativamente uma regra publicada ou apagar silenciosamente resultados históricos |
 | Responsável pela instalação | Pessoa que mantém os dados locais | Configurar retenção, exportar/importar configurações e realizar backup quando disponível | Mesclar bancos de instalações ou expor documentos fiscais sem autorização |
+| Apoiador | Pessoa com conta na API de doações | Criar conta, entrar e doar; consultar só as próprias doações (US11; até lá, o pedido é alcançado pela chave de intenção) | Escolher o próprio papel; ver doações de outras pessoas (US11) |
+| Administrador | Mantenedor do projeto, promovido no banco | Consultar todas as doações (US11) | Ser criado por uma rota da API |
 
 ## 4. Escopo Funcional — User Stories
 
@@ -217,6 +227,42 @@ configuração sem mesclar bancos.
 
 **Escopo:** fluxo independente do cálculo de ICMS; Stripe em ambiente de testes.
 
+<a id="us10"></a>
+### US10 — Entrar no sistema · `Must Have` · `M` · Status: `🟢 Live`
+
+**Como** apoiador do projeto, **eu quero** criar uma conta e entrar no
+ContabiliNico **para que** as minhas doações fiquem ligadas a mim e só eu
+consiga consultá-las.
+
+**Critérios de aceite:** os 14 critérios numerados estão na
+[spec da US10](../specs/052-entrar-no-sistema/spec.md). Em resumo:
+
+- [x] **Dado** um e-mail novo e uma senha de 8 a 72 bytes, **quando** a pessoa
+  se cadastra, **então** a conta nasce como apoiador e a senha é guardada só
+  como hash bcrypt, que nunca aparece numa resposta.
+- [x] **Dado** e-mail e senha corretos, **quando** a pessoa entra, **então**
+  recebe um token válido por 2 horas; senha errada e e-mail inexistente
+  recebem a mesma resposta.
+- [x] **Dado** uma rota da API que não foi declarada pública, **quando** ela é
+  chamada sem token ou com token adulterado ou expirado, **então** responde 401.
+- [x] **Dado** o aplicativo, **quando** a pessoa abre "Apoiar o projeto" sem
+  sessão ou com a sessão expirada, **então** vê a tela de entrar; as telas
+  fiscais continuam sem conta.
+
+**Escopo:** API de doações e tela "Apoiar o projeto"; o fluxo fiscal local não
+pede conta.
+
+<a id="us11"></a>
+### US11 — Quem pode o quê · `Must Have` · `M` · Status: `⚪ Draft`
+
+**Como** mantenedor do projeto, **eu quero** que cada papel só alcance o que
+lhe cabe **para que** um apoiador nunca veja ou altere a doação de outro e só o
+administrador consulte todas.
+
+**Escopo previsto:** papéis com 403, regra de dono nos pedidos de doação
+(relação 1:N entre conta e pedido) e menu que respeita o papel. Critérios a
+definir na spec da Issue #53.
+
 ## 5. Regras de Negócio Consolidadas
 
 | ID | Regra |
@@ -239,6 +285,8 @@ configuração sem mesclar bancos.
 | RN-037 | Somente webhook válido confirma o pagamento, uma única vez por confirmação do gateway. |
 | RN-038 | Cancelamento, recusa ou retorno do Checkout sem webhook não tornam o pedido pago; uma nova tentativa não apaga a anterior. |
 | RN-039 | Doações armazenam apenas identificadores, valor, moeda e estado; não incluem cartão, XML ou dados fiscais. |
+| RN-040 | A senha nunca é armazenada: a API guarda só o hash bcrypt, e o papel de quem se cadastra é sempre definido pelo servidor. |
+| RN-041 | Toda rota da API exige token, exceto as declaradas públicas; o login não revela se um e-mail está cadastrado. |
 
 O catálogo fiscal RN-001 a RN-035 está em
 [Regras de negócio detalhadas](regras-de-negocio.md). RN-036 a RN-039 resumem
@@ -292,6 +340,8 @@ a cobertura do código desktop preexistente.
 - **US07 → Issue #10 → Jornada 1 → Conferência / prévia do XLSX:** resultados, pendências, versões aplicadas e erros; somente elegíveis no resumo.
 - **US08 → Issue #11:** transporte de configurações; `Should Have`, permanece fora das cinco telas principais desta revisão.
 - **US09 → Issue #12 → Jornada 3 → Apoiar o projeto:** `donation_orders`, `payments`; recusa, tentativa e confirmação são estados distintos.
+- **US10 → Issue #52 → Jornada 3 → Entrar antes de apoiar:** `users`; token JWT no processo main do desktop.
+- **US11 → Issue #53 → Jornada 3:** papéis e dono do pedido (`donation_orders.userId`), a especificar.
 
 Protótipo: [ContabiliNico — cinco telas](https://contabilinico-prototipo.balmygrove128.chatgpt.site).
 US04 e a política completa de campos complementares continuam exigindo decisão
@@ -304,3 +354,4 @@ fiscal. A tela demonstra a interação esperada, não prova uma implementação.
 | 16/09/2026 | 0.1.0 | Rascunho acadêmico organizado a partir das decisões documentadas no projeto |
 | 25/09/2026 | 0.2.0 | Aceite do tema informado pelo autor; histórias US01–US03 e US05–US09 promovidas a Ready; doação Stripe definida como fluxo independente |
 | 11/10/2026 | 0.3.0 | Revisão da rastreabilidade; âncoras estáveis por história; glossário de cadastros e doações; RN-036 a RN-039 explicitam US09; vínculo do protótipo às jornadas |
+| 17/11/2026 | 0.4.0 | US10 (Entrar no sistema) entregue e US11 registrada; contas e papéis na API de doações; atores Apoiador e Administrador; RN-040 e RN-041 |
