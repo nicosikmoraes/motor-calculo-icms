@@ -106,7 +106,7 @@ describe('Webhook de doação com PostgreSQL', () => {
       const created = await pendingCreation!;
       expect(created.donation.orderId).toBe(persisted.order_id);
       expect(created.donation.paymentId).toBe(persisted.payment_id);
-      const current = await new RetryDonation(creation, stripe, 'test-identity-secret', 'sk_test_controlled').inspectCurrent(orderIdempotency);
+      const current = await new RetryDonation(creation, stripe, 'test-identity-secret', 'sk_test_controlled').inspectCurrent(owner.id, orderIdempotency);
       expect(current).toMatchObject({ orderId: persisted.order_id, status: 'pago', attempts: [
         expect.objectContaining({ paymentId: persisted.payment_id, status: 'paga' }),
       ] });

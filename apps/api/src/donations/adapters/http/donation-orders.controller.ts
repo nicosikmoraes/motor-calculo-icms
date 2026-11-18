@@ -25,7 +25,7 @@ const operationHeader = ApiHeader({
   required: true,
   description: 'Identidade da operação; repetir a mesma chave devolve o mesmo resultado',
 });
-const notFound = ApiResponse({ status: 404, description: 'Nenhum pedido para esta intenção', type: ApiErrorEnvelopeDoc });
+const notFound = ApiResponse({ status: 404, description: 'Nenhum pedido seu para esta intenção (pedido de outra pessoa responde igual)', type: ApiErrorEnvelopeDoc });
 const uncertain = ApiResponse({ status: 202, description: 'Situação do pagamento incerta; consulte o pedido antes de tentar de novo', type: DonationOrderEnvelopeDoc });
 const unavailable = ApiResponse({ status: 503, description: 'Serviço de doações indisponível', type: ApiErrorEnvelopeDoc });
 
@@ -44,8 +44,8 @@ export class DonationOrdersController {
   @notFound
   @uncertain
   @unavailable
-  current(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    return this.respond(response, () => this.retryDonation.inspectCurrent(request.header('X-Donation-Intent')));
+  current(@CurrentUser() caller: AuthenticatedUser, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    return this.respond(response, () => this.retryDonation.inspectCurrent(caller.sub, request.header('X-Donation-Intent')));
   }
 
   @Get(':id')
@@ -56,8 +56,8 @@ export class DonationOrdersController {
   @notFound
   @uncertain
   @unavailable
-  get(@Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    return this.respond(response, () => this.retryDonation.inspect(id, request.header('X-Donation-Intent')));
+  get(@CurrentUser() caller: AuthenticatedUser, @Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    return this.respond(response, () => this.retryDonation.inspect(caller.sub, id, request.header('X-Donation-Intent')));
   }
 
   @Post(':id/attempts')
@@ -71,9 +71,9 @@ export class DonationOrdersController {
   @ApiResponse({ status: 409, description: 'Idempotency-Key já usada em outra operação', type: ApiErrorEnvelopeDoc })
   @uncertain
   @unavailable
-  retry(@Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+  retry(@CurrentUser() caller: AuthenticatedUser, @Param('id') id: string, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
     return this.respond(response, () =>
-      this.retryDonation.retry(id, request.header('X-Donation-Intent'), request.header('Idempotency-Key')));
+      this.retryDonation.retry(caller.sub, id, request.header('X-Donation-Intent'), request.header('Idempotency-Key')));
   }
 
   @Post()

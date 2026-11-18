@@ -4,9 +4,9 @@ import { DonationIntentTakenError, DonationOperationConflictError, type Donation
 export class PrismaDonationCreationRepository implements DonationCreationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getOrderIdByIntentHash(intentKeyHash: string): Promise<string | null> {
+  async getOrderIdByIntentHash(intentKeyHash: string, ownerId: string): Promise<string | null> {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id::text AS id FROM donation_orders WHERE intent_key_hash = ${intentKeyHash} LIMIT 1
+      SELECT id::text AS id FROM donation_orders WHERE intent_key_hash = ${intentKeyHash} AND user_id = ${ownerId}::uuid LIMIT 1
     `;
     return rows[0]?.id ?? null;
   }
@@ -104,10 +104,11 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
     });
   }
 
-  async getAuthorizedDonation(orderId: string, intentKeyHash: string) {
+  // A chave de intenção E o dono, na mesma consulta: pedido de outra pessoa (ou sem dono) é indistinguível de inexistente.
+  async getAuthorizedDonation(orderId: string, intentKeyHash: string, ownerId: string) {
     const orders = await this.prisma.$queryRaw<Array<{ orderId: string; amount: string; currency: 'BRL'; status: string }>>`
       SELECT id::text AS "orderId", amount::text AS amount, currency::text AS currency, status::text AS status
-      FROM donation_orders WHERE id = ${orderId}::uuid AND intent_key_hash = ${intentKeyHash}
+      FROM donation_orders WHERE id = ${orderId}::uuid AND intent_key_hash = ${intentKeyHash} AND user_id = ${ownerId}::uuid
     `;
     const order = orders[0];
     if (!order || order.currency !== 'BRL') return null;
@@ -147,13 +148,14 @@ export class PrismaDonationCreationRepository implements DonationCreationReposit
     });
   }
 
-  async createRetry(input: { orderId: string; intentKeyHash: string; currentPaymentId: string; currentStatus: string;
+  async createRetry(input: { ownerId: string; orderId: string; intentKeyHash: string; currentPaymentId: string; currentStatus: string;
     operationKeyHash: string; fingerprint: string; stripeIdempotencyKey: string; firstSentAt: Date }): Promise<PersistedDonationOpening | null> {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM donation_orders WHERE id = ${input.orderId}::uuid FOR NO KEY UPDATE`;
       const [order] = await tx.$queryRaw<Array<{ orderId: string; amount: string; currency: 'BRL'; status: string }>>`
         SELECT id::text AS "orderId", amount::text AS amount, currency::text AS currency, status::text AS status
         FROM donation_orders WHERE id = ${input.orderId}::uuid AND intent_key_hash = ${input.intentKeyHash}
+          AND user_id = ${input.ownerId}::uuid
       `;
       if (!order || order.status !== 'pendente' || await tx.donationOpeningReservation.findUnique({ where: { orderId: input.orderId } })) return null;
       const [latest] = await tx.$queryRaw<Array<{ id: string; status: string; reason: string | null; params: { amountInCents: string; currency: 'brl'; successUrl: string; cancelUrl: string } | null }>>`

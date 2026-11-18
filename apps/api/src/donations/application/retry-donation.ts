@@ -10,18 +10,18 @@ export class RetryDonation {
   constructor(private readonly repository: DonationCreationRepository, private readonly gateway: StripeCheckoutGateway,
     private readonly identitySecret: string, private readonly stripeSecretKey?: string) {}
 
-  async inspectCurrent(intent: unknown) {
+  async inspectCurrent(ownerId: string, intent: unknown) {
     this.assertTestStripeMode()
     if (typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
     let orderId: string | null;
-    try { orderId = await this.repository.getOrderIdByIntentHash(createHash('sha256').update(intent).digest('hex')); }
+    try { orderId = await this.repository.getOrderIdByIntentHash(createHash('sha256').update(intent).digest('hex'), ownerId); }
     catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
-    return orderId ? this.inspect(orderId, intent) : null;
+    return orderId ? this.inspect(ownerId, orderId, intent) : null;
   }
 
-  async inspect(orderId: string, intent: unknown) {
+  async inspect(ownerId: string, orderId: string, intent: unknown) {
     this.assertTestStripeMode()
-    const donation = await this.authorized(orderId, intent);
+    const donation = await this.authorized(ownerId, orderId, intent);
     if (!donation) return null;
     const attempts = donation.attempts;
     const latest = attempts[0];
@@ -38,12 +38,12 @@ export class RetryDonation {
     return this.publicState(donation);
   }
 
-  async retry(orderId: string, intent: unknown, operation: unknown) {
+  async retry(ownerId: string, orderId: string, intent: unknown, operation: unknown) {
     this.assertTestStripeMode()
     if (typeof operation !== 'string' || operation.length < 16 || operation.length > 256) {
       throw new DonationCreationError('invalid_input', { message: 'Informe uma identidade de operação válida' });
     }
-    const donation = await this.authorized(orderId, intent);
+    const donation = await this.authorized(ownerId, orderId, intent);
     if (!donation) return null;
     const latest = donation.attempts[0];
     if (donation.status === 'pago') {
@@ -118,7 +118,7 @@ export class RetryDonation {
     const intentHash = createHash('sha256').update(String(intent)).digest('hex');
     const stripeIdempotencyKey = `donation_${operationHash}`;
     const fingerprint = createHash('sha256').update(`${donation.amount}:BRL`).digest('hex');
-    const opening = await this.repository.createRetry({ orderId, intentKeyHash: intentHash,
+    const opening = await this.repository.createRetry({ ownerId, orderId, intentKeyHash: intentHash,
       currentPaymentId: latest.paymentId, currentStatus: latest.status, operationKeyHash: operationHash,
       fingerprint, stripeIdempotencyKey, firstSentAt: new Date() });
     if (!opening) throw new DonationCreationError('result_uncertain', { message: blockedMessage });
@@ -129,7 +129,7 @@ export class RetryDonation {
       if (!session.url) throw new Error('Checkout sem URL');
       await this.repository.recordCheckout({ ...opening, checkoutSessionId: session.id,
         paymentIntentId: session.paymentIntentId, checkoutUrl: session.url });
-      const afterOpening = await this.repository.getAuthorizedDonation(orderId, intentHash);
+      const afterOpening = await this.repository.getAuthorizedDonation(orderId, intentHash, ownerId);
       if (!afterOpening || afterOpening.status === 'pago') {
         try {
           const expired = await this.gateway.expireCheckout(session.id);
@@ -150,9 +150,9 @@ export class RetryDonation {
     }
   }
 
-  private async authorized(orderId: string, intent: unknown) {
+  private async authorized(ownerId: string, orderId: string, intent: unknown) {
     if (!isUuid(orderId) || typeof intent !== 'string' || intent.length < 16 || intent.length > 256) return null;
-    try { return await this.repository.getAuthorizedDonation(orderId, createHash('sha256').update(intent).digest('hex')); }
+    try { return await this.repository.getAuthorizedDonation(orderId, createHash('sha256').update(intent).digest('hex'), ownerId); }
     catch { throw new DonationCreationError('service_unavailable', { message: 'Serviço de doações indisponível. Tente novamente mais tarde' }); }
   }
 

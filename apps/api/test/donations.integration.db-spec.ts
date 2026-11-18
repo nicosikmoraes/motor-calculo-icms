@@ -26,6 +26,7 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
   let stripe: Stripe;
   let checkout: Record<string, any> | null;
   let sessionSequence: number;
+  let stripeCalls: number;
 
   beforeEach(async () => {
     vi.stubEnv('DATABASE_URL', connectionString!);
@@ -35,8 +36,10 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     vi.stubEnv('DONATION_SUCCESS_URL', 'https://example.test/donations/return?result=success');
     vi.stubEnv('DONATION_CANCEL_URL', 'https://example.test/donations/return?result=cancel');
     sessionSequence = 0;
+    stripeCalls = 0;
     checkout = null;
     stripe = createStripeClient('sk_test_integration', async (input, init) => {
+      stripeCalls += 1;
       const url = new URL(input.toString());
       if (init?.method === 'POST' && url.pathname === '/v1/checkout/sessions') {
         const body = new URLSearchParams(String(init.body));
@@ -150,4 +153,29 @@ describe('fluxo integrado de doação com PostgreSQL descartável', () => {
     expect(state.body.data.attempts[1]).toMatchObject({ paymentId: originalPaymentId, status: 'expirada' });
     expect((await pool.query('SELECT count(*)::int AS attempts FROM payments WHERE order_id = $1', [orderId])).rows[0].attempts).toBe(2);
   });
+
+  it('CA5: outra pessoa, mesmo com a chave de intenção certa, recebe 404 nas três rotas e o Stripe não é chamado', async () => {
+    const other = await createDbUser(pool);
+    const intent = randomUUID();
+    const created = await request(app.getHttpServer()).post('/donation-orders').set(authorization(testToken({ sub: owner.id })))
+      .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID()).send({ amount: '15.00', currency: 'BRL' }).expect(201);
+    const orderId = created.body.data.orderId as string;
+    orderIds.push(orderId);
+    const before = await pool.query('SELECT status, (SELECT count(*)::int FROM payments WHERE order_id = $1::uuid) AS attempts FROM donation_orders WHERE id = $1::uuid', [orderId]);
+    const callsBefore = stripeCalls;
+    const asOther = authorization(testToken({ sub: other.id }));
+
+    await request(app.getHttpServer()).get('/donation-orders/current').set(asOther).set('X-Donation-Intent', intent).expect(404);
+    await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(asOther).set('X-Donation-Intent', intent).expect(404);
+    await request(app.getHttpServer()).post(`/donation-orders/${orderId}/attempts`).set(asOther)
+      .set('X-Donation-Intent', intent).set('Idempotency-Key', randomUUID()).expect(404);
+
+    expect(stripeCalls).toBe(callsBefore);
+    const after = await pool.query('SELECT status, (SELECT count(*)::int FROM payments WHERE order_id = $1::uuid) AS attempts FROM donation_orders WHERE id = $1::uuid', [orderId]);
+    expect(after.rows).toEqual(before.rows);
+    // E o dono continua alcançando o próprio pedido.
+    await request(app.getHttpServer()).get(`/donation-orders/${orderId}`).set(authorization(testToken({ sub: owner.id })))
+      .set('X-Donation-Intent', intent).expect(200);
+  });
 });
+
