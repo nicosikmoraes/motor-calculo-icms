@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD)
 
 **Projeto:** ContabiliNico
-**Versão:** 0.4.0 — contas de apoiador (US10)
-**Última atualização:** 17/11/2026
+**Versão:** 0.5.0 — papéis e dono do pedido (US11)
+**Última atualização:** 18/11/2026
 
 > Este documento apresenta o que o produto faz em formato acadêmico. As regras
 > fiscais completas continuam em [Regras de negócio](regras-de-negocio.md), sem
@@ -62,15 +62,16 @@ rede. A separação abaixo descreve responsabilidades de negócio.
 A API de doações, a única parte com servidor, tem contas e papéis técnicos
 desde a US10: todo cadastro é **apoiador** (`SUPPORTER`), e o **administrador**
 (`ADMIN`) é o mantenedor do projeto, promovido manualmente no banco. O que cada
-papel pode fazer na API é definido pela US11.
+papel pode fazer na API é definido pela US11: o apoiador só alcança os próprios
+pedidos, e só o administrador lista todos.
 
 | Ator | Quem é | Pode | Não pode |
 | :--- | :--- | :--- | :--- |
 | Usuário operacional | Pessoa que recebe e organiza documentos | Criar lote, acompanhar processamento, consultar resultados e exportar relatório | Inventar valores para completar uma nota ou alterar o XML original |
 | Contador responsável | Profissional que configura e revisa o tratamento fiscal | Cadastrar empresas, perfis e regras; resolver pendências; aprovar versões e reprocessar | Alterar retroativamente uma regra publicada ou apagar silenciosamente resultados históricos |
 | Responsável pela instalação | Pessoa que mantém os dados locais | Configurar retenção, exportar/importar configurações e realizar backup quando disponível | Mesclar bancos de instalações ou expor documentos fiscais sem autorização |
-| Apoiador | Pessoa com conta na API de doações | Criar conta, entrar e doar; consultar só as próprias doações (US11; até lá, o pedido é alcançado pela chave de intenção) | Escolher o próprio papel; ver doações de outras pessoas (US11) |
-| Administrador | Mantenedor do projeto, promovido no banco | Consultar todas as doações (US11) | Ser criado por uma rota da API |
+| Apoiador | Pessoa com conta na API de doações | Criar conta, entrar, doar e consultar ou retomar as próprias doações | Escolher o próprio papel; ver ou retomar doações de outras pessoas; ver a lista geral |
+| Administrador | Mantenedor do projeto, promovido no banco | Consultar todas as doações, com o e-mail de quem doou; doar como qualquer apoiador | Ser criado ou promovido por uma rota da API; alterar ou reembolsar pedidos |
 
 ## 4. Escopo Funcional — User Stories
 
@@ -253,15 +254,29 @@ consiga consultá-las.
 pede conta.
 
 <a id="us11"></a>
-### US11 — Quem pode o quê · `Must Have` · `M` · Status: `⚪ Draft`
+### US11 — Quem pode o quê · `Must Have` · `M` · Status: `🟢 Live`
 
 **Como** mantenedor do projeto, **eu quero** que cada papel só alcance o que
-lhe cabe **para que** um apoiador nunca veja ou altere a doação de outro e só o
-administrador consulte todas.
+lhe cabe **para que** um apoiador nunca veja nem altere a doação de outro e só
+o administrador consulte todas.
 
-**Escopo previsto:** papéis com 403, regra de dono nos pedidos de doação
-(relação 1:N entre conta e pedido) e menu que respeita o papel. Critérios a
-definir na spec da Issue #53.
+**Critérios de aceite:** os 11 critérios numerados estão na
+[spec da US11](../specs/053-quem-pode-o-que/spec.md). Em resumo:
+
+- [x] **Dado** um apoiador autenticado, **quando** ele chama a lista geral de
+  doações, **então** recebe 403; sem token, recebe 401; o administrador recebe
+  a lista com o e-mail de quem doou.
+- [x] **Dado** um pedido de outra pessoa, **quando** um apoiador o consulta ou
+  retoma, mesmo com a chave de intenção certa, **então** recebe a mesma
+  resposta de pedido inexistente, e nada muda.
+- [x] **Dado** os pedidos criados antes do login, **quando** a migration
+  acrescenta o dono, **então** eles continuam lá, sem dono, visíveis só ao
+  administrador.
+- [x] **Dado** o aplicativo, **quando** um apoiador olha o menu, **então** não
+  vê "Doações recebidas"; o administrador vê.
+
+**Escopo:** API de doações e tela "Apoiar o projeto"; sem rota de promoção de
+papéis.
 
 ## 5. Regras de Negócio Consolidadas
 
@@ -287,6 +302,7 @@ definir na spec da Issue #53.
 | RN-039 | Doações armazenam apenas identificadores, valor, moeda e estado; não incluem cartão, XML ou dados fiscais. |
 | RN-040 | A senha nunca é armazenada: a API guarda só o hash bcrypt, e o papel de quem se cadastra é sempre definido pelo servidor. |
 | RN-041 | Toda rota da API exige token, exceto as declaradas públicas; o login não revela se um e-mail está cadastrado. |
+| RN-042 | Cada pedido de doação tem no máximo um dono, definido pelo servidor a partir do token; só o dono o consulta ou retoma, e só o administrador lista todos. |
 
 O catálogo fiscal RN-001 a RN-035 está em
 [Regras de negócio detalhadas](regras-de-negocio.md). RN-036 a RN-039 resumem
@@ -341,7 +357,7 @@ a cobertura do código desktop preexistente.
 - **US08 → Issue #11:** transporte de configurações; `Should Have`, permanece fora das cinco telas principais desta revisão.
 - **US09 → Issue #12 → Jornada 3 → Apoiar o projeto:** `donation_orders`, `payments`; recusa, tentativa e confirmação são estados distintos.
 - **US10 → Issue #52 → Jornada 3 → Entrar antes de apoiar:** `users`; token JWT no processo main do desktop.
-- **US11 → Issue #53 → Jornada 3:** papéis e dono do pedido (`donation_orders.userId`), a especificar.
+- **US11 → Issue #53 → Jornada 3 e Doações recebidas:** `donation_orders.user_id` (1:N com `users`); 403 na lista do administrador.
 
 Protótipo: [ContabiliNico — cinco telas](https://contabilinico-prototipo.balmygrove128.chatgpt.site).
 US04 e a política completa de campos complementares continuam exigindo decisão
@@ -355,3 +371,4 @@ fiscal. A tela demonstra a interação esperada, não prova uma implementação.
 | 25/09/2026 | 0.2.0 | Aceite do tema informado pelo autor; histórias US01–US03 e US05–US09 promovidas a Ready; doação Stripe definida como fluxo independente |
 | 11/10/2026 | 0.3.0 | Revisão da rastreabilidade; âncoras estáveis por história; glossário de cadastros e doações; RN-036 a RN-039 explicitam US09; vínculo do protótipo às jornadas |
 | 17/11/2026 | 0.4.0 | US10 (Entrar no sistema) entregue e US11 registrada; contas e papéis na API de doações; atores Apoiador e Administrador; RN-040 e RN-041 |
+| 18/11/2026 | 0.5.0 | US11 (Quem pode o quê) entregue: 403 por papel, regra de dono e menu por papel; RN-042 |

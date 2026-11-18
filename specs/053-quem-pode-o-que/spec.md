@@ -1,6 +1,6 @@
 ---
 issue: 53
-status: aprovada
+status: implementada
 ---
 
 # US11 — Quem pode o quê

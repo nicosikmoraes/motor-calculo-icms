@@ -43,7 +43,9 @@ pnpm dev:api
 caracteres ou mais). A documentação com o botão **Authorize** fica em
 `http://127.0.0.1:3000/docs`: entre por `POST /auth/login` e cole o token.
 O primeiro administrador é promovido à mão, de dentro de `apps/api`, com
-`npx prisma studio` (tabela `users`, campo `role`).
+`npx prisma studio` (tabela `users`, campo `role`). Com um token de ADMIN, a
+rota `GET /admin/donation-orders` lista as doações; com o token de um
+apoiador, ela responde 403.
 
 `pnpm test:api` roda os testes unitários, de fronteiras e HTTP sem depender do
 banco. `pnpm test:db` usa a `DATABASE_URL` para verificar a conexão e testar a
