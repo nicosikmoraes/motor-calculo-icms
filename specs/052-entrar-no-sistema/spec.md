@@ -1,6 +1,6 @@
 ---
 issue: 52
-status: aprovada
+status: implementada
 ---
 
 # US10 — Entrar no sistema

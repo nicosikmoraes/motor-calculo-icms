@@ -5,6 +5,11 @@ status: aprovada
 
 # US09 — Fazer doação pelo Stripe
 
+> **Nota posterior (US10, 17/11/2026):** a decisão "sem cadastro de apoiador"
+> abaixo foi substituída pela [US10](../052-entrar-no-sistema/spec.md). As rotas
+> de doação passaram a exigir conta e token; a chave de intenção continua
+> identificando o pedido e a operação. Este texto aprovado não foi reescrito.
+
 Fonte: [PRD, US09](../../docs/prd.md#us09), regras RN-036 a RN-039.
 Jornada: [Doar sem confundir intenção com pagamento](../../docs/user-flows.md#jornada-doacao).
 Recorte técnico existente: [arquitetura](../../docs/architecture.md) e [Atividade 08](../../docs/atividade-08.md).
